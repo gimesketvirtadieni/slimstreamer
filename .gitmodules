@@ -1,0 +1,12 @@
+[submodule "dependencies/conwrap"]
+	path = dependencies/conwrap
+	url = https://github.com/gimesketvirtadieni/conwrap.git
+[submodule "dependencies/asio"]
+	path = dependencies/asio
+	url = https://github.com/chriskohlhoff/asio.git
+[submodule "dependencies/googletest"]
+	path = dependencies/googletest
+	url = https://github.com/google/googletest.git
+[submodule "dependencies/g3log"]
+	path = dependencies/g3log
+	url = https://github.com/gimesketvirtadieni/g3log.git
