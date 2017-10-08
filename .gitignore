@@ -1,1 +1,5 @@
-/Test/
+syntax: glob
+Debug/
+Release/
+Test/
+
