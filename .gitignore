@@ -2,4 +2,5 @@ syntax: glob
 Debug/
 Release/
 Test/
+*.wav
 
