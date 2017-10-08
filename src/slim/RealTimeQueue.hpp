@@ -1,5 +1,3 @@
-#pragma once
-
 // This is free and unencumbered software released into the public domain.
 
 // Anyone is free to copy, modify, publish, use, compile, sell, or
@@ -32,6 +30,8 @@
 // most CPU architectures.
 //
 // [1] http://www.1024cores.net/home/lock-free-algorithms/queues/bounded-mpmc-queue
+
+#pragma once
 
 #include <atomic>
 #include <assert.h>

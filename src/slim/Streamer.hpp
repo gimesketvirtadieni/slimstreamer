@@ -13,12 +13,12 @@
 #pragma once
 
 #include <conwrap/ProcessorAsioProxy.hpp>
-#include <fstream>
 #include <mutex>
 #include <thread>
 
 #include "slim/Chunk.hpp"
 #include "slim/alsa/Source.hpp"
+#include "slim/wave/WAVEFile.hpp"
 
 
 namespace slim
@@ -60,6 +60,6 @@ namespace slim
 			std::thread                            producerThread;
 			std::thread                            consumerThread;
 			std::atomic<bool>                      pause;
-		    std::ofstream                          outputFile;
+		    slim::wave::WAVEFile                   output;
 	};
 }

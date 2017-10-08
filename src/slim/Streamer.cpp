@@ -10,9 +10,9 @@
  * Author: gimesketvirtadieni at gmail dot com (Andrej Kislovskij)
  */
 
-#include <slim/log/log.hpp>
 #include <exception>
 
+#include "slim/log/log.hpp"
 #include "slim/Streamer.hpp"
 
 
@@ -22,14 +22,11 @@ namespace slim
 	: source{s}
 	, processorProxyPtr{nullptr}
 	, pause{true}
-	, outputFile{"aaa", std::ios::binary}
+	, output{"aaa.wav"}
 	{}
 
 
-	Streamer::~Streamer()
-	{
-        outputFile.close();
-	}
+	Streamer::~Streamer() {}
 
 
 	void Streamer::consume()
@@ -80,6 +77,26 @@ namespace slim
 	{
 		std::lock_guard<std::mutex> guard{lock};
 
+		// if producer thread is not running
+		if (!producerThread.joinable())
+		{
+			// starting a producer
+			producerThread = std::thread([&]
+			{
+				LOG(DEBUG) << "Starting PCM data capture thread (id=" << this << ")";
+
+				source.startProducing();
+
+				LOG(DEBUG) << "Stopping PCM data capture thread (id=" << this << ")";
+			});
+		}
+
+		// waiting for producer thread to start producing PCM data
+		for(;producerThread.joinable() && !source.isProducing();)
+		{
+			std::this_thread::sleep_for(std::chrono::milliseconds{10});
+		}
+
 		// if consumer thread is not running
 		if (!consumerThread.joinable())
 		{
@@ -92,19 +109,6 @@ namespace slim
 				consume();
 
 				LOG(DEBUG) << "Stopping PCM data consumer thread (id=" << this << ")";
-			});
-		}
-
-		if (!producerThread.joinable())
-		{
-			// starting a producer
-			producerThread = std::thread([&]
-			{
-				LOG(DEBUG) << "Starting PCM data capture thread (id=" << this << ")";
-
-				source.startProducing();
-
-				LOG(DEBUG) << "Stopping PCM data capture thread (id=" << this << ")";
 			});
 		}
 	}
@@ -134,16 +138,6 @@ namespace slim
 
 	void Streamer::stream(Chunk& chunk)
 	{
-	    auto buffer = chunk.getBuffer();
-	    auto size   = chunk.getSize();
-
-	    if (outputFile.is_open())
-	    {
-		    for (unsigned int i = 0; i < size; i++)
-	        {
-				auto value = (char)buffer[i];
-				outputFile.write(&value, sizeof(char));
-	        }
-	    }
+		output.consume(chunk);
 	}
 }

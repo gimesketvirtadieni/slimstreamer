@@ -29,11 +29,11 @@ namespace slim
 		: parameters{p}
 		, handlePtr{nullptr}
 		, producing{false}
-		, queue{parameters.getQueueSize(), [&](Chunk& chunk)
+		, queuePtr{std::make_unique<RealTimeQueue<Chunk>>(parameters.getQueueSize(), [&](Chunk& chunk)
 		{
 			// last channel does not contain PCM data so it will be filtered out
 			chunk.reset(p.getFramesPerChunk(), p.getChannels() - 1, p.getBitDepth());
-		}}
+		})}
 		{
 			LOG(DEBUG) << "Creating PCM data source object (id=" << this << ")";
 
@@ -221,7 +221,7 @@ namespace slim
 					if (frames > 0 && containsData(buffer, frames))
 					{
 						// reading PCM data directly into the queue
-						if (!queue.enqueue([&](Chunk& chunk)
+						if (!queuePtr->enqueue([&](Chunk& chunk)
 						{
 							copyData(buffer, frames, chunk);
 						}))

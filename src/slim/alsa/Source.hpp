@@ -16,6 +16,7 @@
 #include <atomic>
 #include <conwrap/ProcessorAsio.hpp>
 #include <functional>
+#include <memory>
 
 #include "slim/alsa/Exception.hpp"
 #include "slim/alsa/Parameters.hpp"
@@ -37,7 +38,7 @@ namespace slim
 				inline bool consume(std::function<void(Chunk&)> callback)
 				{
 					// this call does NOT block if buffer is empty
-					return queue.dequeue([&](Chunk& chunk)
+					return queuePtr->dequeue([&](Chunk& chunk)
 					{
 						callback(chunk);
 					});
@@ -53,10 +54,10 @@ namespace slim
 				bool restore(snd_pcm_sframes_t error);
 
 			private:
-				Parameters           parameters;
-				snd_pcm_t*           handlePtr;
-				std::atomic<bool>    producing;
-				RealTimeQueue<Chunk> queue;
+				Parameters                            parameters;
+				snd_pcm_t*                            handlePtr;
+				std::atomic<bool>                     producing;
+				std::unique_ptr<RealTimeQueue<Chunk>> queuePtr;
 		};
 
 		std::ostream& operator<< (std::ostream& os, const alsa::Exception& exception);
