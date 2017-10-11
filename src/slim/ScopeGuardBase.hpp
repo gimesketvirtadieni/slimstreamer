@@ -12,9 +12,11 @@
 
 #pragma once
 
+#include <utility>
+
 
 /*
- * This code is based on https://rnestler.github.io/c-list-of-scopeguard.html
+ * This C++17 code is based on https://rnestler.github.io/c-list-of-scopeguard.html
  */
 namespace slim
 {
@@ -26,14 +28,15 @@ namespace slim
 
 
 			ScopeGuardBase(ScopeGuardBase&& rhs) noexcept
-			: active{rhs.active}
+			: ScopeGuardBase{}
 			{
+				swap(*this, rhs);
 				rhs.commit();
 			}
 
 			ScopeGuardBase& operator=(ScopeGuardBase&& rhs) noexcept
 			{
-				active = rhs.active;
+				swap(*this, rhs);
 				rhs.commit();
 				return *this;
 			}
@@ -52,7 +55,16 @@ namespace slim
 			}
 
 		protected:
+			// making this destructor protected to avoid using virtualization
+			// it will not allow leaks like this:
+			// ScopeGuardBase* p = new ScopeGuard<...>([]() {...});
+			// delete p;  <- will cause a compilation error
 			~ScopeGuardBase() = default;
+
+			friend void swap(ScopeGuardBase& first, ScopeGuardBase& second) noexcept
+			{
+				std::swap(first.active, second.active);
+			}
 
 		private:
 			bool active;

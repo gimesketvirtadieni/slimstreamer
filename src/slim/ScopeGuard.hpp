@@ -12,13 +12,14 @@
 
 #pragma once
 
+#include <optional>
 #include <utility>
 
 #include "ScopeGuardBase.hpp"
 
 
 /*
- * This code is based on https://rnestler.github.io/c-list-of-scopeguard.html
+ * This C++17 code is based on https://rnestler.github.io/c-list-of-scopeguard.html
  */
 namespace slim
 {
@@ -36,19 +37,24 @@ namespace slim
 				{
 					try
 					{
-						fun();
+						fun.value()();
 					}
 					catch(...) {}
 				}
 			}
 
 			ScopeGuard(ScopeGuard&& rhs) noexcept
-			: ScopeGuardBase{std::move(rhs)}
-			, fun{std::move(rhs.fun)} {}
+			{
+				// it is gcc C++17 wooddoo how this object gets constructed
+				// but that's fine, becuse it will be swapped with rvalue
+				swap(*this, rhs);
+				rhs.commit();
+			}
 
 			ScopeGuard& operator=(ScopeGuard&& rhs) noexcept
 			{
-				operator =(rhs);
+				swap(*this, rhs);
+				rhs.commit();
 				return *this;
 			}
 
@@ -56,8 +62,17 @@ namespace slim
 			ScopeGuard(const ScopeGuard&) = delete;            // non-copyable
 			ScopeGuard& operator=(const ScopeGuard&) = delete; // non-assignable
 
+		protected:
+			friend void swap(ScopeGuard& first, ScopeGuard& second) noexcept
+			{
+				using std::swap;
+
+				swap(static_cast<ScopeGuardBase&>(first), static_cast<ScopeGuardBase&>(second));
+				swap(first.fun, second.fun);
+			}
+
 		private:
-			Fun fun;
+			std::optional<Fun> fun;
 	};
 
 
