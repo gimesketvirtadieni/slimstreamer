@@ -26,7 +26,7 @@ namespace slim
 	class Streamer
 	{
 		public:
-			     Streamer(alsa::Source& source);
+			     Streamer(alsa::Source source);
 			    ~Streamer();
 			void consume();
 			void setProcessorProxy(conwrap::ProcessorAsioProxy<Streamer>* p);
@@ -54,7 +54,7 @@ namespace slim
 			void stream(Chunk& chunk);
 
 		private:
-			alsa::Source&                          source;
+			alsa::Source                           source;
 			conwrap::ProcessorAsioProxy<Streamer>* processorProxyPtr;
 			std::mutex                             lock;
 			std::thread                            producerThread;

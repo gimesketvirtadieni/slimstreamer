@@ -114,15 +114,17 @@ namespace slim
 
 		Source::~Source()
 		{
-			LOG(DEBUG) << "Deleting PCM data source object (id=" << this << ")";
-
+			// TODO: it is not safe
 			if (producing.load(std::memory_order_acquire))
 			{
 				stopProducing(false);
 			}
 
-			// it is safe to close source as it's been opened from the constructor
-			snd_pcm_close(handlePtr);
+			// closing source if it's been opened from the constructor
+			if (handlePtr)
+			{
+				snd_pcm_close(handlePtr);
+			}
 		}
 
 
@@ -184,7 +186,7 @@ namespace slim
 
 		bool Source::restore(snd_pcm_sframes_t error)
 		{
-			bool restored{true};
+			auto restored{true};
 
 			if (error < 0)
 			{

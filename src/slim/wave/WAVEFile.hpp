@@ -29,7 +29,9 @@ namespace slim
 				void consume(Chunk& chunk);
 
 			protected:
+				void updateHeader();
 				void write(const unsigned char* buffer, size_t size);
+				void writeHeader();
 
 			private:
 				const char*   fileName;

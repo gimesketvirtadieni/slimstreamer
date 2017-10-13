@@ -23,12 +23,13 @@ namespace slim
 		: fileName{f}
 		, outputFile{fileName, std::ios::binary}
 		{
-			write((const unsigned char*)"wav", 3);
+			writeHeader();
 		}
 
 
 		WAVEFile::~WAVEFile()
 		{
+			updateHeader();
 	        outputFile.close();
 		}
 
@@ -36,6 +37,16 @@ namespace slim
 		void WAVEFile::consume(Chunk& chunk)
 		{
 			write(chunk.getBuffer(), chunk.getSize());
+		}
+
+
+		void WAVEFile::updateHeader()
+		{
+		    if (outputFile.is_open())
+		    {
+				outputFile.seekp(4);
+		    }
+			write((const unsigned char*)"wav3", 4);
 		}
 
 
@@ -49,6 +60,20 @@ namespace slim
 					outputFile.write(&value, sizeof(char));
 		        }
 		    }
+		}
+
+
+		void WAVEFile::writeHeader()
+		{
+			const unsigned char chunkID[]    = {0x52, 0x49, 0x46, 0x46};
+			const unsigned char size[]       = {0x00, 0x00, 0x00, 0x00};
+			const unsigned char format[]     = {0x57, 0x41, 0x56, 0x45};
+			const unsigned char subchunkID[] = {0x66, 0x6D, 0x74, 0x20};
+
+			write(chunkID, sizeof(chunkID));
+			write(size, sizeof(size));
+			write(format, sizeof(format));
+			write(subchunkID, sizeof(subchunkID));
 		}
 	}
 }

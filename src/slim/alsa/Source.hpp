@@ -32,8 +32,22 @@ namespace slim
 		{
 			public:
 				Source(Parameters parameters);
+			   ~Source();
 
-				~Source();
+				Source(Source&& rhs)
+				: Source{}
+				{
+					swap(*this, rhs);
+				}
+
+				Source& operator=(Source&& rhs)
+				{
+					swap(*this, rhs);
+					return *this;
+				}
+
+				Source(const Source&) = delete;             // non-copyable
+				Source& operator=(const Source&) = delete;  // non-assignable
 
 				inline bool consume(std::function<void(Chunk&)> callback)
 				{
@@ -49,9 +63,30 @@ namespace slim
 				void stopProducing(bool gracefully = true);
 
 			protected:
+				// used only from move constructor
+				Source()
+				: handlePtr{nullptr}
+				, producing{false}
+				// TODO: size may not be 0 until assert(^2) is used
+				, queuePtr{std::make_unique<RealTimeQueue<Chunk>>(2)} {}
+
 				bool containsData(unsigned char* buffer, snd_pcm_sframes_t frames);
 				void copyData(unsigned char* buffer, snd_pcm_sframes_t frames, Chunk& chunk);
 				bool restore(snd_pcm_sframes_t error);
+
+				friend void swap(Source& first, Source& second) noexcept
+				{
+					using std::swap;
+
+					swap(first.parameters, second.parameters);
+					swap(first.handlePtr, second.handlePtr);
+					swap(first.queuePtr, second.queuePtr);
+
+					// TODO: implement following logic: doAtomically(if producing the pause; swap; if was producing then restart)
+					bool t = first.producing;
+					first.producing.store(second.producing);
+					second.producing = t;
+				}
 
 			private:
 				Parameters                            parameters;

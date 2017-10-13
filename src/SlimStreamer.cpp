@@ -38,15 +38,15 @@ int main(int argc, char *argv[])
 
     try
 	{
-    	// creating ALSA source object
-        slim::alsa::Source source(slim::alsa::Parameters{});
+        // creating Streamer object with ALSA Parameters within Processor
+        conwrap::ProcessorAsio<slim::Streamer> processorAsio(slim::alsa::Parameters{});
 
-        // creating Streamer object within Processor
-        conwrap::ProcessorAsio<slim::Streamer> processorAsio(std::move(std::make_unique<slim::Streamer>(source)));
-
-        // TODO: start/stop should be part of the Streamer API
+        // start streaming
         processorAsio.getResource()->start();
-		std::this_thread::sleep_for(std::chrono::milliseconds{10000});
+
+        std::this_thread::sleep_for(std::chrono::milliseconds{10000});
+
+		// stop streaming
 		processorAsio.getResource()->stop();
 	}
 	catch (const slim::alsa::Exception& error)

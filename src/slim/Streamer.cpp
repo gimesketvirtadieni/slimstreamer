@@ -18,8 +18,8 @@
 
 namespace slim
 {
-	Streamer::Streamer(alsa::Source& s)
-	: source{s}
+	Streamer::Streamer(alsa::Source s)
+	: source{std::move(s)}
 	, processorProxyPtr{nullptr}
 	, pause{true}
 	, output{"aaa.wav"}

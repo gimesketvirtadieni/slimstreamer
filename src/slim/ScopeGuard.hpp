@@ -37,6 +37,7 @@ namespace slim
 				{
 					try
 					{
+						// TODO: run fun only if value is present
 						fun.value()();
 					}
 					catch(...) {}
@@ -44,9 +45,8 @@ namespace slim
 			}
 
 			ScopeGuard(ScopeGuard&& rhs) noexcept
+			: ScopeGuard{}
 			{
-				// it is gcc C++17 wooddoo how this object gets constructed
-				// but that's fine, becuse it will be swapped with rvalue
 				swap(*this, rhs);
 				rhs.commit();
 			}
@@ -58,11 +58,13 @@ namespace slim
 				return *this;
 			}
 
-			ScopeGuard() = delete;
 			ScopeGuard(const ScopeGuard&) = delete;            // non-copyable
 			ScopeGuard& operator=(const ScopeGuard&) = delete; // non-assignable
 
 		protected:
+			ScopeGuard()
+			: fun{std::nullopt} {}
+
 			friend void swap(ScopeGuard& first, ScopeGuard& second) noexcept
 			{
 				using std::swap;
