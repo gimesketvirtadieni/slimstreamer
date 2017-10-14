@@ -12,18 +12,26 @@
 
 #include <chrono>
 #include <conwrap/ProcessorAsio.hpp>
+#include <csignal>
 #include <exception>
 #include <g3log/logworker.hpp>
-#include <slim/log/ConsoleSink.hpp>
-#include <slim/log/log.hpp>
-#include <iostream>
 #include <memory>
 
 #include "slim/alsa/Exception.hpp"
 #include "slim/alsa/Parameters.hpp"
 #include "slim/alsa/Source.hpp"
 #include "slim/Chunk.hpp"
+#include "slim/log/ConsoleSink.hpp"
+#include "slim/log/log.hpp"
 #include "slim/Streamer.hpp"
+
+
+static volatile bool running = true;
+
+void signalHandler(int sig)
+{
+	running = false;
+}
 
 
 int main(int argc, char *argv[])
@@ -36,7 +44,11 @@ int main(int argc, char *argv[])
 	// adding custom sinks
     logWorkerPtr->addSink(std::make_unique<ConsoleSink>(), &ConsoleSink::print);
 
-    try
+    signal(SIGHUP, signalHandler);
+	signal(SIGTERM, signalHandler);
+	signal(SIGINT, signalHandler);
+
+	try
 	{
         // creating Streamer object with ALSA Parameters within Processor
         conwrap::ProcessorAsio<slim::Streamer> processorAsio(slim::alsa::Parameters{});
@@ -44,7 +56,11 @@ int main(int argc, char *argv[])
         // start streaming
         processorAsio.getResource()->start();
 
-        std::this_thread::sleep_for(std::chrono::milliseconds{10000});
+        // waiting for Control^C
+        while(running)
+        {
+			std::this_thread::sleep_for(std::chrono::milliseconds{200});
+        }
 
 		// stop streaming
 		processorAsio.getResource()->stop();
