@@ -33,15 +33,12 @@ namespace slim
 
 			~ScopeGuard() noexcept
 			{
-				if (isActive())
+				// fun in the condition is required as move constructor creates an empty fun
+				if (isActive() && fun) try
 				{
-					try
-					{
-						// TODO: run fun only if value is present
-						fun.value()();
-					}
-					catch(...) {}
+					fun.value()();
 				}
+				catch(...) {}
 			}
 
 			ScopeGuard(ScopeGuard&& rhs) noexcept

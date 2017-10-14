@@ -11,6 +11,7 @@
  */
 
 #include <cstddef>
+#include <cstdint>
 
 #include "slim/wave/WAVEFile.hpp"
 
@@ -44,9 +45,20 @@ namespace slim
 		{
 		    if (outputFile.is_open())
 		    {
+				outputFile.seekp(0, std::ios::end);
+				auto dataLength = outputFile.tellp();
+
+				// writting chunk2 size field
+				// TODO: replace 44 with sizeof
+				dataLength -= 44;
+				outputFile.seekp(44 - sizeof(int32_t));
+				outputFile.write(reinterpret_cast<const char*>(&dataLength), sizeof(int32_t));
+
+				// writting chunk size field
+				dataLength += 36;
 				outputFile.seekp(4);
+				outputFile.write(reinterpret_cast<const char*>(&dataLength), sizeof(int32_t));
 		    }
-			write((const unsigned char*)"wav3", 4);
 		}
 
 
@@ -65,15 +77,29 @@ namespace slim
 
 		void WAVEFile::writeHeader()
 		{
-			const unsigned char chunkID[]    = {0x52, 0x49, 0x46, 0x46};
-			const unsigned char size[]       = {0x00, 0x00, 0x00, 0x00};
-			const unsigned char format[]     = {0x57, 0x41, 0x56, 0x45};
-			const unsigned char subchunkID[] = {0x66, 0x6D, 0x74, 0x20};
+			const unsigned char chunkID[]     = {0x52, 0x49, 0x46, 0x46};
+			const unsigned char size[]        = {0x00, 0x00, 0x00, 0x00};
+			const unsigned char format[]      = {0x57, 0x41, 0x56, 0x45};
+			const unsigned char subchunk1ID[] = {0x66, 0x6D, 0x74, 0x20};
+			const unsigned char size1[]       = {0x10, 0x00, 0x00, 0x00};
+			const unsigned char format1[]     = {0x01, 0x00};  // PCM data = 0x01
+			const unsigned char subchunk2ID[] = {0x64, 0x61, 0x74, 0x61};
 
 			write(chunkID, sizeof(chunkID));
 			write(size, sizeof(size));
 			write(format, sizeof(format));
-			write(subchunkID, sizeof(subchunkID));
+
+			write(subchunk1ID, sizeof(subchunk1ID));
+			write(size1, sizeof(size1));
+			write(format1, sizeof(format1));
+			outputFile.write(reinterpret_cast<const char*>(&channels), sizeof(uint16_t));
+			outputFile.write(reinterpret_cast<const char*>(&sampleRate), sizeof(uint32_t));
+			outputFile.write(reinterpret_cast<const char*>(&byteRate), sizeof(uint32_t));
+			outputFile.write(reinterpret_cast<const char*>(&bytesPerFrame), sizeof(uint16_t));
+			outputFile.write(reinterpret_cast<const char*>(&bitsPerSample), sizeof(uint16_t));
+
+			write(subchunk2ID, sizeof(subchunk2ID));
+			write(size, sizeof(size));
 		}
 	}
 }
