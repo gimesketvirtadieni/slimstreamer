@@ -108,6 +108,7 @@ namespace slim
 				}
 
 			//private:
+			public:
 				// TODO: consider const
 				unsigned int      bitDepth       = 16;
 				unsigned int      channels       = 3;

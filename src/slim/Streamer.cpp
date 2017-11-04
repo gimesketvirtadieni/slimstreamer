@@ -22,7 +22,7 @@ namespace slim
 	: source{std::move(s)}
 	, processorProxyPtr{nullptr}
 	, pause{true}
-	, output{o, source.getParameters().getRate(), source.getParameters().getChannels(), source.getParameters().getBitDepth()} {}
+	, output{o, source.getParameters().getChannels() - 1, source.getParameters().getRate(), source.getParameters().getBitDepth()} {}
 
 
 	Streamer::~Streamer() {}
@@ -66,7 +66,7 @@ namespace slim
 	}
 
 
-	void Streamer::setProcessorProxy(conwrap::ProcessorAsioProxy<Streamer>* p)
+	void Streamer::setProcessorProxy(conwrap::ProcessorProxy<Streamer>* p)
 	{
 		processorProxyPtr = p;
 	}
@@ -91,7 +91,7 @@ namespace slim
 		}
 
 		// waiting for producer thread to start producing PCM data
-		for(;producerThread.joinable() && !source.isProducing();)
+		while(producerThread.joinable() && !source.isProducing())
 		{
 			std::this_thread::sleep_for(std::chrono::milliseconds{10});
 		}

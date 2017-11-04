@@ -61,6 +61,9 @@ int main(int argc, char *argv[])
         // start streaming
         processorAsio.getResource()->start();
 
+        streamer2.processorProxyPtr = processorAsio.getProcessorProxy();
+        streamer2.start();
+
         // waiting for Control^C
         while(running)
         {
@@ -68,6 +71,7 @@ int main(int argc, char *argv[])
         }
 
 		// stop streaming
+        streamer2.stop();
 		processorAsio.getResource()->stop();
 	}
 	catch (const slim::alsa::Exception& error)

@@ -12,6 +12,7 @@
 
 #include <cstdint>
 
+#include "slim/log/log.hpp"
 #include "slim/wave/WAVEFile.hpp"
 
 
@@ -90,7 +91,6 @@ namespace slim
 			write(chunkID, sizeof(chunkID));
 			write(size, sizeof(size));
 			write(format, sizeof(format));
-
 			write(subchunk1ID, sizeof(subchunk1ID));
 			write(size1, sizeof(size1));
 			write(format1, sizeof(format1));

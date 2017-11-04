@@ -29,7 +29,7 @@ namespace slim
 			     Streamer(alsa::Source source, const char* outputFile);
 			    ~Streamer();
 			void consume();
-			void setProcessorProxy(conwrap::ProcessorAsioProxy<Streamer>* p);
+			void setProcessorProxy(conwrap::ProcessorProxy<Streamer>* p);
 			void start();
 			void stop(bool gracefully = true);
 
@@ -53,13 +53,14 @@ namespace slim
 
 			void stream(Chunk& chunk);
 
-		private:
-			alsa::Source                           source;
-			conwrap::ProcessorAsioProxy<Streamer>* processorProxyPtr;
-			std::mutex                             lock;
-			std::thread                            producerThread;
-			std::thread                            consumerThread;
-			std::atomic<bool>                      pause;
-		    slim::wave::WAVEFile                   output;
+		//private:
+		public:
+			alsa::Source                       source;
+			conwrap::ProcessorProxy<Streamer>* processorProxyPtr;
+			std::mutex                         lock;
+			std::thread                        producerThread;
+			std::thread                        consumerThread;
+			std::atomic<bool>                  pause;
+		    slim::wave::WAVEFile               output;
 	};
 }
