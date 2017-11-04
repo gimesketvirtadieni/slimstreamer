@@ -58,9 +58,10 @@ namespace slim
 					});
 				}
 
-				bool isProducing();
-				void startProducing(std::function<void()> overflowCallback = []() {});
-				void stopProducing(bool gracefully = true);
+				Parameters getParameters();
+				bool       isProducing();
+				void       startProducing(std::function<void()> overflowCallback = []() {});
+				void       stopProducing(bool gracefully = true);
 
 			protected:
 				// used only from move constructor

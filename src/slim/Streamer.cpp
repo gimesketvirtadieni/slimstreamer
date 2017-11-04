@@ -18,12 +18,11 @@
 
 namespace slim
 {
-	Streamer::Streamer(alsa::Source s)
+	Streamer::Streamer(alsa::Source s, const char* o)
 	: source{std::move(s)}
 	, processorProxyPtr{nullptr}
 	, pause{true}
-	, output{"aaa.wav"}
-	{}
+	, output{o, source.getParameters().getRate(), source.getParameters().getChannels(), source.getParameters().getBitDepth()} {}
 
 
 	Streamer::~Streamer() {}

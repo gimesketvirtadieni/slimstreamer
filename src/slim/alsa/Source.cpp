@@ -20,6 +20,8 @@
 #include "slim/log/log.hpp"
 #include "slim/ScopeGuard.hpp"
 
+#include <iostream>
+
 
 namespace slim
 {
@@ -83,6 +85,17 @@ namespace slim
 			{
 				throw alsa::Exception("Cannot set channel count", deviceName, result);
 			}
+			// TODO: ...
+/*
+			else if ((result = snd_pcm_hw_params_set_period_size(handlePtr, hardwarePtr, 1024*2, 0)) < 0)
+			{
+				throw alsa::Exception("Cannot set channel count", deviceName, result);
+			}
+			else if ((result = snd_pcm_hw_params_set_buffer_size(handlePtr, hardwarePtr, 2048*2)) < 0)
+			{
+				throw alsa::Exception("Cannot set channel count", deviceName, result);
+			}
+*/
 			else if ((result = snd_pcm_hw_params(handlePtr, hardwarePtr)) < 0)
 			{
 				throw alsa::Exception("Cannot set hardware parameters", deviceName, result);
@@ -133,14 +146,20 @@ namespace slim
 		{
 			auto contains{false};
 			auto bytesPerFrame{parameters.getChannels() * (parameters.getBitDepth() >> 3)};
+			int count = 0;
 
-			for (snd_pcm_sframes_t i = 0; i < frames && !contains; i++)
+			for (snd_pcm_sframes_t i = 0; i < frames /*&& !contains*/; i++)
 			{
 				auto value = buffer[(i + 1) * bytesPerFrame - 1];  // last byte of the current frame
 				if (value)
 				{
 					contains = true;
+					count++;
 				}
+			}
+			if (contains)
+			{
+				std::cout << "count=" << count << std::endl;
 			}
 
 			return contains;
@@ -175,6 +194,12 @@ namespace slim
 
 			// setting new chunk size in terms of frames
 			chunk.setFrames(dstFrames);
+		}
+
+
+		Parameters Source::getParameters()
+		{
+			return parameters;
 		}
 
 

@@ -26,7 +26,7 @@ namespace slim
 	class Streamer
 	{
 		public:
-			     Streamer(alsa::Source source);
+			     Streamer(alsa::Source source, const char* outputFile);
 			    ~Streamer();
 			void consume();
 			void setProcessorProxy(conwrap::ProcessorAsioProxy<Streamer>* p);

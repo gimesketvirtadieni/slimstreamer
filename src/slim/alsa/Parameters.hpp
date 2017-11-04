@@ -107,11 +107,11 @@ namespace slim
 					second.framesPerChunk = t5;
 				}
 
-			private:
+			//private:
 				// TODO: consider const
 				unsigned int      bitDepth       = 16;
 				unsigned int      channels       = 3;
-				std::string       deviceName     = "hw:CARD=Loopback,DEV=1,1";
+				std::string       deviceName     = "hw:1,1,2";
 				size_t            queueSize      = 128;
 				unsigned int      rate           = 48000;
 				snd_pcm_format_t  format         = SND_PCM_FORMAT_S16_LE;

@@ -12,6 +12,7 @@
 
 #pragma once
 
+#include <cstddef>
 #include <fstream>
 
 #include "slim/Chunk.hpp"
@@ -24,7 +25,7 @@ namespace slim
 		class WAVEFile
 		{
 			public:
-				     WAVEFile(const char* fileName);
+				     WAVEFile(const char* fileName, unsigned int channels, unsigned int sampleRate, unsigned int bitsPerSample);
 			        ~WAVEFile();
 				void consume(Chunk& chunk);
 
@@ -34,13 +35,13 @@ namespace slim
 				void writeHeader();
 
 			private:
-				const char*   fileName;
-				unsigned int  channels      = 2;      // TODO: ...
-				unsigned int  sampleRate    = 48000;  // TODO: ...
-				unsigned int  bitsPerSample = 16;     // TODO: ...
-				unsigned int  byteRate      = sampleRate * channels * (bitsPerSample >> 3);
-				unsigned int  bytesPerFrame = channels * (bitsPerSample >> 3);
-				std::ofstream outputFile;
+				const char*        fileName;
+				const unsigned int channels;  //      = 2;      // TODO: ...
+				const unsigned int sampleRate;  //    = 48000;  // TODO: ...
+				const unsigned int bitsPerSample;  // = 16;     // TODO: ...
+				const unsigned int byteRate      = sampleRate * channels * (bitsPerSample >> 3);
+				const unsigned int bytesPerFrame = channels * (bitsPerSample >> 3);
+				std::ofstream      outputFile;
 		};
 	}
 }

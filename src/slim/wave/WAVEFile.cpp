@@ -10,7 +10,6 @@
  * Author: gimesketvirtadieni at gmail dot com (Andrej Kislovskij)
  */
 
-#include <cstddef>
 #include <cstdint>
 
 #include "slim/wave/WAVEFile.hpp"
@@ -20,8 +19,11 @@ namespace slim
 {
 	namespace wave
 	{
-		WAVEFile::WAVEFile(const char* f)
+		WAVEFile::WAVEFile(const char* f, unsigned int c, unsigned int s, unsigned int b)
 		: fileName{f}
+		, channels{c}
+		, sampleRate{s}
+		, bitsPerSample{b}
 		, outputFile{fileName, std::ios::binary}
 		{
 			writeHeader();
