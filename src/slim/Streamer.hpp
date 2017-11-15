@@ -26,12 +26,12 @@ namespace slim
 	class Streamer
 	{
 		public:
-			     Streamer(alsa::Source source, const char* outputFile);
-			    ~Streamer();
-			void consume();
-			void setProcessorProxy(conwrap::ProcessorProxy<Streamer>* p);
-			void start();
-			void stop(bool gracefully = true);
+			explicit Streamer(alsa::Source source, const char* outputFile);
+			        ~Streamer();
+			void     consume();
+			void     setProcessorProxy(conwrap::ProcessorProxy<Streamer>* p);
+			void     start();
+			void     stop(bool gracefully = true);
 
 		protected:
 			inline bool processChunks(unsigned int maxChunks)

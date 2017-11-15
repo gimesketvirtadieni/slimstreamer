@@ -54,8 +54,8 @@ int main(int argc, char *argv[])
         conwrap::ProcessorAsio<slim::Streamer> processorAsio{slim::alsa::Parameters{}, "aaa.wav"};
 
         slim::alsa::Parameters parameters;
-        parameters.deviceName = std::string{"hw:1,1,1"};
-        parameters.rate       = 44100;
+        parameters.deviceName = std::string{"hw:2,1,1"};
+        parameters.rate       = 48000;
         auto streamer2 = slim::Streamer{parameters, "bbb.wav"};
 
         // start streaming

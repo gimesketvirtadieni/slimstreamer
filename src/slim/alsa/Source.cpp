@@ -85,13 +85,14 @@ namespace slim
 			{
 				throw alsa::Exception("Cannot set channel count", deviceName, result);
 			}
+
 			// TODO: ...
 /*
-			else if ((result = snd_pcm_hw_params_set_period_size(handlePtr, hardwarePtr, 1024*2, 0)) < 0)
+			else if ((result = snd_pcm_hw_params_set_period_size(handlePtr, hardwarePtr, parameters.getFramesPerChunk(), 0)) < 0)
 			{
 				throw alsa::Exception("Cannot set channel count", deviceName, result);
 			}
-			else if ((result = snd_pcm_hw_params_set_buffer_size(handlePtr, hardwarePtr, 2048*2)) < 0)
+			else if ((result = snd_pcm_hw_params_set_periods(handlePtr, hardwarePtr, 2, 0)) < 0)
 			{
 				throw alsa::Exception("Cannot set channel count", deviceName, result);
 			}
@@ -178,14 +179,14 @@ namespace slim
 				auto value = srcBuffer[(i + 1) * bytesPerFrame - 1];  // last byte of the current frame
 				if (value)
 				{
-					// adjusting destination buffer pointer
-					dstBuffer = dstBuffer + (parameters.getChannels() - 1) * (parameters.getBitDepth() >> 3);
-
 					// copying byte-by-byte and skyping the last channel
 					for (unsigned int j = 0; j < (bytesPerFrame - (parameters.getBitDepth() >> 3)); j++)
 					{
 						dstBuffer[j] = srcBuffer[i * bytesPerFrame + j];
 					}
+
+					// adjusting destination buffer pointer
+					dstBuffer += (parameters.getChannels() - 1) * (parameters.getBitDepth() >> 3);
 
 					// increasing destination frames counter
 					dstFrames++;

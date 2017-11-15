@@ -36,9 +36,9 @@ namespace slim
 
 			private:
 				const char*        fileName;
-				const unsigned int channels;  //      = 2;      // TODO: ...
-				const unsigned int sampleRate;  //    = 48000;  // TODO: ...
-				const unsigned int bitsPerSample;  // = 16;     // TODO: ...
+				const unsigned int channels;
+				const unsigned int sampleRate;
+				const unsigned int bitsPerSample;
 				const unsigned int byteRate      = sampleRate * channels * (bitsPerSample >> 3);
 				const unsigned int bytesPerFrame = channels * (bitsPerSample >> 3);
 				std::ofstream      outputFile;

@@ -32,7 +32,7 @@ namespace slim
 	{
 		// all references captured by this lambda are part of the streamer object
 		// it is required to ensure safety: processor will complete all tasks before destroying the streamer
-		std::function<void(conwrap::Context<Streamer>)> task = [&](auto context)
+		auto task = [&]()
 		{
 			try
 			{

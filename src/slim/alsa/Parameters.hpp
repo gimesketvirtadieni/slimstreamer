@@ -110,12 +110,12 @@ namespace slim
 			//private:
 			public:
 				// TODO: consider const
-				unsigned int      bitDepth       = 16;
+				unsigned int      bitDepth       = 32;
 				unsigned int      channels       = 3;
-				std::string       deviceName     = "hw:1,1,2";
+				std::string       deviceName     = "hw:1,1,7";
 				size_t            queueSize      = 128;
-				unsigned int      rate           = 48000;
-				snd_pcm_format_t  format         = SND_PCM_FORMAT_S16_LE;
+				unsigned int      rate           = 44100;
+				snd_pcm_format_t  format         = SND_PCM_FORMAT_S32_LE;
 				snd_pcm_uframes_t framesPerChunk = 1024;
 		};
 	}
