@@ -25,16 +25,45 @@ namespace slim
 		class Parameters
 		{
 			public:
-				Parameters() = default;
-			   ~Parameters() = default;
-				Parameters(const Parameters&) = default;
-				Parameters& operator=(const Parameters&) = default;
-				Parameters(Parameters&&) = default;
-				Parameters& operator=(Parameters&&) = default;
+				Parameters(std::string d, unsigned int c, snd_pcm_format_t f, unsigned int r, size_t qs, snd_pcm_uframes_t fc)
+				: deviceName{d}
+				, channels{c}
+				, format{f}
+				, rate{r}
+				, queueSize{qs}
+				, framesPerChunk{fc} {}
 
-				const unsigned int getBitDepth() const
+			   ~Parameters() = default;
+
+			    Parameters(const Parameters& rhs)
+				: deviceName{rhs.deviceName}
+				, channels{rhs.channels}
+				, format{rhs.format}
+				, rate{rhs.rate}
+				, queueSize{rhs.queueSize}
+				, framesPerChunk{rhs.framesPerChunk} {}
+
+				Parameters& operator=(Parameters rhs)
 				{
-					return bitDepth;
+					swap(*this, rhs);
+					return *this;
+				}
+
+				Parameters(Parameters&& rhs)
+				: Parameters{}
+				{
+					swap(*this, rhs);
+				}
+
+				Parameters& operator=(Parameters&& rhs)
+				{
+					swap(*this, rhs);
+					return *this;
+				}
+
+				const int getBitDepth() const
+				{
+					return snd_pcm_format_physical_width(format);
 				}
 
 				const unsigned int getChannels() const
@@ -69,54 +98,34 @@ namespace slim
 				}
 
 			protected:
+				// used only from move constructor
+				Parameters()
+				: deviceName{""}
+				, channels{0}
+				, format{SND_PCM_FORMAT_UNKNOWN}
+				, queueSize{0}
+				, framesPerChunk{0} {}
+
 				friend void swap(Parameters& first, Parameters& second) noexcept
 				{
-					unsigned int      t1;
-					std::string       t2;
-					size_t            t3;
-					snd_pcm_format_t  t4;
-					snd_pcm_uframes_t t5;
+					using std::swap;
 
-					// TODO: reuse swap
-					t1              = first.bitDepth;
-					first.bitDepth  = second.bitDepth;
-					second.bitDepth = t1;
-
-					t1              = first.channels;
-					first.channels  = second.channels;
-					second.channels = t1;
-
-					t2                = first.deviceName;
-					first.deviceName  = second.deviceName;
-					second.deviceName = t2;
-
-					t3               = first.queueSize;
-					first.queueSize  = second.queueSize;
-					second.queueSize = t3;
-
-					t1          = first.rate;
-					first.rate  = second.rate;
-					second.rate = t1;
-
-					t4            = first.format;
-					first.format  = second.format;
-					second.format = t4;
-
-					t5                    = first.framesPerChunk;
-					first.framesPerChunk  = second.framesPerChunk;
-					second.framesPerChunk = t5;
+					swap(first.deviceName,     second.deviceName);
+					swap(first.channels,       second.channels);
+					swap(first.format,         second.format);
+					swap(first.rate,           second.rate);
+					swap(first.queueSize,      second.queueSize);
+					swap(first.framesPerChunk, second.framesPerChunk);
 				}
 
-			//private:
-			public:
+			private:
 				// TODO: consider const
-				unsigned int      bitDepth       = 32;
-				unsigned int      channels       = 3;
-				std::string       deviceName     = "hw:1,1,7";
-				size_t            queueSize      = 128;
-				unsigned int      rate           = 44100;
-				snd_pcm_format_t  format         = SND_PCM_FORMAT_S32_LE;
-				snd_pcm_uframes_t framesPerChunk = 1024;
+				std::string       deviceName;
+				unsigned int      channels;
+				snd_pcm_format_t  format;
+				unsigned int      rate;
+				size_t            queueSize;
+				snd_pcm_uframes_t framesPerChunk;
 		};
 	}
 }

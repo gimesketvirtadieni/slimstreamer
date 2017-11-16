@@ -25,7 +25,7 @@ namespace slim
 		class WAVEFile
 		{
 			public:
-				     WAVEFile(const char* fileName, unsigned int channels, unsigned int sampleRate, unsigned int bitsPerSample);
+				     WAVEFile(const char* fileName, unsigned int channels, unsigned int sampleRate, int bitsPerSample);
 			        ~WAVEFile();
 				void consume(Chunk& chunk);
 
@@ -38,7 +38,7 @@ namespace slim
 				const char*        fileName;
 				const unsigned int channels;
 				const unsigned int sampleRate;
-				const unsigned int bitsPerSample;
+				const int          bitsPerSample;
 				const unsigned int byteRate      = sampleRate * channels * (bitsPerSample >> 3);
 				const unsigned int bytesPerFrame = channels * (bitsPerSample >> 3);
 				std::ofstream      outputFile;

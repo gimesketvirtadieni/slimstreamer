@@ -66,7 +66,8 @@ namespace slim
 			protected:
 				// used only from move constructor
 				Source()
-				: handlePtr{nullptr}
+				: parameters{"", 0, SND_PCM_FORMAT_UNKNOWN, 0, 0, 0}
+				, handlePtr{nullptr}
 				, producing{false}
 				// TODO: size may not be 0 until assert(^2) is used
 				, queuePtr{std::make_unique<RealTimeQueue<Chunk>>(2)} {}

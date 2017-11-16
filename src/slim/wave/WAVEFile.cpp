@@ -20,7 +20,7 @@ namespace slim
 {
 	namespace wave
 	{
-		WAVEFile::WAVEFile(const char* f, unsigned int c, unsigned int s, unsigned int b)
+		WAVEFile::WAVEFile(const char* f, unsigned int c, unsigned int s, int b)
 		: fileName{f}
 		, channels{c}
 		, sampleRate{s}
@@ -98,7 +98,7 @@ namespace slim
 			outputFile.write(reinterpret_cast<const char*>(&sampleRate), sizeof(uint32_t));
 			outputFile.write(reinterpret_cast<const char*>(&byteRate), sizeof(uint32_t));
 			outputFile.write(reinterpret_cast<const char*>(&bytesPerFrame), sizeof(uint16_t));
-			outputFile.write(reinterpret_cast<const char*>(&bitsPerSample), sizeof(uint16_t));
+			outputFile.write(reinterpret_cast<const char*>(&bitsPerSample), sizeof(int16_t));
 
 			write(subchunk2ID, sizeof(subchunk2ID));
 			write(size, sizeof(size));

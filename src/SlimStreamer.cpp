@@ -51,12 +51,17 @@ int main(int argc, char *argv[])
 	try
 	{
         // creating Streamer object with ALSA Parameters within Processor
-        conwrap::ProcessorAsio<slim::Streamer> processorAsio{slim::alsa::Parameters{}, "aaa.wav"};
+		conwrap::ProcessorAsio<slim::Streamer> processorAsio
+		{
+        	slim::alsa::Source{slim::alsa::Parameters{"hw:1,1,7", 3, SND_PCM_FORMAT_S32_LE, 44100, 128, 1024}},
+			"aaa.wav"
+		};
 
-        slim::alsa::Parameters parameters;
-        parameters.deviceName = std::string{"hw:2,1,1"};
-        parameters.rate       = 48000;
-        auto streamer2 = slim::Streamer{parameters, "bbb.wav"};
+        auto streamer2 = slim::Streamer
+		{
+        	slim::alsa::Source{slim::alsa::Parameters{"hw:2,1,1", 3, SND_PCM_FORMAT_S32_LE, 48000, 128, 1024}},
+			"bbb.wav"
+		};
 
         // start streaming
         processorAsio.getResource()->start();
