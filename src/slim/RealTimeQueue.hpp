@@ -54,13 +54,12 @@ namespace slim
 	class RealTimeQueue
 	{
 		public:
-			RealTimeQueue(
-				size_t size, std::function<void(T&)> initializer = [](T&) {}) :
-				_size(size),
-				_mask(_size - 1),
-				_buffer(reinterpret_cast<T*>(new aligned_t[size + 1])),  // need one extra element for a guard
-				_head(0),
-				_tail(0)
+			RealTimeQueue(size_t size, std::function<void(T&)> initializer = [](T&) {})
+			: _size{size}
+			, _mask{_size - 1}
+			, _buffer{reinterpret_cast<T*>(new aligned_t[size + 1])}  // need one extra element for a guard
+			, _head{0}
+			, _tail{0}
 			{
 				// make sure it's a power of 2
 				// TODO: get rid of this assert
@@ -94,9 +93,7 @@ namespace slim
 			RealTimeQueue& operator=(RealTimeQueue&&) = delete;       // non-movable
 
 			template<typename M>
-			bool
-			enqueue(
-				M mover)
+			bool enqueue(M mover)
 			{
 				const size_t head = _head.load(std::memory_order_relaxed);
 
@@ -109,9 +106,7 @@ namespace slim
 			}
 
 			template<typename M>
-			bool
-			dequeue(
-				M mover)
+			bool dequeue(M mover)
 			{
 				const size_t tail = _tail.load(std::memory_order_relaxed);
 
