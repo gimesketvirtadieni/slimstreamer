@@ -34,7 +34,7 @@ namespace slim
 				Source(Parameters parameters);
 
 				// there is a need for a custom destructor so Rule Of Zero cannot be used
-				// Instead, The Rule of The Big Four (and a half) the following approach is used: http://scottmeyers.blogspot.dk/2014/06/the-drawbacks-of-implementing-move.html
+				// Instead of The Rule of The Big Four (and a half) the following approach is used: http://scottmeyers.blogspot.dk/2014/06/the-drawbacks-of-implementing-move.html
 				~Source()
 				{
 					if (!empty)
