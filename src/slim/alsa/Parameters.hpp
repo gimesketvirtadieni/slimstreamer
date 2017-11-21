@@ -33,33 +33,12 @@ namespace slim
 				, queueSize{qs}
 				, framesPerChunk{fc} {}
 
+				// using Rule Of Zero
 			   ~Parameters() = default;
-
-			    Parameters(const Parameters& rhs)
-				: deviceName{rhs.deviceName}
-				, channels{rhs.channels}
-				, format{rhs.format}
-				, rate{rhs.rate}
-				, queueSize{rhs.queueSize}
-				, framesPerChunk{rhs.framesPerChunk} {}
-
-				Parameters& operator=(Parameters rhs)
-				{
-					swap(*this, rhs);
-					return *this;
-				}
-
-				Parameters(Parameters&& rhs)
-				: Parameters{}
-				{
-					swap(*this, rhs);
-				}
-
-				Parameters& operator=(Parameters&& rhs)
-				{
-					swap(*this, rhs);
-					return *this;
-				}
+				Parameters(const Parameters&) = default;
+				Parameters& operator=(const Parameters&) = default;
+				Parameters(Parameters&& rhs) = default;
+				Parameters& operator=(Parameters&& rhs) = default;
 
 				const int getBitDepth() const
 				{
@@ -95,27 +74,6 @@ namespace slim
 				const snd_pcm_uframes_t getFramesPerChunk() const
 				{
 					return framesPerChunk;
-				}
-
-			protected:
-				// used only from move constructor
-				Parameters()
-				: deviceName{""}
-				, channels{0}
-				, format{SND_PCM_FORMAT_UNKNOWN}
-				, queueSize{0}
-				, framesPerChunk{0} {}
-
-				friend void swap(Parameters& first, Parameters& second) noexcept
-				{
-					using std::swap;
-
-					swap(first.deviceName,     second.deviceName);
-					swap(first.channels,       second.channels);
-					swap(first.format,         second.format);
-					swap(first.rate,           second.rate);
-					swap(first.queueSize,      second.queueSize);
-					swap(first.framesPerChunk, second.framesPerChunk);
 				}
 
 			private:

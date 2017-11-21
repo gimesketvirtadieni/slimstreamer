@@ -34,7 +34,7 @@ namespace slim
 		, queuePtr{std::make_unique<RealTimeQueue<Chunk>>(parameters.getQueueSize(), [&](Chunk& chunk)
 		{
 			// last channel does not contain PCM data so it will be filtered out
-			chunk.reset(p.getFramesPerChunk(), p.getChannels() - 1, p.getBitDepth());
+			chunk.reset(p.getFramesPerChunk() * (p.getChannels() - 1) * (p.getBitDepth() >> 3));
 		})}
 		{
 			LOG(DEBUG) << "Creating PCM data source object (id=" << this << ")";
@@ -126,22 +126,6 @@ namespace slim
 		}
 
 
-		Source::~Source()
-		{
-			// TODO: it is not safe
-			if (producing.load(std::memory_order_acquire))
-			{
-				stopProducing(false);
-			}
-
-			// closing source if it's been opened from the constructor
-			if (handlePtr)
-			{
-				snd_pcm_close(handlePtr);
-			}
-		}
-
-
 		// TODO: an iterrator should be introduced that accepts a lambda
 		bool Source::containsData(unsigned char* buffer, snd_pcm_sframes_t frames)
 		{
@@ -169,9 +153,9 @@ namespace slim
 
 		void Source::copyData(unsigned char* srcBuffer, snd_pcm_sframes_t srcFrames, Chunk& chunk)
 		{
-			auto              bytesPerFrame{parameters.getChannels() * (parameters.getBitDepth() >> 3)};
-			auto              dstBuffer{chunk.getBuffer()};
-			snd_pcm_sframes_t dstFrames{0};
+			auto bytesPerFrame{parameters.getChannels() * (parameters.getBitDepth() >> 3)};
+			auto dstBuffer{chunk.getBuffer()};
+			auto dstFrames{snd_pcm_sframes_t{0}};
 
 			// TODO: reuse containsData
 			for (snd_pcm_sframes_t i = 0; i < srcFrames; i++)
@@ -193,8 +177,8 @@ namespace slim
 				}
 			}
 
-			// setting new chunk size in terms of frames
-			chunk.setFrames(dstFrames);
+			// setting new chunk size
+			chunk.setSize(dstFrames * (parameters.getChannels() - 1) * (parameters.getBitDepth() >> 3));
 		}
 
 

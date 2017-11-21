@@ -20,34 +20,16 @@ namespace slim
 {
 	namespace wave
 	{
-		WAVEFile::WAVEFile(const char* f, unsigned int c, unsigned int s, int b)
-		: fileName{f}
-		, channels{c}
-		, sampleRate{s}
-		, bitsPerSample{b}
-		, outputFile{fileName, std::ios::binary}
-		{
-			writeHeader();
-		}
-
-
-		WAVEFile::~WAVEFile()
-		{
-			updateHeader();
-	        outputFile.close();
-		}
-
-
 		void WAVEFile::consume(Chunk& chunk)
 		{
-			write(chunk.getBuffer(), chunk.getFrames() * (bitsPerSample >> 3) * channels);
+			write(chunk.getBuffer(), chunk.getSize());
 		}
 
 
 		void WAVEFile::updateHeader()
 		{
-		    if (outputFile.is_open())
-		    {
+			if (outputFile.is_open())
+			{
 				outputFile.seekp(0, std::ios::end);
 				auto dataLength = outputFile.tellp();
 
@@ -61,7 +43,7 @@ namespace slim
 				dataLength += 36;
 				outputFile.seekp(4);
 				outputFile.write(reinterpret_cast<const char*>(&dataLength), sizeof(int32_t));
-		    }
+			}
 		}
 
 

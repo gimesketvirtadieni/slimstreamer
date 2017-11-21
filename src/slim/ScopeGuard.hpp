@@ -42,33 +42,24 @@ namespace slim
 			}
 
 			ScopeGuard(ScopeGuard&& rhs) noexcept
-			: ScopeGuard{}
+			: fun{std::move(rhs.fun)}
 			{
-				swap(*this, rhs);
 				rhs.commit();
 			}
 
 			ScopeGuard& operator=(ScopeGuard&& rhs) noexcept
 			{
-				swap(*this, rhs);
+				using std::swap;
+
 				rhs.commit();
+
+				swap(fun, rhs.fun);
+
 				return *this;
 			}
 
 			ScopeGuard(const ScopeGuard&) = delete;            // non-copyable
 			ScopeGuard& operator=(const ScopeGuard&) = delete; // non-assignable
-
-		protected:
-			ScopeGuard()
-			: fun{std::nullopt} {}
-
-			friend void swap(ScopeGuard& first, ScopeGuard& second) noexcept
-			{
-				using std::swap;
-
-				swap(static_cast<ScopeGuardBase&>(first), static_cast<ScopeGuardBase&>(second));
-				swap(first.fun, second.fun);
-			}
 
 		private:
 			std::optional<Fun> fun;

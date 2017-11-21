@@ -32,22 +32,69 @@ namespace slim
 		{
 			public:
 				Source(Parameters parameters);
-			   ~Source();
 
-				Source(Source&& rhs)
-				: Source{}
+				// there is a need for a custom destructor so Rule Of Zero cannot be used
+				// Instead, The Rule of The Big Four (and a half) the following approach is used: http://scottmeyers.blogspot.dk/2014/06/the-drawbacks-of-implementing-move.html
+				~Source()
 				{
-					swap(*this, rhs);
-				}
+					if (!empty)
+					{
+						// TODO: it is not safe
+						if (producing.load(std::memory_order_acquire))
+						{
+							stopProducing(false);
+						}
 
-				Source& operator=(Source&& rhs)
-				{
-					swap(*this, rhs);
-					return *this;
+						// closing source if it's been opened from the constructor
+						if (handlePtr)
+						{
+							snd_pcm_close(handlePtr);
+						}
+					}
 				}
 
 				Source(const Source&) = delete;             // non-copyable
 				Source& operator=(const Source&) = delete;  // non-assignable
+
+				Source(Source&& rhs)
+				: parameters{std::move(rhs.parameters)}
+				, handlePtr{std::move(rhs.handlePtr)}
+				, producing{rhs.producing.load()}  // TODO: handle atopic properly
+				, queuePtr{std::move(rhs.queuePtr)}
+				{
+					rhs.empty = true;
+				}
+
+				Source& operator=(Source&& rhs)
+				{
+					using std::swap;
+
+					// any resources should be released for this object here because it will take over resources from rhs object
+					if (!empty)
+					{
+						// TODO: it is not safe
+						if (producing.load(std::memory_order_acquire))
+						{
+							stopProducing(false);
+						}
+
+						// closing source if it's been opened from the constructor
+						if (handlePtr)
+						{
+							snd_pcm_close(handlePtr);
+						}
+					}
+					rhs.empty = true;
+
+					swap(parameters, rhs.parameters);
+					swap(handlePtr, rhs.handlePtr);
+
+					// TODO: handle atomic properly
+					producing.store(rhs.producing.load());
+					swap(queuePtr, rhs.queuePtr);
+
+					return *this;
+				}
 
 				inline bool consume(std::function<void(Chunk&)> callback)
 				{
@@ -64,33 +111,13 @@ namespace slim
 				void       stopProducing(bool gracefully = true);
 
 			protected:
-				// used only from move constructor
-				Source()
-				: parameters{"", 0, SND_PCM_FORMAT_UNKNOWN, 0, 0, 0}
-				, handlePtr{nullptr}
-				, producing{false}
-				// TODO: size may not be 0 until assert(^2) is used
-				, queuePtr{std::make_unique<RealTimeQueue<Chunk>>(2)} {}
-
 				bool containsData(unsigned char* buffer, snd_pcm_sframes_t frames);
 				void copyData(unsigned char* buffer, snd_pcm_sframes_t frames, Chunk& chunk);
 				bool restore(snd_pcm_sframes_t error);
 
-				friend void swap(Source& first, Source& second) noexcept
-				{
-					using std::swap;
-
-					swap(first.parameters, second.parameters);
-					swap(first.handlePtr, second.handlePtr);
-					swap(first.queuePtr, second.queuePtr);
-
-					// TODO: implement following logic: doAtomically(if producing the pause; swap; if was producing then restart)
-					bool t = first.producing;
-					first.producing.store(second.producing);
-					second.producing = t;
-				}
-
 			private:
+				// TODO: empty attribute should be refactored to a separate class
+				bool                                  empty      = false;
 				Parameters                            parameters;
 				snd_pcm_t*                            handlePtr;
 				std::atomic<bool>                     producing;

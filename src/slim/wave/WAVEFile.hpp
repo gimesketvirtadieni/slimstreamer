@@ -12,8 +12,10 @@
 
 #pragma once
 
-#include <cstddef>
 #include <fstream>
+#include <functional>
+#include <memory>
+#include <string>
 
 #include "slim/Chunk.hpp"
 
@@ -25,8 +27,63 @@ namespace slim
 		class WAVEFile
 		{
 			public:
-				     WAVEFile(const char* fileName, unsigned int channels, unsigned int sampleRate, int bitsPerSample);
-			        ~WAVEFile();
+				explicit WAVEFile(const char* f, unsigned int c, unsigned int s, int b)
+				: fileName{f}
+				, channels{c}
+				, sampleRate{s}
+				, bitsPerSample{b}
+				, outputFile{fileName, std::ios::binary}
+				{
+					writeHeader();
+				}
+
+				// there is a need for a custom destructor so Rule Of Zero cannot be used
+				// Instead of The Rule of The Big Four (and a half) the following approach is used: http://scottmeyers.blogspot.dk/2014/06/the-drawbacks-of-implementing-move.html
+				~WAVEFile()
+				{
+					if (!empty)
+					{
+						updateHeader();
+					}
+				}
+
+				WAVEFile(const WAVEFile&) = delete;             // non-copyable
+				WAVEFile& operator=(const WAVEFile&) = delete;  // non-assignable
+
+				WAVEFile(WAVEFile&& rhs)
+				: fileName{std::move(rhs.fileName)}
+				, channels{std::move(rhs.channels)}
+				, sampleRate{std::move(rhs.sampleRate)}
+				, bitsPerSample{std::move(rhs.bitsPerSample)}
+				, byteRate{std::move(rhs.byteRate)}
+				, bytesPerFrame{std::move(rhs.bytesPerFrame)}
+				, outputFile{std::move(rhs.outputFile)}
+				{
+					rhs.empty = true;
+				}
+
+				WAVEFile& operator=(WAVEFile&& rhs)
+				{
+					using std::swap;
+
+					// any resources should be released for this object here because it will take over resources from rhs object
+					if (!empty)
+					{
+						updateHeader();
+					}
+					rhs.empty = true;
+
+					swap(fileName, rhs.fileName);
+					swap(channels, rhs.channels);
+					swap(sampleRate, rhs.sampleRate);
+					swap(bitsPerSample, rhs.bitsPerSample);
+					swap(byteRate, rhs.byteRate);
+					swap(bytesPerFrame, rhs.bytesPerFrame);
+					swap(outputFile, rhs.outputFile);
+
+					return *this;
+				}
+
 				void consume(Chunk& chunk);
 
 			protected:
@@ -35,13 +92,15 @@ namespace slim
 				void writeHeader();
 
 			private:
-				const char*        fileName;
-				const unsigned int channels;
-				const unsigned int sampleRate;
-				const int          bitsPerSample;
-				const unsigned int byteRate      = sampleRate * channels * (bitsPerSample >> 3);
-				const unsigned int bytesPerFrame = channels * (bitsPerSample >> 3);
-				std::ofstream      outputFile;
+				// TODO: empty attribute should be refactored to a separate class
+				bool          empty         = false;
+				std::string   fileName;
+				unsigned int  channels;
+				unsigned int  sampleRate;
+				int           bitsPerSample;
+				unsigned int  byteRate      = sampleRate * channels * (bitsPerSample >> 3);
+				unsigned int  bytesPerFrame = channels * (bitsPerSample >> 3);
+				std::ofstream outputFile;
 		};
 	}
 }

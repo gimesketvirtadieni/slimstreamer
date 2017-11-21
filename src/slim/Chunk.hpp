@@ -21,17 +21,24 @@ namespace slim
 	class Chunk
 	{
 		public:
-			               Chunk();
-		                  ~Chunk();
-			void           reset(unsigned long frames, unsigned int channels, unsigned int bitDepth);
+			Chunk()
+			: size{0}
+			, buffer{nullptr} {}
+
+			// using Rule Of Zero
+			~Chunk() = default;
+			Chunk(const Chunk&) = delete;             // non-copyable
+			Chunk& operator=(const Chunk&) = delete;  // non-assignable
+			Chunk(Chunk&& rhs) = default;
+			Chunk& operator=(Chunk&& rhs) = default;
+
+			void           reset(size_t size);
 			unsigned char* getBuffer() const;
-			unsigned long  getFrames() const;
 			size_t         getSize() const;
-			void           setFrames(unsigned long frames);
+			void           setSize(size_t size);
 
 		private:
 			size_t                           size;
-			unsigned long                    frames;
 			std::unique_ptr<unsigned char[]> buffer;
 	};
 }

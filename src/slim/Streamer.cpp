@@ -18,17 +18,13 @@
 
 namespace slim
 {
-	Streamer::Streamer(alsa::Source s, const char* o)
-	: source{std::move(s)}
+	Streamer::Streamer(std::vector<Pipeline> p)
+	: pipelines{std::move(p)}
 	, processorProxyPtr{nullptr}
-	, pause{true}
-	, output{o, source.getParameters().getChannels() - 1, source.getParameters().getRate(), source.getParameters().getBitDepth()} {}
+	, pause{true} {}
 
 
-	Streamer::~Streamer() {}
-
-
-	void Streamer::consume()
+	void Streamer::consume(Pipeline& pipeline)
 	{
 		// all references captured by this lambda are part of the streamer object
 		// it is required to ensure safety: processor will complete all tasks before destroying the streamer
@@ -38,7 +34,7 @@ namespace slim
 			{
 				// if no more chunks available then requesting pause
 				// TODO: calculate max chunks per task
-				pause.store(!this->processChunks(5), std::memory_order_release);
+				pause.store(!this->processChunks(pipeline, 5), std::memory_order_release);
 			}
 			catch (const std::exception& error)
 			{
@@ -51,7 +47,7 @@ namespace slim
 		};
 
 		// while PCM source is producing data
-		for (pause.store(true, std::memory_order_release); source.isProducing();)
+		for (pause.store(true, std::memory_order_release); pipeline.getSource().isProducing();)
 		{
 			// keep submitting tasks into the processor
 			processorProxyPtr->process(task);
@@ -76,39 +72,37 @@ namespace slim
 	{
 		std::lock_guard<std::mutex> guard{lock};
 
-		// if producer thread is not running
-		if (!producerThread.joinable())
+		for (auto& pipeline : pipelines)
 		{
-			// starting a producer
-			producerThread = std::thread([&]
+			auto producerTask = [&]
 			{
 				LOG(DEBUG) << "Starting PCM data capture thread (id=" << this << ")";
 
-				source.startProducing();
+				pipeline.getSource().startProducing();
 
 				LOG(DEBUG) << "Stopping PCM data capture thread (id=" << this << ")";
-			});
-		}
+			};
 
-		// waiting for producer thread to start producing PCM data
-		while(producerThread.joinable() && !source.isProducing())
-		{
-			std::this_thread::sleep_for(std::chrono::milliseconds{10});
-		}
-
-		// if consumer thread is not running
-		if (!consumerThread.joinable())
-		{
-			// starting a consumer
-			consumerThread = std::thread([&]
+			auto consumerTask = [&]
 			{
 				LOG(DEBUG) << "Starting PCM data consumer thread (id=" << this << ")";
 
 				// TODO: should be moved to a separate class
-				consume();
+				consume(pipeline);
 
 				LOG(DEBUG) << "Stopping PCM data consumer thread (id=" << this << ")";
-			});
+			};
+
+			// starting producer and making sure it is up and running before creating a consumer
+			std::thread pt{producerTask};
+			while(pt.joinable() && !pipeline.getSource().isProducing())
+			{
+				std::this_thread::sleep_for(std::chrono::milliseconds{10});
+			}
+
+			// adding two threads per pipeline into a vector: producer for Real-Time processing, consumer for streaming
+			threads.emplace_back(std::move(pt));
+			threads.emplace_back(std::move(std::thread{consumerTask}));
 		}
 	}
 
@@ -117,26 +111,19 @@ namespace slim
 	{
 		std::lock_guard<std::mutex> guard{lock};
 
-		// if producer thread is running
-		if (producerThread.joinable())
+		// signalling all pipelines to stop processing
+		for (auto& pipeline : pipelines)
 		{
-			source.stopProducing(gracefully);
-
-			// waiting for producer thread to complete
-			producerThread.join();
+			pipeline.getSource().stopProducing(gracefully);
 		}
 
-		// if consumer thread is running
-		if (consumerThread.joinable())
+		// waiting for all pipelines' threads to terminate
+		for (auto& thread : threads)
 		{
-			// waiting for consumer thread to complete
-			consumerThread.join();
+			if (thread.joinable())
+			{
+				thread.join();
+			}
 		}
-	}
-
-
-	void Streamer::stream(Chunk& chunk)
-	{
-		output.consume(chunk);
 	}
 }

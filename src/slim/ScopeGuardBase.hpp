@@ -26,23 +26,11 @@ namespace slim
 			ScopeGuardBase() noexcept
 			: active{true} {}
 
-
-			ScopeGuardBase(ScopeGuardBase&& rhs) noexcept
-			: ScopeGuardBase{}
-			{
-				swap(*this, rhs);
-				rhs.commit();
-			}
-
-			ScopeGuardBase& operator=(ScopeGuardBase&& rhs) noexcept
-			{
-				swap(*this, rhs);
-				rhs.commit();
-				return *this;
-			}
-
+			// using Rule Of Zero
 			ScopeGuardBase(const ScopeGuardBase&) = delete;             // non-copyable
-			ScopeGuardBase& operator=(const ScopeGuardBase&) = delete;  // non-assignable
+			ScopeGuardBase& operator=(const ScopeGuardBase&) = delete;  // non-copyable
+			ScopeGuardBase(ScopeGuardBase&& rhs) = default;
+			ScopeGuardBase& operator=(ScopeGuardBase&& rhs) = default;
 
 			inline void commit() noexcept
 			{
@@ -60,11 +48,6 @@ namespace slim
 			// ScopeGuardBase* p = new ScopeGuard<...>([]() {...});
 			// delete p;  <- will cause a compilation error
 			~ScopeGuardBase() = default;
-
-			friend void swap(ScopeGuardBase& first, ScopeGuardBase& second) noexcept
-			{
-				std::swap(first.active, second.active);
-			}
 
 		private:
 			bool active;

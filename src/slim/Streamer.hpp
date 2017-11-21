@@ -15,9 +15,11 @@
 #include <conwrap/ProcessorAsioProxy.hpp>
 #include <mutex>
 #include <thread>
+#include <vector>
 
-#include "slim/Chunk.hpp"
 #include "slim/alsa/Source.hpp"
+#include "slim/Chunk.hpp"
+#include "slim/Pipeline.hpp"
 #include "slim/wave/WAVEFile.hpp"
 
 
@@ -26,15 +28,15 @@ namespace slim
 	class Streamer
 	{
 		public:
-			explicit Streamer(alsa::Source source, const char* outputFile);
-			        ~Streamer();
-			void     consume();
+			explicit Streamer(std::vector<Pipeline> pipelines);
+			        ~Streamer() = default;
+			void     consume(Pipeline& pipeline);
 			void     setProcessorProxy(conwrap::ProcessorProxy<Streamer>* p);
 			void     start();
 			void     stop(bool gracefully = true);
 
 		protected:
-			inline bool processChunks(unsigned int maxChunks)
+			inline bool processChunks(Pipeline& pipeline, unsigned int maxChunks)
 			{
 				unsigned int count;
 				bool         available;
@@ -42,25 +44,20 @@ namespace slim
 				for (count = 0, available = true; count < maxChunks && available; count++)
 				{
 					// this call will NOT block if buffer is empty
-					available = source.consume([&](Chunk& chunk)
+					available = pipeline.getSource().consume([&](Chunk& chunk)
 					{
-						this->stream(chunk);
+						pipeline.getDestination().consume(chunk);
 					});
 				}
 
 				return available;
 			}
 
-			void stream(Chunk& chunk);
-
-		//private:
-		public:
-			alsa::Source                       source;
+		private:
+			std::vector<Pipeline>              pipelines;
+			std::vector<std::thread>           threads;
 			conwrap::ProcessorProxy<Streamer>* processorProxyPtr;
 			std::mutex                         lock;
-			std::thread                        producerThread;
-			std::thread                        consumerThread;
 			std::atomic<bool>                  pause;
-		    slim::wave::WAVEFile               output;
 	};
 }

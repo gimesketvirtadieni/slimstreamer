@@ -15,16 +15,9 @@
 
 namespace slim
 {
-	Chunk::Chunk() : size(0), frames(0), buffer(nullptr) {}
-
-
-	Chunk::~Chunk() {}
-
-
-	void Chunk::reset(unsigned long f, unsigned int channels, unsigned int bitDepth)
+	void Chunk::reset(size_t s)
 	{
-		frames = f;
-		size   = frames * channels * (bitDepth >> 3);
+		size = s;
 
 		// allocating buffer
 		buffer = std::make_unique<unsigned char[]>(size);
@@ -37,20 +30,15 @@ namespace slim
 	}
 
 
-	unsigned long Chunk::getFrames() const
-	{
-		return frames;
-	}
-
-
 	size_t Chunk::getSize() const
 	{
 		return size;
 	}
 
 
-	void Chunk::setFrames(unsigned long f)
+	void Chunk::setSize(size_t s)
 	{
-		this->frames = f;
+		// TODO: handle case when s > buffer size
+		size = s;
 	}
 }
