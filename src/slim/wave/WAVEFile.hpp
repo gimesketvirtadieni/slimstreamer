@@ -13,8 +13,6 @@
 #pragma once
 
 #include <fstream>
-#include <functional>
-#include <memory>
 #include <string>
 
 #include "slim/Chunk.hpp"
