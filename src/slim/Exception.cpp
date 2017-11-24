@@ -10,27 +10,13 @@
  * Author: gimesketvirtadieni at gmail dot com (Andrej Kislovskij)
  */
 
-#pragma once
-
-#include <exception>
+#include "slim/Exception.hpp"
 
 
 namespace slim
 {
-	class ExceptionBase : public std::exception
+	std::ostream& operator<< (std::ostream& os, const Exception& exception)
 	{
-		public:
-			explicit ExceptionBase(const char* e)
-			: error(e) {}
-
-			virtual ~ExceptionBase() = default;
-
-			virtual const char* what() const noexcept
-			{
-				return error;
-			}
-
-		private:
-		    const char* error;
-	};
+		return os << exception.what();
+	}
 }

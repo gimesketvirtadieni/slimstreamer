@@ -15,30 +15,4 @@
 
 namespace slim
 {
-	void Chunk::reset(size_t s)
-	{
-		size = s;
-
-		// allocating buffer
-		buffer = std::make_unique<unsigned char[]>(size);
-	}
-
-
-	unsigned char* Chunk::getBuffer() const
-	{
-		return buffer.get();
-	}
-
-
-	size_t Chunk::getSize() const
-	{
-		return size;
-	}
-
-
-	void Chunk::setSize(size_t s)
-	{
-		// TODO: handle case when s > buffer size
-		size = s;
-	}
 }

@@ -22,7 +22,7 @@ namespace slim
 	{
 		void WAVEFile::consume(Chunk& chunk)
 		{
-			write(chunk.getBuffer(), chunk.getSize());
+			write(chunk.getBuffer(), chunk.getDataSize());
 		}
 
 

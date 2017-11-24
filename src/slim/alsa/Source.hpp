@@ -18,7 +18,6 @@
 #include <functional>
 #include <memory>
 
-#include "slim/alsa/Exception.hpp"
 #include "slim/alsa/Parameters.hpp"
 #include "slim/Chunk.hpp"
 #include "slim/RealTimeQueue.hpp"
@@ -31,7 +30,18 @@ namespace slim
 		class Source
 		{
 			public:
-				Source(Parameters parameters);
+				Source(Parameters p)
+				: parameters{p}
+				, handlePtr{nullptr}
+				, producing{false}
+				, queuePtr{std::make_unique<RealTimeQueue<Chunk>>(parameters.getQueueSize(), [&](Chunk& chunk)
+				{
+					// last channel does not contain PCM data so it will be filtered out
+					chunk.setSize(p.getFramesPerChunk() * (p.getChannels() - 1) * (p.getBitDepth() >> 3));
+				})}
+				{
+					open();
+				}
 
 				// there is a need for a custom destructor so Rule Of Zero cannot be used
 				// Instead of The Rule of The Big Four (and a half) the following approach is used: http://scottmeyers.blogspot.dk/2014/06/the-drawbacks-of-implementing-move.html
@@ -44,12 +54,7 @@ namespace slim
 						{
 							stopProducing(false);
 						}
-
-						// closing source if it's been opened from the constructor
-						if (handlePtr)
-						{
-							snd_pcm_close(handlePtr);
-						}
+						close();
 					}
 				}
 
@@ -111,9 +116,15 @@ namespace slim
 				void       stopProducing(bool gracefully = true);
 
 			protected:
-				bool containsData(unsigned char* buffer, snd_pcm_sframes_t frames);
-				void copyData(unsigned char* buffer, snd_pcm_sframes_t frames, Chunk& chunk);
-				bool restore(snd_pcm_sframes_t error);
+				void        close();
+				bool        containsData(unsigned char* buffer, snd_pcm_sframes_t frames);
+				void        copyData(unsigned char* buffer, snd_pcm_sframes_t frames, Chunk& chunk);
+				inline auto formatError(std::string message, int error)
+				{
+					return message + ": name='" + parameters.getDeviceName() + "' error='" + snd_strerror(error) + "'";
+				}
+				void        open();
+				bool        restore(snd_pcm_sframes_t error);
 
 			private:
 				// TODO: empty attribute should be refactored to a separate class
@@ -123,7 +134,5 @@ namespace slim
 				std::atomic<bool>                     producing;
 				std::unique_ptr<RealTimeQueue<Chunk>> queuePtr;
 		};
-
-		std::ostream& operator<< (std::ostream& os, const alsa::Exception& exception);
 	}
 }

@@ -18,10 +18,9 @@
 #include <memory>
 #include <vector>
 
-#include "slim/alsa/Exception.hpp"
 #include "slim/alsa/Parameters.hpp"
 #include "slim/alsa/Source.hpp"
-#include "slim/Chunk.hpp"
+#include "slim/Exception.hpp"
 #include "slim/log/ConsoleSink.hpp"
 #include "slim/log/log.hpp"
 #include "slim/Pipeline.hpp"
@@ -98,7 +97,7 @@ int main(int argc, char *argv[])
 		// stop streaming
 		processorAsio.getResource()->stop();
 	}
-	catch (const slim::alsa::Exception& error)
+	catch (const slim::Exception& error)
 	{
 		LOG(ERROR) << error;
 	}

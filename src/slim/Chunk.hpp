@@ -23,6 +23,7 @@ namespace slim
 		public:
 			Chunk()
 			: size{0}
+			, dataSize{0}
 			, buffer{nullptr} {}
 
 			// using Rule Of Zero
@@ -32,13 +33,39 @@ namespace slim
 			Chunk(Chunk&& rhs) = default;
 			Chunk& operator=(Chunk&& rhs) = default;
 
-			void           reset(size_t size);
-			unsigned char* getBuffer() const;
-			size_t         getSize() const;
-			void           setSize(size_t size);
+			inline unsigned char* getBuffer() const
+			{
+				return buffer.get();
+			}
+
+			inline size_t getDataSize() const
+			{
+				return dataSize;
+			}
+
+			inline size_t getSize() const
+			{
+				return size;
+			}
+
+			inline void setDataSize(size_t s)
+			{
+				// TODO: handle case when s > buffer size
+				dataSize = s;
+			}
+
+			inline void setSize(size_t s)
+			{
+				size     = s;
+				dataSize = 0;
+
+				// allocating buffer
+				buffer = std::make_unique<unsigned char[]>(size);
+			}
 
 		private:
 			size_t                           size;
+			size_t                           dataSize;
 			std::unique_ptr<unsigned char[]> buffer;
 	};
 }

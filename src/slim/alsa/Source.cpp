@@ -10,13 +10,11 @@
  * Author: gimesketvirtadieni at gmail dot com (Andrej Kislovskij)
  */
 
-#include <exception>
 #include <functional>
-#include <sstream>
 #include <string>
 
-#include "slim/alsa/Exception.hpp"
 #include "slim/alsa/Source.hpp"
+#include "slim/Exception.hpp"
 #include "slim/log/log.hpp"
 #include "slim/ScopeGuard.hpp"
 
@@ -27,101 +25,12 @@ namespace slim
 {
 	namespace alsa
 	{
-		Source::Source(Parameters p)
-		: parameters{p}
-		, handlePtr{nullptr}
-		, producing{false}
-		, queuePtr{std::make_unique<RealTimeQueue<Chunk>>(parameters.getQueueSize(), [&](Chunk& chunk)
+		void Source::close()
 		{
-			// last channel does not contain PCM data so it will be filtered out
-			chunk.reset(p.getFramesPerChunk() * (p.getChannels() - 1) * (p.getBitDepth() >> 3));
-		})}
-		{
-			LOG(DEBUG) << "Creating PCM data source object (id=" << this << ")";
-
-			snd_pcm_hw_params_t* hardwarePtr = nullptr;
-			snd_pcm_sw_params_t* softwarePtr = nullptr;
-			auto                 deviceName  = parameters.getDeviceName();
-			auto                 rate        = parameters.getRate();
-			int                  result;
-			auto                 guard       = makeScopeGuard([&]()
+			// closing source if it's been opened from the constructor
+			if (handlePtr)
 			{
-				// releasing hardware and software parameters
-				if (hardwarePtr)
-				{
-					snd_pcm_hw_params_free(hardwarePtr);
-				}
-				if (softwarePtr)
-				{
-					snd_pcm_sw_params_free(softwarePtr);
-				}
-			});
-
-			if ((result = snd_pcm_open(&handlePtr, deviceName, SND_PCM_STREAM_CAPTURE, 0)) < 0)
-			{
-				throw alsa::Exception("Cannot open audio device", deviceName, result);
-			}
-			else if ((result = snd_pcm_hw_params_malloc(&hardwarePtr)) < 0)
-			{
-				throw alsa::Exception("Cannot allocate hardware parameter structure", deviceName, result);
-			}
-			else if ((result = snd_pcm_hw_params_any(handlePtr, hardwarePtr)) < 0)
-			{
-				throw alsa::Exception("Cannot initialize hardware parameter structure", deviceName, result);
-			}
-			else if ((result = snd_pcm_hw_params_set_access(handlePtr, hardwarePtr, SND_PCM_ACCESS_RW_INTERLEAVED)) < 0)
-			{
-				throw alsa::Exception("Cannot set access type", deviceName, result);
-			}
-			else if ((result = snd_pcm_hw_params_set_format(handlePtr, hardwarePtr, parameters.getFormat())) < 0)
-			{
-				throw alsa::Exception("Cannot set sample format", deviceName, result);
-			}
-			else if ((result = snd_pcm_hw_params_set_rate_near(handlePtr, hardwarePtr, &rate, nullptr)) < 0)
-			{
-				throw alsa::Exception("Cannot set sample rate", deviceName, result);
-			}
-			else if ((result = snd_pcm_hw_params_set_channels(handlePtr, hardwarePtr, parameters.getChannels())) < 0)
-			{
-				throw alsa::Exception("Cannot set channel count", deviceName, result);
-			}
-
-			// TODO: ...
-/*
-			else if ((result = snd_pcm_hw_params_set_period_size(handlePtr, hardwarePtr, parameters.getFramesPerChunk(), 0)) < 0)
-			{
-				throw alsa::Exception("Cannot set channel count", deviceName, result);
-			}
-			else if ((result = snd_pcm_hw_params_set_periods(handlePtr, hardwarePtr, 2, 0)) < 0)
-			{
-				throw alsa::Exception("Cannot set channel count", deviceName, result);
-			}
-*/
-			else if ((result = snd_pcm_hw_params(handlePtr, hardwarePtr)) < 0)
-			{
-				throw alsa::Exception("Cannot set hardware parameters", deviceName, result);
-			}
-			else if ((result = snd_pcm_sw_params_malloc(&softwarePtr)) < 0)
-			{
-				throw alsa::Exception("Cannot allocate software parameters structure", deviceName, result);
-			}
-			else if ((result = snd_pcm_sw_params_current(handlePtr, softwarePtr)) < 0)
-			{
-				throw alsa::Exception("Cannot initialize software parameters structure", deviceName, result);
-			}
-			else if ((result = snd_pcm_sw_params_set_avail_min(handlePtr, softwarePtr, parameters.getFramesPerChunk())) < 0)
-			{
-				throw alsa::Exception("Cannot set minimum available count", deviceName, result);
-			}
-
-			// start threshold is irrelevant for capturing PCM so just setting to 1
-			else if ((result = snd_pcm_sw_params_set_start_threshold(handlePtr, softwarePtr, 1U)) < 0)
-			{
-				throw alsa::Exception("Cannot set start threshold", deviceName, result);
-			}
-			else if ((result = snd_pcm_sw_params(handlePtr, softwarePtr)) < 0)
-			{
-				throw alsa::Exception("Cannot set software parameters", deviceName, result);
+				snd_pcm_close(handlePtr);
 			}
 		}
 
@@ -178,7 +87,7 @@ namespace slim
 			}
 
 			// setting new chunk size
-			chunk.setSize(dstFrames * (parameters.getChannels() - 1) * (parameters.getBitDepth() >> 3));
+			chunk.setDataSize(dstFrames * (parameters.getChannels() - 1) * (parameters.getBitDepth() >> 3));
 		}
 
 
@@ -194,13 +103,100 @@ namespace slim
 		}
 
 
+		void Source::open()
+		{
+			snd_pcm_hw_params_t* hardwarePtr = nullptr;
+			snd_pcm_sw_params_t* softwarePtr = nullptr;
+			auto                 deviceName  = parameters.getDeviceName();
+			auto                 rate        = parameters.getRate();
+			int                  result;
+			auto                 guard       = makeScopeGuard([&]()
+			{
+				// releasing hardware and software parameters
+				if (hardwarePtr)
+				{
+					snd_pcm_hw_params_free(hardwarePtr);
+				}
+				if (softwarePtr)
+				{
+					snd_pcm_sw_params_free(softwarePtr);
+				}
+			});
+
+			if ((result = snd_pcm_open(&handlePtr, deviceName.c_str(), SND_PCM_STREAM_CAPTURE, 0)) < 0)
+			{
+				throw Exception(formatError("Cannot open audio device", result));
+			}
+			else if ((result = snd_pcm_hw_params_malloc(&hardwarePtr)) < 0)
+			{
+				throw Exception(formatError("Cannot allocate hardware parameter structure", result));
+			}
+			else if ((result = snd_pcm_hw_params_any(handlePtr, hardwarePtr)) < 0)
+			{
+				throw Exception(formatError("Cannot initialize hardware parameter structure", result));
+			}
+			else if ((result = snd_pcm_hw_params_set_access(handlePtr, hardwarePtr, SND_PCM_ACCESS_RW_INTERLEAVED)) < 0)
+			{
+				throw Exception(formatError("Cannot set access type", result));
+			}
+			else if ((result = snd_pcm_hw_params_set_format(handlePtr, hardwarePtr, parameters.getFormat())) < 0)
+			{
+				throw Exception(formatError("Cannot set sample format", result));
+			}
+			else if ((result = snd_pcm_hw_params_set_rate_near(handlePtr, hardwarePtr, &rate, nullptr)) < 0)
+			{
+				throw Exception(formatError("Cannot set sample rate", result));
+			}
+			else if ((result = snd_pcm_hw_params_set_channels(handlePtr, hardwarePtr, parameters.getChannels())) < 0)
+			{
+				throw Exception(formatError("Cannot set channel count", result));
+			}
+			else if ((result = snd_pcm_hw_params_set_period_size(handlePtr, hardwarePtr, parameters.getFramesPerChunk(), 0)) < 0)
+			{
+				throw Exception(formatError("Cannot set period size", result));
+			}
+
+			// TODO: parametrize
+			else if ((result = snd_pcm_hw_params_set_periods(handlePtr, hardwarePtr, 2, 0)) < 0)
+			{
+				throw Exception(formatError("Cannot set periods count", result));
+			}
+			else if ((result = snd_pcm_hw_params(handlePtr, hardwarePtr)) < 0)
+			{
+				throw Exception(formatError("Cannot set hardware parameters", result));
+			}
+			else if ((result = snd_pcm_sw_params_malloc(&softwarePtr)) < 0)
+			{
+				throw Exception(formatError("Cannot allocate software parameters structure", result));
+			}
+			else if ((result = snd_pcm_sw_params_current(handlePtr, softwarePtr)) < 0)
+			{
+				throw Exception(formatError("Cannot initialize software parameters structure", result));
+			}
+			else if ((result = snd_pcm_sw_params_set_avail_min(handlePtr, softwarePtr, parameters.getFramesPerChunk())) < 0)
+			{
+				throw Exception(formatError("Cannot set minimum available count", result));
+			}
+
+			// start threshold is irrelevant for capturing PCM so just setting to 1
+			else if ((result = snd_pcm_sw_params_set_start_threshold(handlePtr, softwarePtr, 1U)) < 0)
+			{
+				throw Exception(formatError("Cannot set start threshold", result));
+			}
+			else if ((result = snd_pcm_sw_params(handlePtr, softwarePtr)) < 0)
+			{
+				throw Exception(formatError("Cannot set software parameters", result));
+			}
+		}
+
+
 		bool Source::restore(snd_pcm_sframes_t error)
 		{
 			auto restored{true};
 
 			if (error < 0)
 			{
-				// this is where ALSA stream may be restored depending on an error and the state
+				// TODO: this is where ALSA stream may be restored depending on an error and the state
 				snd_pcm_state(handlePtr);
 				restored = false;
 			}
@@ -221,7 +217,7 @@ namespace slim
 				auto result = snd_pcm_start(handlePtr);
 				if (result < 0)
 				{
-					throw alsa::Exception("Cannot start using audio interface", parameters.getDeviceName(), result);
+					throw Exception(formatError("Cannot start using audio device", result));
 				}
 
 				// reading ALSA data within this loop
@@ -250,12 +246,12 @@ namespace slim
 						// if error code is unexpected then breaking this loop (-EBADFD is returned when stopProducing method was called)
 						if (frames != -EBADFD)
 						{
-							throw alsa::Exception("Unexpected error while reading PCM data", parameters.getDeviceName(), frames);
+							throw Exception(formatError("Unexpected error while reading PCM data", result));
 						}
 					}
 				}
 			}
-			catch (const alsa::Exception& error)
+			catch (const Exception& error)
 			{
 				LOG(ERROR) << error;
 			}
@@ -272,16 +268,6 @@ namespace slim
 			{
 				snd_pcm_drop(handlePtr);
 			}
-		}
-
-
-		std::ostream& operator<< (std::ostream& os, const alsa::Exception& exception)
-		{
-			return os
-			<< exception.what()
-			<< " (device='" << exception.getDeviceName() << "', "
-			<<   "code="    << exception.getCode() << ", "
-			<<   "error='"  << snd_strerror(exception.getCode()) << "')";
 		}
 	}
 }

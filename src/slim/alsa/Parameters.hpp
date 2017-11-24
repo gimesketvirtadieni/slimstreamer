@@ -50,9 +50,9 @@ namespace slim
 					return channels;
 				}
 
-				const char* getDeviceName() const
+				const std::string getDeviceName() const
 				{
-					return deviceName.c_str();
+					return deviceName;
 				}
 
 				const size_t getQueueSize() const
