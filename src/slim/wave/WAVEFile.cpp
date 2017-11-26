@@ -23,6 +23,7 @@ namespace slim
 		void WAVEFile::consume(Chunk& chunk)
 		{
 			write(chunk.getBuffer(), chunk.getDataSize());
+			LOG(DEBUG) << "Written " << (chunk.getDataSize() / bytesPerFrame) << " frames";
 		}
 
 

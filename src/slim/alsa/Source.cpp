@@ -18,8 +18,6 @@
 #include "slim/log/log.hpp"
 #include "slim/ScopeGuard.hpp"
 
-#include <iostream>
-
 
 namespace slim
 {
@@ -35,25 +33,19 @@ namespace slim
 		}
 
 
-		// TODO: an iterrator should be introduced that accepts a lambda
+		// TODO: an offset should be returned so containsData & copyData uses only one iterration
 		bool Source::containsData(unsigned char* buffer, snd_pcm_sframes_t frames)
 		{
 			auto contains{false};
 			auto bytesPerFrame{parameters.getChannels() * (parameters.getBitDepth() >> 3)};
-			int count = 0;
 
-			for (snd_pcm_sframes_t i = 0; i < frames /*&& !contains*/; i++)
+			for (snd_pcm_sframes_t i = 0; i < frames && !contains; i++)
 			{
 				auto value = buffer[(i + 1) * bytesPerFrame - 1];  // last byte of the current frame
 				if (value)
 				{
 					contains = true;
-					count++;
 				}
-			}
-			if (contains)
-			{
-				std::cout << "count=" << count << std::endl;
 			}
 
 			return contains;
@@ -208,7 +200,7 @@ namespace slim
 		void Source::startProducing(std::function<void()> overflowCallback)
 		{
 			auto          maxFrames = parameters.getFramesPerChunk();
-			unsigned char buffer[maxFrames * parameters.getChannels() * (parameters.getBitDepth() >> 3)];
+			unsigned char srcBuffer[maxFrames * parameters.getChannels() * (parameters.getBitDepth() >> 3)];
 
 			// everything inside this try must be real-time safe: no memory allocation, no logging, etc.
 			try
@@ -224,14 +216,14 @@ namespace slim
 				for (producing.store(true, std::memory_order_release); producing.load(std::memory_order_acquire);)
 				{
 					// this call will block until buffer is filled or PCM stream state is changed
-					snd_pcm_sframes_t frames = snd_pcm_readi(handlePtr, buffer, maxFrames);
+					snd_pcm_sframes_t frames = snd_pcm_readi(handlePtr, srcBuffer, maxFrames);
 
-					if (frames > 0 && containsData(buffer, frames))
+					if (frames > 0 && containsData(srcBuffer, frames))
 					{
 						// reading PCM data directly into the queue
 						if (!queuePtr->enqueue([&](Chunk& chunk)
 						{
-							copyData(buffer, frames, chunk);
+							copyData(srcBuffer, frames, chunk);
 						}))
 						{
 							// calling overflow callback, which must be real-time safe

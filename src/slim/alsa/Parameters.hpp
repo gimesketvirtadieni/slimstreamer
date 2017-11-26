@@ -40,44 +40,53 @@ namespace slim
 				Parameters(Parameters&& rhs) = default;
 				Parameters& operator=(Parameters&& rhs) = default;
 
-				const int getBitDepth() const
+				inline const int getBitDepth() const
 				{
 					return snd_pcm_format_physical_width(format);
 				}
 
-				const unsigned int getChannels() const
+				inline const unsigned int getChannels() const
 				{
 					return channels;
 				}
 
-				const std::string getDeviceName() const
+				inline const std::string getDeviceName() const
 				{
 					return deviceName;
 				}
 
-				const size_t getQueueSize() const
+				inline const size_t getQueueSize() const
 				{
 					// TODO: calculate based on latency
 					return queueSize;
 				}
 
-				const unsigned int getRate() const
+				inline const unsigned int getRate() const
 				{
 					return rate;
 				}
 
-				const snd_pcm_format_t getFormat() const
+				inline const snd_pcm_format_t getFormat() const
 				{
 					return format;
 				}
 
-				const snd_pcm_uframes_t getFramesPerChunk() const
+				inline const snd_pcm_uframes_t getFramesPerChunk() const
 				{
 					return framesPerChunk;
 				}
 
+				inline void setDeviceName(std::string d)
+				{
+					deviceName = d;
+				}
+
+				inline void setRate(unsigned int r)
+				{
+					rate = r;
+				}
+
 			private:
-				// TODO: consider const
 				std::string       deviceName;
 				unsigned int      channels;
 				snd_pcm_format_t  format;

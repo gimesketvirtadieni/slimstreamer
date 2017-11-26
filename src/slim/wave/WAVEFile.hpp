@@ -30,6 +30,8 @@ namespace slim
 				, channels{c}
 				, sampleRate{s}
 				, bitsPerSample{b}
+				, bytesPerFrame{channels * (bitsPerSample >> 3)}
+				, byteRate{sampleRate * bytesPerFrame}
 				, outputFile{fileName, std::ios::binary}
 				{
 					writeHeader();
@@ -53,8 +55,8 @@ namespace slim
 				, channels{std::move(rhs.channels)}
 				, sampleRate{std::move(rhs.sampleRate)}
 				, bitsPerSample{std::move(rhs.bitsPerSample)}
-				, byteRate{std::move(rhs.byteRate)}
 				, bytesPerFrame{std::move(rhs.bytesPerFrame)}
+				, byteRate{std::move(rhs.byteRate)}
 				, outputFile{std::move(rhs.outputFile)}
 				{
 					rhs.empty = true;
@@ -75,8 +77,8 @@ namespace slim
 					swap(channels, rhs.channels);
 					swap(sampleRate, rhs.sampleRate);
 					swap(bitsPerSample, rhs.bitsPerSample);
-					swap(byteRate, rhs.byteRate);
 					swap(bytesPerFrame, rhs.bytesPerFrame);
+					swap(byteRate, rhs.byteRate);
 					swap(outputFile, rhs.outputFile);
 
 					return *this;
@@ -96,8 +98,8 @@ namespace slim
 				unsigned int  channels;
 				unsigned int  sampleRate;
 				int           bitsPerSample;
-				unsigned int  byteRate      = sampleRate * channels * (bitsPerSample >> 3);
-				unsigned int  bytesPerFrame = channels * (bitsPerSample >> 3);
+				unsigned int  bytesPerFrame;
+				unsigned int  byteRate;
 				std::ofstream outputFile;
 		};
 	}

@@ -35,6 +35,23 @@ void signalHandler(int sig)
 }
 
 
+auto createPipelines()
+{
+	auto pipelines{std::vector<slim::Pipeline>{}};
+	auto parameters{slim::alsa::Parameters{"", 3, SND_PCM_FORMAT_S32_LE, 0, 128, 1024}};
+
+	parameters.setDeviceName("hw:1,1,7");
+	parameters.setRate(44100);
+	pipelines.emplace_back(slim::alsa::Source{parameters}, "aaa.wav", 2, 44100, 32);
+
+	parameters.setDeviceName("hw:2,1,1");
+	parameters.setRate(48000);
+	pipelines.emplace_back(slim::alsa::Source{parameters}, "bbb.wav", 2, 48000, 32);
+
+	return pipelines;
+}
+
+
 int main(int argc, char *argv[])
 {
 	// initializing log
@@ -51,39 +68,8 @@ int main(int argc, char *argv[])
 
 	try
 	{
-		std::vector<slim::Pipeline> pipelines;
-		pipelines.emplace_back(slim::alsa::Source
-		{
-			slim::alsa::Parameters
-			{
-				"hw:1,1,7",
-				3,
-				SND_PCM_FORMAT_S32_LE,
-				44100,
-				128,
-				1024
-			}
-		},
-		"aaa.wav", 2, 44100, 32);
-		pipelines.emplace_back(slim::alsa::Source
-		{
-			slim::alsa::Parameters
-			{
-				"hw:2,1,1",
-				3,
-				SND_PCM_FORMAT_S32_LE,
-				48000,
-				128,
-				1024
-			}
-		},
-		"bbb.wav", 2, 48000, 32);
-
         // creating Streamer object with ALSA Parameters within Processor
-		conwrap::ProcessorAsio<slim::Streamer> processorAsio
-		{
-			std::move(pipelines),
-		};
+		conwrap::ProcessorAsio<slim::Streamer> processorAsio{createPipelines()};
 
         // start streaming
         processorAsio.getResource()->start();
