@@ -41,6 +41,9 @@ namespace slim
 				catch(...) {}
 			}
 
+			ScopeGuard(const ScopeGuard&) = delete;            // non-copyable
+			ScopeGuard& operator=(const ScopeGuard&) = delete; // non-assignable
+
 			ScopeGuard(ScopeGuard&& rhs) noexcept
 			: fun{std::move(rhs.fun)}
 			{
@@ -57,9 +60,6 @@ namespace slim
 
 				return *this;
 			}
-
-			ScopeGuard(const ScopeGuard&) = delete;            // non-copyable
-			ScopeGuard& operator=(const ScopeGuard&) = delete; // non-assignable
 
 		private:
 			std::optional<Fun> fun;

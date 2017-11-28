@@ -26,11 +26,20 @@ namespace slim
 	{
 		public:
 			explicit Streamer(std::vector<Pipeline> pipelines);
-			        ~Streamer() = default;
-			void     consume();
-			void     setProcessorProxy(conwrap::ProcessorProxy<Streamer>* p);
-			void     start();
-			void     stop(bool gracefully = true);
+
+			// using Rule Of Zero
+			~Streamer() = default;
+			Streamer(const Streamer&) = delete;             // non-copyable
+			Streamer& operator=(const Streamer&) = delete;  // non-assignable
+			Streamer(Streamer&& rhs) = default;
+			Streamer& operator=(Streamer&& rhs) = default;
+
+			void setProcessorProxy(conwrap::ProcessorProxy<Streamer>* p);
+			void start();
+			void stop(bool gracefully = true);
+
+		protected:
+			void stream();
 
 		private:
 			std::vector<Pipeline>              pipelines;

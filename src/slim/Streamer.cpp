@@ -23,7 +23,7 @@ namespace slim
 	, processorProxyPtr{nullptr} {}
 
 
-	void Streamer::consume()
+	void Streamer::stream()
 	{
 		for(auto producing{true}, available{false}; producing;)
 		{
@@ -96,11 +96,11 @@ namespace slim
 		{
 			[&]
 			{
-				LOG(DEBUG) << "Starting PCM data consumer thread (id=" << this << ")";
+				LOG(DEBUG) << "Starting streamer thread (id=" << this << ")";
 
-				consume();
+				stream();
 
-				LOG(DEBUG) << "Stopping PCM data consumer thread (id=" << this << ")";
+				LOG(DEBUG) << "Stopping streamer thread (id=" << this << ")";
 			}
 		});
 	}
