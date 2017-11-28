@@ -34,6 +34,7 @@ namespace slim
 				: parameters{p}
 				, handlePtr{nullptr}
 				, producing{false}
+				, available{false}
 				, queuePtr{std::make_unique<RealTimeQueue<Chunk>>(parameters.getQueueSize(), [&](Chunk& chunk)
 				{
 					// last channel does not contain PCM data so it will be filtered out
@@ -65,6 +66,7 @@ namespace slim
 				: parameters{std::move(rhs.parameters)}
 				, handlePtr{std::move(rhs.handlePtr)}
 				, producing{rhs.producing.load()}  // TODO: handle atopic properly
+				, available{rhs.available.load()}  // TODO: handle atopic properly
 				, queuePtr{std::move(rhs.queuePtr)}
 				{
 					rhs.empty = true;
@@ -96,6 +98,7 @@ namespace slim
 
 					// TODO: handle atomic properly
 					producing.store(rhs.producing.load());
+					available.store(rhs.available.load());
 					swap(queuePtr, rhs.queuePtr);
 
 					return *this;
@@ -104,13 +107,22 @@ namespace slim
 				inline bool consume(std::function<void(Chunk&)> callback)
 				{
 					// this call does NOT block if buffer is empty
-					return queuePtr->dequeue([&](Chunk& chunk)
+					auto consumed = queuePtr->dequeue([&](Chunk& chunk)
 					{
 						callback(chunk);
 					});
+
+					// updating available attribute requires by scheduler
+					if (!consumed)
+					{
+						available.store(false, std::memory_order_release);
+					}
+
+					return consumed;
 				}
 
 				Parameters getParameters();
+				bool       isAvailable();
 				bool       isProducing();
 				void       startProducing(std::function<void()> overflowCallback = []() {});
 				void       stopProducing(bool gracefully = true);
@@ -119,10 +131,12 @@ namespace slim
 				void        close();
 				bool        containsData(unsigned char* buffer, snd_pcm_sframes_t frames);
 				void        copyData(unsigned char* buffer, snd_pcm_sframes_t frames, Chunk& chunk);
+
 				inline auto formatError(std::string message, int error)
 				{
 					return message + ": name='" + parameters.getDeviceName() + "' error='" + snd_strerror(error) + "'";
 				}
+
 				void        open();
 				bool        restore(snd_pcm_sframes_t error);
 
@@ -132,6 +146,7 @@ namespace slim
 				Parameters                            parameters;
 				snd_pcm_t*                            handlePtr;
 				std::atomic<bool>                     producing;
+				std::atomic<bool>                     available;
 				std::unique_ptr<RealTimeQueue<Chunk>> queuePtr;
 		};
 	}

@@ -20,43 +20,40 @@ namespace slim
 {
 	Streamer::Streamer(std::vector<Pipeline> p)
 	: pipelines{std::move(p)}
-	, processorProxyPtr{nullptr}
-	, pause{true} {}
+	, processorProxyPtr{nullptr} {}
 
 
-	void Streamer::consume(Pipeline& pipeline)
+	void Streamer::consume()
 	{
-		// all references captured by this lambda are part of the streamer object
-		// it is required to ensure safety: processor will complete all tasks before destroying the streamer
-		auto task = [&]()
+		for(auto producing{true}, available{false}; producing;)
 		{
-			try
-			{
-				// if no more chunks available then requesting pause
-				// TODO: calculate max chunks per task
-				pause.store(!this->processChunks(pipeline, 5), std::memory_order_release);
-			}
-			catch (const std::exception& error)
-			{
-				LOG(ERROR) << error.what();
-			}
-			catch (...)
-			{
-				LOG(ERROR) << "Unknown exception";
-			}
-		};
+			producing = false;
+			available = false;
 
-		// while PCM source is producing data
-		for (pause.store(true, std::memory_order_release); pipeline.getSource().isProducing();)
-		{
-			// keep submitting tasks into the processor
-			processorProxyPtr->process(task);
+			for (auto& pipeline : pipelines)
+			{
+				auto task = [&]
+				{
+					// TODO: calculate maxChunks per processing quantum
+					pipeline.processChunks(5);
+				};
 
-			// if pause is needed
-			if (pause.load(std::memory_order_acquire))
+				// if source is producing PCM data
+				if ((producing = pipeline.isProducing()))
+				{
+					// if there is PCM data ready to be read
+					if ((available = pipeline.isAvailable()))
+					{
+						processorProxyPtr->process(task);
+					}
+				}
+			}
+
+			// if no PCM data is available in any of the pipelines then pause processing
+			if (!available)
 			{
 				// TODO: cruise control should be implemented
-				std::this_thread::sleep_for(std::chrono::milliseconds{100});
+				std::this_thread::sleep_for(std::chrono::milliseconds{20});
 			}
 		}
 	}
@@ -78,32 +75,34 @@ namespace slim
 			{
 				LOG(DEBUG) << "Starting PCM data capture thread (id=" << this << ")";
 
-				pipeline.getSource().startProducing();
+				pipeline.start();
 
 				LOG(DEBUG) << "Stopping PCM data capture thread (id=" << this << ")";
 			};
 
-			auto consumerTask = [&]
-			{
-				LOG(DEBUG) << "Starting PCM data consumer thread (id=" << this << ")";
-
-				// TODO: should be moved to a separate class
-				consume(pipeline);
-
-				LOG(DEBUG) << "Stopping PCM data consumer thread (id=" << this << ")";
-			};
-
 			// starting producer and making sure it is up and running before creating a consumer
-			std::thread pt{producerTask};
-			while(pt.joinable() && !pipeline.getSource().isProducing())
+			std::thread producerThread{producerTask};
+			while(producerThread.joinable() && !pipeline.isProducing())
 			{
 				std::this_thread::sleep_for(std::chrono::milliseconds{10});
 			}
 
 			// adding two threads per pipeline into a vector: producer for Real-Time processing, consumer for streaming
-			threads.emplace_back(std::move(pt));
-			threads.emplace_back(std::move(std::thread{consumerTask}));
+			threads.emplace_back(std::move(producerThread));
 		}
+
+		// creating one thread for consuming PCM data for all pipelines
+		threads.emplace_back(std::thread
+		{
+			[&]
+			{
+				LOG(DEBUG) << "Starting PCM data consumer thread (id=" << this << ")";
+
+				consume();
+
+				LOG(DEBUG) << "Stopping PCM data consumer thread (id=" << this << ")";
+			}
+		});
 	}
 
 
@@ -114,7 +113,7 @@ namespace slim
 		// signalling all pipelines to stop processing
 		for (auto& pipeline : pipelines)
 		{
-			pipeline.getSource().stopProducing(gracefully);
+			pipeline.stop(gracefully);
 		}
 
 		// waiting for all pipelines' threads to terminate

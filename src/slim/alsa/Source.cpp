@@ -89,6 +89,12 @@ namespace slim
 		}
 
 
+		bool Source::isAvailable()
+		{
+			return available.load(std::memory_order_acquire);
+		}
+
+
 		bool Source::isProducing()
 		{
 			return producing.load(std::memory_order_acquire);
@@ -221,12 +227,16 @@ namespace slim
 					if (frames > 0 && containsData(srcBuffer, frames))
 					{
 						// reading PCM data directly into the queue
-						if (!queuePtr->enqueue([&](Chunk& chunk)
+						if (queuePtr->enqueue([&](Chunk& chunk)
 						{
 							copyData(srcBuffer, frames, chunk);
 						}))
 						{
-							// calling overflow callback, which must be real-time safe
+							// available is used to provide optimization for a scheduler submitting tasks to a processor
+							available.store(true, std::memory_order_release);
+						} else {
+
+							// calling overflow callback (which must be real-time safe) in case it was not possible to enqueue a chunk
 							overflowCallback();
 						}
 					}
@@ -238,7 +248,7 @@ namespace slim
 						// if error code is unexpected then breaking this loop (-EBADFD is returned when stopProducing method was called)
 						if (frames != -EBADFD)
 						{
-							throw Exception(formatError("Unexpected error while reading PCM data", result));
+							throw Exception(formatError("Unexpected error while reading PCM data", frames));
 						}
 					}
 				}

@@ -16,6 +16,8 @@
 #include <exception>
 #include <g3log/logworker.hpp>
 #include <memory>
+#include <string>
+#include <tuple>
 #include <vector>
 
 #include "slim/alsa/Parameters.hpp"
@@ -25,9 +27,11 @@
 #include "slim/log/log.hpp"
 #include "slim/Pipeline.hpp"
 #include "slim/Streamer.hpp"
+#include "slim/wave/Destination.hpp"
 
 
 static volatile bool running = true;
+
 
 void signalHandler(int sig)
 {
@@ -37,16 +41,32 @@ void signalHandler(int sig)
 
 auto createPipelines()
 {
-	auto pipelines{std::vector<slim::Pipeline>{}};
-	auto parameters{slim::alsa::Parameters{"", 3, SND_PCM_FORMAT_S32_LE, 0, 128, 1024}};
+	std::vector<std::tuple<unsigned int, std::string>> rates
+	{
+		{5512,   "hw:1,1,1"},
+		{8000,   "hw:1,1,2"},
+		{11025,  "hw:1,1,3"},
+		{16000,  "hw:1,1,4"},
+		{22050,  "hw:1,1,5"},
+		{32000,  "hw:1,1,6"},
+		{44100,  "hw:1,1,7"},
+		{48000,  "hw:2,1,1"},
+		{64000,  "hw:2,1,2"},
+		{88200,  "hw:2,1,3"},
+		{96000,  "hw:2,1,4"},
+		{176400, "hw:2,1,5"},
+		{192000, "hw:2,1,6"},
+	};
 
-	parameters.setDeviceName("hw:1,1,7");
-	parameters.setRate(44100);
-	pipelines.emplace_back(slim::alsa::Source{parameters}, "aaa.wav", 2, 44100, 32);
+	slim::alsa::Parameters      parameters{"", 3, SND_PCM_FORMAT_S32_LE, 0, 128, 1024 * 16};
+	std::vector<slim::Pipeline> pipelines;
 
-	parameters.setDeviceName("hw:2,1,1");
-	parameters.setRate(48000);
-	pipelines.emplace_back(slim::alsa::Source{parameters}, "bbb.wav", 2, 48000, 32);
+	for (auto& rate : rates)
+	{
+		parameters.setRate(std::get<0>(rate));
+		parameters.setDeviceName(std::get<1>(rate));
+		pipelines.emplace_back(slim::alsa::Source{parameters}, slim::wave::Destination{std::to_string(std::get<0>(rate)) + ".wav", 2, std::get<0>(rate), 32});
+	}
 
 	return pipelines;
 }

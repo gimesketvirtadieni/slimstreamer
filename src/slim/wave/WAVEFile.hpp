@@ -25,7 +25,7 @@ namespace slim
 		class WAVEFile
 		{
 			public:
-				explicit WAVEFile(const char* f, unsigned int c, unsigned int s, int b)
+				explicit WAVEFile(std::string f, unsigned int c, unsigned int s, int b)
 				: fileName{f}
 				, channels{c}
 				, sampleRate{s}
@@ -84,11 +84,10 @@ namespace slim
 					return *this;
 				}
 
-				void consume(Chunk& chunk);
+				void write(const unsigned char* buffer, size_t size);
 
 			protected:
 				void updateHeader();
-				void write(const unsigned char* buffer, size_t size);
 				void writeHeader();
 
 			private:

@@ -20,13 +20,6 @@ namespace slim
 {
 	namespace wave
 	{
-		void WAVEFile::consume(Chunk& chunk)
-		{
-			write(chunk.getBuffer(), chunk.getDataSize());
-			LOG(DEBUG) << "Written " << (chunk.getDataSize() / bytesPerFrame) << " frames";
-		}
-
-
 		void WAVEFile::updateHeader()
 		{
 			if (outputFile.is_open())
@@ -57,6 +50,8 @@ namespace slim
 					auto value = (char)buffer[i];
 					outputFile.write(&value, sizeof(char));
 		        }
+
+			    LOG(DEBUG) << "Written " << (size / bytesPerFrame) << " frames";
 		    }
 		}
 

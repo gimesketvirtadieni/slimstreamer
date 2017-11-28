@@ -13,7 +13,7 @@
 #pragma once
 
 #include "slim/alsa/Source.hpp"
-#include "slim/wave/WAVEFile.hpp"
+#include "slim/wave/Destination.hpp"
 
 
 namespace slim
@@ -21,9 +21,9 @@ namespace slim
 	class Pipeline
 	{
 		public:
-			Pipeline(alsa::Source s, const char* fileName, unsigned int channels, unsigned int sampleRate, int bitsPerSample)
+			Pipeline(alsa::Source s, wave::Destination d)
 			: source{std::move(s)}
-			, destination{fileName, channels, sampleRate, bitsPerSample} {}
+			, destination{std::move(d)} {}
 
 			// using Rule Of Zero
 		   ~Pipeline() = default;
@@ -32,18 +32,41 @@ namespace slim
 			Pipeline(Pipeline&& rhs) = default;
 			Pipeline& operator=(Pipeline&& rhs) = default;
 
-			auto& getDestination()
+			inline bool isAvailable()
 			{
-				return destination;
+				return source.isAvailable();
 			}
 
-			auto& getSource()
+			inline bool isProducing()
 			{
-				return source;
+				return source.isProducing();
+			}
+
+			inline void processChunks(unsigned int maxChunks)
+			{
+				auto consuming{true};
+
+				for (unsigned int count{0}; count < maxChunks && consuming; count++)
+				{
+					consuming = source.consume([&](Chunk& chunk)
+					{
+						destination.consume(chunk);
+					});
+				}
+			}
+
+			inline void start()
+			{
+				return source.startProducing();
+			}
+
+			inline void stop(bool gracefully)
+			{
+				return source.stopProducing(gracefully);
 			}
 
 		private:
-		   alsa::Source   source;
-		   wave::WAVEFile destination;
+		   alsa::Source      source;
+		   wave::Destination destination;
 	};
 }
