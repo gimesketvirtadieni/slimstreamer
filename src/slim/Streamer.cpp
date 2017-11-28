@@ -87,11 +87,11 @@ namespace slim
 				std::this_thread::sleep_for(std::chrono::milliseconds{10});
 			}
 
-			// adding two threads per pipeline into a vector: producer for Real-Time processing, consumer for streaming
+			// adding producer thread for Real-Time processing
 			threads.emplace_back(std::move(producerThread));
 		}
 
-		// creating one thread for consuming PCM data for all pipelines
+		// creating one single thread for consuming PCM data for all pipelines
 		threads.emplace_back(std::thread
 		{
 			[&]
