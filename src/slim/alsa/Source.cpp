@@ -98,24 +98,6 @@ namespace slim
 		}
 
 
-		Parameters Source::getParameters()
-		{
-			return parameters;
-		}
-
-
-		bool Source::isAvailable()
-		{
-			return available.load(std::memory_order_acquire);
-		}
-
-
-		bool Source::isProducing()
-		{
-			return producing.load(std::memory_order_acquire);
-		}
-
-
 		void Source::open()
 		{
 			snd_pcm_hw_params_t* hardwarePtr = nullptr;

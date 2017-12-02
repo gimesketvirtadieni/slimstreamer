@@ -25,7 +25,7 @@ namespace slim
 
 	void Streamer::stream()
 	{
-		for(auto producing{true}, available{false}; producing;)
+		for(auto producing{true}, available{true}; producing;)
 		{
 			producing = false;
 			available = false;
@@ -38,14 +38,10 @@ namespace slim
 					pipeline.processChunks(5);
 				};
 
-				// if source is producing PCM data
-				if ((producing = pipeline.isProducing()))
+				// if there is PCM data ready to be read
+				if ((producing = pipeline.isProducing()) && (available = pipeline.isAvailable()))
 				{
-					// if there is PCM data ready to be read
-					if ((available = pipeline.isAvailable()))
-					{
-						processorProxyPtr->process(task);
-					}
+					processorProxyPtr->process(task);
 				}
 			}
 

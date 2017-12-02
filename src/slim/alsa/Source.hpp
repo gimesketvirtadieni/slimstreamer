@@ -112,11 +112,18 @@ namespace slim
 					return *this;
 				}
 
-				Parameters getParameters();
-				bool       isAvailable();
-				bool       isProducing();
-				void       startProducing(std::function<void()> overflowCallback = []() {});
-				void       stopProducing(bool gracefully = true);
+				inline bool isAvailable()
+				{
+					return available.load(std::memory_order_acquire);
+				}
+
+				inline bool isProducing()
+				{
+					return producing.load(std::memory_order_acquire);
+				}
+
+				void startProducing(std::function<void()> overflowCallback = []() {});
+				void stopProducing(bool gracefully = true);
 
 				inline bool supply(std::function<void(Chunk&)> consumer)
 				{
