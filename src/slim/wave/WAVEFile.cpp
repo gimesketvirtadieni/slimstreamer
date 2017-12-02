@@ -50,8 +50,6 @@ namespace slim
 					auto value = (char)buffer[i];
 					outputFile.write(&value, sizeof(char));
 		        }
-
-			    LOG(DEBUG) << "Written " << (size / bytesPerFrame) << " frames";
 		    }
 		}
 

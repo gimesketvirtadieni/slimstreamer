@@ -81,6 +81,11 @@ namespace slim
 					deviceName = d;
 				}
 
+				inline void setFramesPerChunk(snd_pcm_uframes_t f)
+				{
+					framesPerChunk = f;
+				}
+
 				inline void setRate(unsigned int r)
 				{
 					rate = r;

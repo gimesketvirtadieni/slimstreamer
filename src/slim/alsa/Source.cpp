@@ -33,22 +33,30 @@ namespace slim
 		}
 
 
-		// TODO: an offset should be returned so containsData & copyData uses only one iterration
-		bool Source::containsData(unsigned char* buffer, snd_pcm_sframes_t frames)
+		snd_pcm_sframes_t Source::containsData(unsigned char* buffer, snd_pcm_sframes_t frames)
 		{
-			auto contains{false};
+			auto offset{-1};
 			auto bytesPerFrame{parameters.getChannels() * (parameters.getBitDepth() >> 3)};
 
-			for (snd_pcm_sframes_t i = 0; i < frames && !contains; i++)
+			for (snd_pcm_sframes_t i = 0; i < frames && offset < 0; i++)
 			{
+				// processing PCM data marker
 				auto value = buffer[(i + 1) * bytesPerFrame - 1];  // last byte of the current frame
-				if (value)
+				if (value == BEGINNING_OF_STREAM_MARKER)
 				{
-					contains = true;
+					streaming = true;
+				}
+				else if (value == END_OF_STREAM_MARKER)
+				{
+					streaming = false;
+				}
+				else if (value == DATA_MARKER && streaming)
+				{
+					offset = i;
 				}
 			}
 
-			return contains;
+			return offset;
 		}
 
 
@@ -58,13 +66,20 @@ namespace slim
 			auto dstBuffer{chunk.getBuffer()};
 			auto dstFrames{snd_pcm_sframes_t{0}};
 
-			// TODO: reuse containsData
 			for (snd_pcm_sframes_t i = 0; i < srcFrames; i++)
 			{
 				auto value = srcBuffer[(i + 1) * bytesPerFrame - 1];  // last byte of the current frame
-				if (value)
+				if (value == BEGINNING_OF_STREAM_MARKER)
 				{
-					// copying byte-by-byte and skyping the last channel
+					streaming = true;
+				}
+				else if (value == END_OF_STREAM_MARKER)
+				{
+					streaming = false;
+				}
+				else if (value == DATA_MARKER && streaming)
+				{
+					// copying byte-by-byte and skipping the last channel
 					for (unsigned int j = 0; j < (bytesPerFrame - (parameters.getBitDepth() >> 3)); j++)
 					{
 						dstBuffer[j] = srcBuffer[i * bytesPerFrame + j];
@@ -205,8 +220,9 @@ namespace slim
 
 		void Source::startProducing(std::function<void()> overflowCallback)
 		{
-			auto          maxFrames = parameters.getFramesPerChunk();
-			unsigned char srcBuffer[maxFrames * parameters.getChannels() * (parameters.getBitDepth() >> 3)];
+			auto          maxFrames     = parameters.getFramesPerChunk();
+			unsigned int  bytesPerFrame = parameters.getChannels() * (parameters.getBitDepth() >> 3);
+			unsigned char srcBuffer[maxFrames * bytesPerFrame];
 
 			// everything inside this try must be real-time safe: no memory allocation, no logging, etc.
 			try
@@ -224,20 +240,24 @@ namespace slim
 					// this call will block until buffer is filled or PCM stream state is changed
 					snd_pcm_sframes_t frames = snd_pcm_readi(handlePtr, srcBuffer, maxFrames);
 
-					if (frames > 0 && containsData(srcBuffer, frames))
+					if (frames > 0)
 					{
-						// reading PCM data directly into the queue
-						if (queuePtr->enqueue([&](Chunk& chunk)
+						auto offset = containsData(srcBuffer, frames);
+						if (offset >= 0)
 						{
-							copyData(srcBuffer, frames, chunk);
-						}))
-						{
-							// available is used to provide optimization for a scheduler submitting tasks to a processor
-							available.store(true, std::memory_order_release);
-						} else {
+							// reading PCM data directly into the queue
+							if (queuePtr->enqueue([&](Chunk& chunk)
+							{
+								copyData(srcBuffer + offset * bytesPerFrame, frames - offset, chunk);
+							}))
+							{
+								// available is used to provide optimization for a scheduler submitting tasks to a processor
+								available.store(true, std::memory_order_release);
+							} else {
 
-							// calling overflow callback (which must be real-time safe) in case it was not possible to enqueue a chunk
-							overflowCallback();
+								// calling overflow callback (which must be real-time safe) in case it was not possible to enqueue a chunk
+								overflowCallback();
+							}
 						}
 					}
 					else if (frames < 0 && !restore(frames))

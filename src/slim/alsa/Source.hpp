@@ -22,6 +22,11 @@
 #include "slim/Chunk.hpp"
 #include "slim/RealTimeQueue.hpp"
 
+/* TODO: use enum */
+#define BEGINNING_OF_STREAM_MARKER 1
+#define END_OF_STREAM_MARKER       2
+#define DATA_MARKER                3
+
 
 namespace slim
 {
@@ -35,6 +40,7 @@ namespace slim
 				, handlePtr{nullptr}
 				, producing{false}
 				, available{false}
+				, streaming{true}
 				, queuePtr{std::make_unique<RealTimeQueue<Chunk>>(parameters.getQueueSize(), [&](Chunk& chunk)
 				{
 					// last channel does not contain PCM data so it will be filtered out
@@ -67,6 +73,7 @@ namespace slim
 				, handlePtr{std::move(rhs.handlePtr)}
 				, producing{rhs.producing.load()}  // TODO: handle atopic properly
 				, available{rhs.available.load()}  // TODO: handle atopic properly
+				, streaming{rhs.streaming}
 				, queuePtr{std::move(rhs.queuePtr)}
 				{
 					rhs.empty = true;
@@ -99,26 +106,10 @@ namespace slim
 					// TODO: handle atomic properly
 					producing.store(rhs.producing.load());
 					available.store(rhs.available.load());
+					swap(streaming, rhs.streaming);
 					swap(queuePtr, rhs.queuePtr);
 
 					return *this;
-				}
-
-				inline bool consume(std::function<void(Chunk&)> callback)
-				{
-					// this call does NOT block if buffer is empty
-					auto consumed = queuePtr->dequeue([&](Chunk& chunk)
-					{
-						callback(chunk);
-					});
-
-					// updating available attribute requires by scheduler
-					if (!consumed)
-					{
-						available.store(false, std::memory_order_release);
-					}
-
-					return consumed;
 				}
 
 				Parameters getParameters();
@@ -127,18 +118,35 @@ namespace slim
 				void       startProducing(std::function<void()> overflowCallback = []() {});
 				void       stopProducing(bool gracefully = true);
 
+				inline bool supply(std::function<void(Chunk&)> consumer)
+				{
+					// this call does NOT block if buffer is empty
+					auto consumed = queuePtr->dequeue([&](Chunk& chunk)
+					{
+						consumer(chunk);
+					});
+
+					// updating available attribute used to optimize the scheduler
+					if (!consumed)
+					{
+						available.store(false, std::memory_order_release);
+					}
+
+					return consumed;
+				}
+
 			protected:
-				void        close();
-				bool        containsData(unsigned char* buffer, snd_pcm_sframes_t frames);
-				void        copyData(unsigned char* buffer, snd_pcm_sframes_t frames, Chunk& chunk);
+				void              close();
+				snd_pcm_sframes_t containsData(unsigned char* buffer, snd_pcm_sframes_t frames);
+				void              copyData(unsigned char* buffer, snd_pcm_sframes_t frames, Chunk& chunk);
 
 				inline auto formatError(std::string message, int error)
 				{
 					return message + ": name='" + parameters.getDeviceName() + "' error='" + snd_strerror(error) + "'";
 				}
 
-				void        open();
-				bool        restore(snd_pcm_sframes_t error);
+				void open();
+				bool restore(snd_pcm_sframes_t error);
 
 			private:
 				// TODO: empty attribute should be refactored to a separate class
@@ -147,6 +155,7 @@ namespace slim
 				snd_pcm_t*                            handlePtr;
 				std::atomic<bool>                     producing;
 				std::atomic<bool>                     available;
+				bool                                  streaming;
 				std::unique_ptr<RealTimeQueue<Chunk>> queuePtr;
 		};
 	}

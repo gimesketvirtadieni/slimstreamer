@@ -58,13 +58,19 @@ auto createPipelines()
 		{192000, "hw:2,1,6"},
 	};
 
-	slim::alsa::Parameters      parameters{"", 3, SND_PCM_FORMAT_S32_LE, 0, 128, 1024 * 16};
+	slim::alsa::Parameters      parameters{"", 3, SND_PCM_FORMAT_S32_LE, 0, 128, 0};
 	std::vector<slim::Pipeline> pipelines;
+	unsigned int                chunkDurationMilliSecond{100};
 
 	for (auto& rate : rates)
 	{
-		parameters.setRate(std::get<0>(rate));
-		parameters.setDeviceName(std::get<1>(rate));
+		auto rateValue{std::get<0>(rate)};
+		auto deviceValue{std::get<1>(rate)};
+
+		parameters.setRate(rateValue);
+		parameters.setDeviceName(deviceValue);
+		parameters.setFramesPerChunk((rateValue * chunkDurationMilliSecond) / 1000);
+
 		pipelines.emplace_back(slim::alsa::Source{parameters}, slim::wave::Destination{std::to_string(std::get<0>(rate)) + ".wav", 2, std::get<0>(rate), 32});
 	}
 

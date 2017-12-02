@@ -24,7 +24,8 @@ namespace slim
 		{
 			public:
 				explicit Destination(std::string fileName, unsigned int channels, unsigned int sampleRate, int bitsPerSample)
-				: waveFile{fileName, channels, sampleRate, bitsPerSample} {}
+				: waveFile{fileName, channels, sampleRate, bitsPerSample}
+				, bytesPerFrame{channels * (bitsPerSample >> 3)} {}
 
 				// using Rule Of Zero
 				~Destination() = default;
@@ -36,7 +37,8 @@ namespace slim
 				void consume(Chunk& chunk);
 
 			private:
-				WAVEFile waveFile;
+				WAVEFile     waveFile;
+				unsigned int bytesPerFrame;
 		};
 	}
 }

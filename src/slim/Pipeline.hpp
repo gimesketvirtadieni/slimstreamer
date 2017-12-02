@@ -44,11 +44,11 @@ namespace slim
 
 			inline void processChunks(unsigned int maxChunks)
 			{
-				auto consuming{true};
+				auto processing{true};
 
-				for (unsigned int count{0}; count < maxChunks && consuming; count++)
+				for (unsigned int count{0}; count < maxChunks && processing; count++)
 				{
-					consuming = source.consume([&](Chunk& chunk)
+					processing = source.supply([&](Chunk& chunk)
 					{
 						destination.consume(chunk);
 					});

@@ -20,7 +20,11 @@ namespace slim
 	{
 		void Destination::consume(Chunk& chunk)
 		{
-			waveFile.write(chunk.getBuffer(), chunk.getDataSize());
+			auto size{chunk.getDataSize()};
+
+			waveFile.write(chunk.getBuffer(), size);
+
+			LOG(DEBUG) << "Written " << (size / bytesPerFrame) << " frames";
 		}
 	}
 }
