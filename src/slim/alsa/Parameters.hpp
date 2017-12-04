@@ -25,13 +25,14 @@ namespace slim
 		class Parameters
 		{
 			public:
-				Parameters(std::string d, unsigned int c, snd_pcm_format_t f, unsigned int r, size_t qs, snd_pcm_uframes_t fc)
+				Parameters(std::string d, unsigned int c, snd_pcm_format_t f, unsigned int r, size_t qs, snd_pcm_uframes_t fc, unsigned int p)
 				: deviceName{d}
 				, channels{c}
 				, format{f}
 				, rate{r}
 				, queueSize{qs}
-				, framesPerChunk{fc} {}
+				, framesPerChunk{fc}
+				, periods{p} {}
 
 				// using Rule Of Zero
 			   ~Parameters() = default;
@@ -76,6 +77,11 @@ namespace slim
 					return framesPerChunk;
 				}
 
+				inline const unsigned int getPeriods() const
+				{
+					return periods;
+				}
+
 				inline void setDeviceName(std::string d)
 				{
 					deviceName = d;
@@ -98,6 +104,7 @@ namespace slim
 				unsigned int      rate;
 				size_t            queueSize;
 				snd_pcm_uframes_t framesPerChunk;
+				unsigned int      periods;
 		};
 	}
 }

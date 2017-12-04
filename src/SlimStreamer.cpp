@@ -58,9 +58,9 @@ auto createPipelines()
 		{192000, "hw:2,1,6"},
 	};
 
-	slim::alsa::Parameters      parameters{"", 3, SND_PCM_FORMAT_S32_LE, 0, 128, 0};
-	std::vector<slim::Pipeline> pipelines;
-	unsigned int                chunkDurationMilliSecond{100};
+	slim::alsa::Parameters                                                   parameters{"", 3, SND_PCM_FORMAT_S32_LE, 0, 128, 0, 8};
+	std::vector<slim::Pipeline<slim::alsa::Source, slim::wave::Destination>> pipelines;
+	unsigned int                                                             chunkDurationMilliSecond{100};
 
 	for (auto& rate : rates)
 	{
@@ -95,7 +95,7 @@ int main(int argc, char *argv[])
 	try
 	{
         // creating Streamer object with ALSA Parameters within Processor
-		conwrap::ProcessorAsio<slim::Streamer> processorAsio{createPipelines()};
+		conwrap::ProcessorAsio<slim::Streamer<slim::alsa::Source, slim::wave::Destination>> processorAsio{createPipelines()};
 
         // start streaming
         processorAsio.getResource()->start();

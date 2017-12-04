@@ -22,10 +22,13 @@
 
 namespace slim
 {
+	template<typename Source, typename Destination>
 	class Streamer
 	{
 		public:
-			explicit Streamer(std::vector<Pipeline> pipelines);
+			explicit Streamer(std::vector<Pipeline<Source, Destination>> p)
+			: pipelines{std::move(p)}
+			, processorProxyPtr{nullptr} {}
 
 			// using Rule Of Zero
 			~Streamer() = default;
@@ -34,17 +37,121 @@ namespace slim
 			Streamer(Streamer&& rhs) = default;
 			Streamer& operator=(Streamer&& rhs) = default;
 
-			void setProcessorProxy(conwrap::ProcessorProxy<Streamer>* p);
-			void start();
-			void stop(bool gracefully = true);
+			void setProcessorProxy(conwrap::ProcessorProxy<Streamer>* p)
+			{
+				processorProxyPtr = p;
+			}
+
+			void start()
+			{
+				std::lock_guard<std::mutex> guard{lock};
+
+				for (auto& pipeline : pipelines)
+				{
+					auto producerTask = [&]
+					{
+						LOG(DEBUG) << "Starting PCM data capture thread (id=" << this << ")";
+
+						try
+						{
+							pipeline.start();
+						}
+						catch (const slim::Exception& error)
+						{
+							LOG(ERROR) << error;
+						}
+
+						LOG(DEBUG) << "Stopping PCM data capture thread (id=" << this << ")";
+					};
+
+					// starting producer and making sure it is up and running before creating a consumer
+					std::thread producerThread{producerTask};
+					while(producerThread.joinable() && !pipeline.isProducing())
+					{
+						std::this_thread::sleep_for(std::chrono::milliseconds{10});
+					}
+
+					// adding producer thread for Real-Time processing
+					threads.emplace_back(std::move(producerThread));
+				}
+
+				// creating one single thread for consuming PCM data for all pipelines
+				threads.emplace_back(std::thread
+				{
+					[&]
+					{
+						LOG(DEBUG) << "Starting streamer thread (id=" << this << ")";
+
+						stream();
+
+						LOG(DEBUG) << "Stopping streamer thread (id=" << this << ")";
+					}
+				});
+			}
+
+			void stop(bool gracefully = true)
+			{
+				std::lock_guard<std::mutex> guard{lock};
+
+				// signalling all pipelines to stop processing
+				for (auto& pipeline : pipelines)
+				{
+					try
+					{
+						pipeline.stop(gracefully);
+					}
+					catch (const slim::Exception& error)
+					{
+						LOG(ERROR) << error;
+					}
+				}
+
+				// waiting for all pipelines' threads to terminate
+				for (auto& thread : threads)
+				{
+					if (thread.joinable())
+					{
+						thread.join();
+					}
+				}
+			}
 
 		protected:
-			void stream();
+			void stream()
+			{
+				for(auto producing{true}, available{true}; producing;)
+				{
+					producing = false;
+					available = false;
+
+					for (auto& pipeline : pipelines)
+					{
+						auto task = [&]
+						{
+							// TODO: calculate maxChunks per processing quantum
+							pipeline.processChunks(5);
+						};
+
+						// if there is PCM data ready to be read
+						if ((producing = pipeline.isProducing()) && (available = pipeline.isAvailable()))
+						{
+							processorProxyPtr->process(task);
+						}
+					}
+
+					// if no PCM data is available in any of the pipelines then pause processing
+					if (!available)
+					{
+						// TODO: cruise control should be implemented
+						std::this_thread::sleep_for(std::chrono::milliseconds{20});
+					}
+				}
+			}
 
 		private:
-			std::vector<Pipeline>              pipelines;
-			std::vector<std::thread>           threads;
-			conwrap::ProcessorProxy<Streamer>* processorProxyPtr;
-			std::mutex                         lock;
+			std::vector<Pipeline<Source, Destination>> pipelines;
+			std::vector<std::thread>                   threads;
+			conwrap::ProcessorProxy<Streamer>*         processorProxyPtr;
+			std::mutex                                 lock;
 	};
 }

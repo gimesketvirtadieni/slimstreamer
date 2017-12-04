@@ -22,16 +22,18 @@
 #include "slim/Chunk.hpp"
 #include "slim/RealTimeQueue.hpp"
 
-/* TODO: use enum */
-#define BEGINNING_OF_STREAM_MARKER 1
-#define END_OF_STREAM_MARKER       2
-#define DATA_MARKER                3
-
 
 namespace slim
 {
 	namespace alsa
 	{
+		enum class StreamMarker : unsigned char
+		{
+			beginningOfStream = 1,
+			endOfStream       = 2,
+			data              = 3,
+		};
+
 		class Source
 		{
 			public:
@@ -56,10 +58,10 @@ namespace slim
 				{
 					if (!empty)
 					{
-						// TODO: it is not safe
+						// TODO: it is not safe; a synchronisation with start must be introduced
 						if (producing.load(std::memory_order_acquire))
 						{
-							stopProducing(false);
+							stop();
 						}
 						close();
 					}
@@ -71,8 +73,8 @@ namespace slim
 				Source(Source&& rhs)
 				: parameters{std::move(rhs.parameters)}
 				, handlePtr{std::move(rhs.handlePtr)}
-				, producing{rhs.producing.load()}  // TODO: handle atopic properly
-				, available{rhs.available.load()}  // TODO: handle atopic properly
+				, producing{rhs.producing.load()}  // TODO: handle atomic properly
+				, available{rhs.available.load()}  // TODO: handle atomic properly
 				, streaming{rhs.streaming}
 				, queuePtr{std::move(rhs.queuePtr)}
 				{
@@ -89,7 +91,7 @@ namespace slim
 						// TODO: it is not safe
 						if (producing.load(std::memory_order_acquire))
 						{
-							stopProducing(false);
+							stop(false);
 						}
 
 						// closing source if it's been opened from the constructor
@@ -122,24 +124,19 @@ namespace slim
 					return producing.load(std::memory_order_acquire);
 				}
 
-				void startProducing(std::function<void()> overflowCallback = []() {});
-				void stopProducing(bool gracefully = true);
+				void start(std::function<void()> overflowCallback = [] {});
+				void stop(bool gracefully = true);
 
-				inline bool supply(std::function<void(Chunk&)> consumer)
+				inline void supply(std::function<void(Chunk&)> consumer)
 				{
 					// this call does NOT block if buffer is empty
-					auto consumed = queuePtr->dequeue([&](Chunk& chunk)
+					queuePtr->dequeue([&](Chunk& chunk)
 					{
 						consumer(chunk);
-					});
-
-					// updating available attribute used to optimize the scheduler
-					if (!consumed)
+					}, [&]
 					{
 						available.store(false, std::memory_order_release);
-					}
-
-					return consumed;
+					});
 				}
 
 			protected:

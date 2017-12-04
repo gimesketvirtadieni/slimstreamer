@@ -25,10 +25,11 @@ namespace slim
 	{
 		void Source::close()
 		{
-			// closing source if it's been opened from the constructor
-			if (handlePtr)
+			int result;
+
+			if ((result = snd_pcm_close(handlePtr)) < 0)
 			{
-				snd_pcm_close(handlePtr);
+				throw Exception(formatError("Error while closing audio device", result));
 			}
 		}
 
@@ -41,16 +42,16 @@ namespace slim
 			for (snd_pcm_sframes_t i = 0; i < frames && offset < 0; i++)
 			{
 				// processing PCM data marker
-				auto value = buffer[(i + 1) * bytesPerFrame - 1];  // last byte of the current frame
-				if (value == BEGINNING_OF_STREAM_MARKER)
+				StreamMarker value{buffer[(i + 1) * bytesPerFrame - 1]};  // last byte of the current frame
+				if (value == StreamMarker::beginningOfStream)
 				{
 					streaming = true;
 				}
-				else if (value == END_OF_STREAM_MARKER)
+				else if (value == StreamMarker::endOfStream)
 				{
 					streaming = false;
 				}
-				else if (value == DATA_MARKER && streaming)
+				else if (value == StreamMarker::data && streaming)
 				{
 					offset = i;
 				}
@@ -68,16 +69,16 @@ namespace slim
 
 			for (snd_pcm_sframes_t i = 0; i < srcFrames; i++)
 			{
-				auto value = srcBuffer[(i + 1) * bytesPerFrame - 1];  // last byte of the current frame
-				if (value == BEGINNING_OF_STREAM_MARKER)
+				StreamMarker value{srcBuffer[(i + 1) * bytesPerFrame - 1]};  // last byte of the current frame
+				if (value == StreamMarker::beginningOfStream)
 				{
 					streaming = true;
 				}
-				else if (value == END_OF_STREAM_MARKER)
+				else if (value == StreamMarker::endOfStream)
 				{
 					streaming = false;
 				}
-				else if (value == DATA_MARKER && streaming)
+				else if (value == StreamMarker::data && streaming)
 				{
 					// copying byte-by-byte and skipping the last channel
 					for (unsigned int j = 0; j < (bytesPerFrame - (parameters.getBitDepth() >> 3)); j++)
@@ -152,7 +153,7 @@ namespace slim
 			}
 
 			// TODO: parametrize
-			else if ((result = snd_pcm_hw_params_set_periods(handlePtr, hardwarePtr, 2, 0)) < 0)
+			else if ((result = snd_pcm_hw_params_set_periods(handlePtr, hardwarePtr, parameters.getPeriods(), 0)) < 0)
 			{
 				throw Exception(formatError("Cannot set periods count", result));
 			}
@@ -200,77 +201,76 @@ namespace slim
 		}
 
 
-		void Source::startProducing(std::function<void()> overflowCallback)
+		void Source::start(std::function<void()> overflowCallback)
 		{
 			auto          maxFrames     = parameters.getFramesPerChunk();
 			unsigned int  bytesPerFrame = parameters.getChannels() * (parameters.getBitDepth() >> 3);
 			unsigned char srcBuffer[maxFrames * bytesPerFrame];
 
-			// everything inside this try must be real-time safe: no memory allocation, no logging, etc.
-			try
+			// start receiving data from ALSA
+			auto result = snd_pcm_start(handlePtr);
+			if (result < 0)
 			{
-				// start receiving data from ALSA
-				auto result = snd_pcm_start(handlePtr);
-				if (result < 0)
-				{
-					throw Exception(formatError("Cannot start using audio device", result));
-				}
-
-				// reading ALSA data within this loop
-				for (producing.store(true, std::memory_order_release); producing.load(std::memory_order_acquire);)
-				{
-					// this call will block until buffer is filled or PCM stream state is changed
-					snd_pcm_sframes_t frames = snd_pcm_readi(handlePtr, srcBuffer, maxFrames);
-
-					if (frames > 0)
-					{
-						auto offset = containsData(srcBuffer, frames);
-						if (offset >= 0)
-						{
-							// reading PCM data directly into the queue
-							if (queuePtr->enqueue([&](Chunk& chunk)
-							{
-								copyData(srcBuffer + offset * bytesPerFrame, frames - offset, chunk);
-							}))
-							{
-								// available is used to provide optimization for a scheduler submitting tasks to a processor
-								available.store(true, std::memory_order_release);
-							} else {
-
-								// calling overflow callback (which must be real-time safe) in case it was not possible to enqueue a chunk
-								overflowCallback();
-							}
-						}
-					}
-					else if (frames < 0 && !restore(frames))
-					{
-						// signaling this loop to exit gracefully
-						producing.store(false, std::memory_order_release);
-
-						// if error code is unexpected then breaking this loop (-EBADFD is returned when stopProducing method was called)
-						if (frames != -EBADFD)
-						{
-							throw Exception(formatError("Unexpected error while reading PCM data", frames));
-						}
-					}
-				}
+				throw Exception(formatError("Cannot start using audio device", result));
 			}
-			catch (const Exception& error)
+
+			// everything inside this loop (except overflowCallback) must be real-time safe: no memory allocation, no logging, etc.
+			for (producing.store(true, std::memory_order_release); producing.load(std::memory_order_acquire);)
 			{
-				LOG(ERROR) << error;
+				// this call will block until buffer is filled or PCM stream state is changed
+				snd_pcm_sframes_t frames = snd_pcm_readi(handlePtr, srcBuffer, maxFrames);
+
+				if (frames > 0)
+				{
+					auto offset = containsData(srcBuffer, frames);
+					if (offset >= 0)
+					{
+						// reading PCM data directly into the queue
+						queuePtr->enqueue([&](Chunk& chunk)
+						{
+							copyData(srcBuffer + offset * bytesPerFrame, frames - offset, chunk);
+
+							// available is used to provide optimization for a scheduler submitting tasks to a processor
+							available.store(true, std::memory_order_release);
+						}, [&]
+						{
+							// calling overflow callback in case it was not possible to enqueue a chunk
+							overflowCallback();
+						});
+					}
+				}
+				else if (frames < 0 && !restore(frames))
+				{
+					// signaling this loop to exit gracefully
+					producing.store(false, std::memory_order_release);
+
+					// if error code is unexpected then breaking this loop (-EBADFD is returned when stopProducing method was called)
+					if (frames != -EBADFD)
+					{
+						throw Exception(formatError("Unexpected error while reading PCM data", frames));
+					}
+				}
 			}
 		}
 
 
-		void Source::stopProducing(bool gracefully)
+		void Source::stop(bool gracefully)
 		{
+			int result;
+
 			if (gracefully)
 			{
-				snd_pcm_drain(handlePtr);
+				if ((result = snd_pcm_drain(handlePtr)) < 0)
+				{
+					throw Exception(formatError("Error while stopping PCM stream gracefully", result));
+				}
 			}
 			else
 			{
-				snd_pcm_drop(handlePtr);
+				if ((result = snd_pcm_drop(handlePtr)) < 0)
+				{
+					throw Exception(formatError("Error while stopping PCM stream unconditionally", result));
+				}
 			}
 		}
 	}

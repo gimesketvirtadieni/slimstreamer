@@ -12,16 +12,16 @@
 
 #pragma once
 
-#include "slim/alsa/Source.hpp"
-#include "slim/wave/Destination.hpp"
+#include "slim/Chunk.hpp"
 
 
 namespace slim
 {
+	template<typename Source, typename Destination>
 	class Pipeline
 	{
 		public:
-			Pipeline(alsa::Source s, wave::Destination d)
+			Pipeline(Source s, Destination d)
 			: source{std::move(s)}
 			, destination{std::move(d)} {}
 
@@ -44,11 +44,9 @@ namespace slim
 
 			inline void processChunks(unsigned int maxChunks)
 			{
-				auto processing{true};
-
-				for (unsigned int count{0}; count < maxChunks && processing; count++)
+				for (unsigned int count{0}; count < maxChunks && source.isAvailable(); count++)
 				{
-					processing = source.supply([&](Chunk& chunk)
+					source.supply([&](Chunk& chunk)
 					{
 						destination.consume(chunk);
 					});
@@ -57,16 +55,19 @@ namespace slim
 
 			inline void start()
 			{
-				return source.startProducing();
+				source.start([]
+				{
+					LOG(ERROR) << "Buffer overflow: a chunk was skipped";
+				});
 			}
 
-			inline void stop(bool gracefully)
+			inline void stop(bool gracefully = true)
 			{
-				return source.stopProducing(gracefully);
+				source.stop(gracefully);
 			}
 
 		private:
-		   alsa::Source      source;
-		   wave::Destination destination;
+		   Source      source;
+		   Destination destination;
 	};
 }
