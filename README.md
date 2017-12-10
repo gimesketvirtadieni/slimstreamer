@@ -3,9 +3,9 @@ There is plenty of audio streaming solutions out there. However, Squeezebox ecos
 
 # So what is the problem that SlimStreamer solves?
 After years of development, Logitech Media Server (LMS), a central part of Squeezebox based solution, has become a big monolithic Web application.
-To be fair, it works nicely.
-However, there is an essential drawback (which one may consider as a design flaw) with it: everything has to be managed from LMS. Music collection (local / remote), streaming services, alarms, etc. have to be integrated within LMS through plugins or similar.
-This is where SlimStreamer comes in: it decouples Squeezebox streaming capability from the rest of functionality various music apps provides.
+To be fair, it works nicely (thanks to community).
+However, it has an essential drawback (which one may consider as a design flaw): everything has to be managed from LMS. Music collection (local / remote), streaming services, alarms, etc. have to be integrated within LMS through plugins or similar.
+This is where SlimStreamer comes in: it decouples Squeezebox streaming capability from the rest of functionality various music apps provide.
 It works like this:
 Music app (MPD, Mopidy, Spotify client, whatever) plays music by sending PCM stream via ALSA interface
 ALSA directs this PCM stream to SlimPlexor ALSA plugin
