@@ -13,10 +13,12 @@
 #pragma once
 
 #include <conwrap/ProcessorProxy.hpp>
+#include <memory>
 #include <mutex>
 #include <thread>
 #include <vector>
 
+#include "slim/ContainerBase.hpp"
 #include "slim/Pipeline.hpp"
 
 
@@ -28,7 +30,8 @@ namespace slim
 		public:
 			explicit Streamer(std::vector<Pipeline<Source, Destination>> p)
 			: pipelines{std::move(p)}
-			, processorProxyPtr{nullptr} {}
+			, processorProxyPtr{nullptr}
+			, lockPtr{std::make_unique<std::mutex>()} {}
 
 			// using Rule Of Zero
 			~Streamer() = default;
@@ -37,14 +40,14 @@ namespace slim
 			Streamer(Streamer&& rhs) = default;
 			Streamer& operator=(Streamer&& rhs) = default;
 
-			void setProcessorProxy(conwrap::ProcessorProxy<Streamer>* p)
+			void setProcessorProxy(conwrap::ProcessorProxy<ContainerBase>* p)
 			{
 				processorProxyPtr = p;
 			}
 
 			void start()
 			{
-				std::lock_guard<std::mutex> guard{lock};
+				std::lock_guard<std::mutex> guard{*lockPtr};
 
 				for (auto& pipeline : pipelines)
 				{
@@ -91,7 +94,7 @@ namespace slim
 
 			void stop(bool gracefully = true)
 			{
-				std::lock_guard<std::mutex> guard{lock};
+				std::lock_guard<std::mutex> guard{*lockPtr};
 
 				// signalling all pipelines to stop processing
 				for (auto& pipeline : pipelines)
@@ -151,7 +154,7 @@ namespace slim
 		private:
 			std::vector<Pipeline<Source, Destination>> pipelines;
 			std::vector<std::thread>                   threads;
-			conwrap::ProcessorProxy<Streamer>*         processorProxyPtr;
-			std::mutex                                 lock;
+			conwrap::ProcessorProxy<ContainerBase>*    processorProxyPtr;
+			std::unique_ptr<std::mutex>                lockPtr;
 	};
 }

@@ -22,10 +22,12 @@
 
 #include "slim/alsa/Parameters.hpp"
 #include "slim/alsa/Source.hpp"
+#include "slim/Container.hpp"
 #include "slim/Exception.hpp"
 #include "slim/log/ConsoleSink.hpp"
 #include "slim/log/log.hpp"
 #include "slim/Pipeline.hpp"
+#include "slim/Server.hpp"
 #include "slim/Streamer.hpp"
 #include "slim/wave/Destination.hpp"
 
@@ -94,8 +96,15 @@ int main(int argc, char *argv[])
 
 	try
 	{
-        // creating Streamer object with ALSA Parameters within Processor
-		conwrap::ProcessorAsio<slim::Streamer<slim::alsa::Source, slim::wave::Destination>> processorAsio{createPipelines()};
+		using Server        = slim::Server;
+		using Streamer      = slim::Streamer<slim::alsa::Source, slim::wave::Destination>;
+		using ContainerBase = slim::ContainerBase;
+		using Container     = slim::Container<Server, Streamer>;
+
+		// creating Container object with Server and Streamer
+		auto server   = Server{15000, 10};
+		auto streamer = Streamer{createPipelines()};
+		conwrap::ProcessorAsio<ContainerBase> processorAsio{std::unique_ptr<ContainerBase>{new Container(std::move(server), std::move(streamer))}};
 
         // start streaming
         processorAsio.getResource()->start();
