@@ -11,4 +11,4 @@ Music app (MPD, Mopidy, Spotify client, whatever) plays music by sending PCM str
 ALSA directs this PCM stream to SlimPlexor ALSA plugin
 SlimPlexor ALSA plugin redirects to ALSA Loopback device preconfigured
 
-![Diagram](flow.png)
+![Diagram](flow.jpg)
