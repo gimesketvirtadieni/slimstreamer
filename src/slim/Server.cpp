@@ -16,75 +16,47 @@
 
 namespace slim
 {
-/*
-	Session Server::createSession()
+	std::unique_ptr<Session> Server::createSession()
 	{
-		// creating session object per connection
-		auto processorSessionPtr = std::make_unique<conwrap::ProcessorQueue<Session>>(this);
-
-		// setting onOpen event handler
-		processorSessionPtr->getResource()->setOpenCallback([this](Session* sessionPtr)
+		// creating new session
+		return std::make_unique<Session>(processorProxyPtr, [](auto&)
 		{
-			LOG(DEBUG) << LABELS{"cli"} << "Open session callback started (id=" << sessionPtr << ", stopping=" << stopping << ", sessions=" << sessions.size() << ")";
-
-			// registering a new session if capacity allows so new requests can be accepted
-			if (sessions.size() < maxSessions)
-			{
-				sessions.push_back(std::move(createSession()));
-				LOG(DEBUG) << LABELS{"cli"} << "Session was added (id=" << this << ", sessions=" << sessions.size() << ")";
-			} else {
-				LOG(DEBUG) << LABELS{"cli"} << "Limit of active sessions was reached (id=" << this << ", sessions=" << sessions.size() << " max=" << maxSessions << ")";
-				stopAcceptor();
-			}
-
-			LOG(DEBUG) << LABELS{"cli"} << "Open session callback completed (id=" << sessionPtr << ", stopping=" << stopping << ", sessions=" << sessions.size() << ")";
-		});
-
-		// setting onClose event handler
-		processorSessionPtr->getResource()->setCloseCallback([this](Session* sessionPtr, const std::error_code& error)
+			LOG(INFO) << "start callback";
+		}, [](auto&)
 		{
-			LOG(DEBUG) << LABELS{"cli"} << "Close session callback started (id=" << sessionPtr << ", stopping=" << stopping << ", sessions=" << sessions.size() << ")";
+			LOG(INFO) << "open callback";
+		}, [](Session& session)
+		{
+			LOG(INFO) << "close callback";
+		}, [&](auto& session)
+		{
+			LOG(INFO) << "stop callback";
 
 			// session cannot be deleted at this moment as this method is called withing this session
-			processorProxyPtr->process([this, sessionPtr]
+			processorProxyPtr->process([&]
 			{
-				// by the time this handler is processed, session might be deleted however sessionPtr is good enough for comparison
-				deleteSession(sessionPtr);
-
-				// starting acceptor if required
-				if (!acceptorPtr) {
-					startAcceptor();
-				}
+				deleteSession(session);
 			});
-
-			LOG(DEBUG) << LABELS{"cli"} << "Close session callback completed (id=" << sessionPtr << ", stopping=" << stopping << ", sessions=" << sessions.size() << ")";
 		});
-
-		// start listening to the incoming requests
-		processorSessionPtr->getResource()->open();
-
-		LOG(DEBUG) << LABELS{"cli"} << "New session was created (id=" << processorSessionPtr->getResource() << ")";
-		return std::move(processorSessionPtr);
 	}
-*/
-/*
-	void Server::deleteSession(Session* sessionPtr)
+
+
+	void Server::deleteSession(Session& session)
 	{
 		// removing session from the vector
 		sessions.erase(
 			std::remove_if(
 				sessions.begin(),
 				sessions.end(),
-				[&](auto& processorSessionPtr) -> bool
+				[&](auto& sessionPtr) -> bool
 				{
-					return sessionPtr == processorSessionPtr->getResource();
+					return sessionPtr.get() == &session;
 				}
 			),
 			sessions.end()
 		);
-		LOG(DEBUG) << LABELS{"cli"} << "Session was removed (id=" << this << ", sessions=" << sessions.size() << ")";
 	}
-*/
+
 
 	void Server::setProcessorProxy(conwrap::ProcessorAsioProxy<ContainerBase>* p)
 	{
@@ -98,6 +70,15 @@ namespace slim
 
 		// start accepting new sessions
 		startAcceptor();
+
+		// creating new session required to accept connections
+		auto sessionPtr{createSession()};
+
+		// start accepting on this newly created session
+		sessionPtr->start(*acceptorPtr);
+
+		// adding session into a vector so it can be used later on
+		sessions.push_back(std::move(sessionPtr));
 
 		LOG(INFO) << LABELS{"slim"} << "Server was started (id=" << this << ")";
 	}
@@ -118,12 +99,6 @@ namespace slim
 				)
 			);
 
-			// creating native socket object
-			asio::ip::tcp::socket socket{*processorProxyPtr->getDispatcher()};
-
-			// creating new session used for accepting connections
-			sessions.emplace_back(std::move(socket), *acceptorPtr, [](const std::error_code&) {});
-
 			LOG(DEBUG) << LABELS{"slim"} << "Acceptor was started (id=" << acceptorPtr.get() << ")";
 		}
 	}
@@ -136,13 +111,12 @@ namespace slim
 		// stop accepting any new connections
 		stopAcceptor();
 
-		// closing active sessions; sessions will be deleted by default Session's destructor
-/*
-		for (auto& sessionProcessorPtr : sessions)
+		// closing active sessions; sessions will be deleted by onStop callback
+		for (auto& sessionPtr : sessions)
 		{
-			sessionProcessorPtr->getResource()->close();
+			sessionPtr->stop();
 		}
-*/
+
 		LOG(INFO) << LABELS{"slim"} << "Server was stopped (id=" << this << ")";
 	}
 
@@ -156,8 +130,10 @@ namespace slim
 			acceptorPtr->cancel();
 			acceptorPtr->close();
 
-			LOG(DEBUG) << LABELS{"slim"} << "Acceptor was stopped (id=" << acceptorPtr.get() << ")";
+			// acceptor is not captured by handlers so it is safe to delete it
 			acceptorPtr.reset();
+
+			LOG(DEBUG) << LABELS{"slim"} << "Acceptor was stopped (id=" << acceptorPtr.get() << ")";
 		}
 	}
 }

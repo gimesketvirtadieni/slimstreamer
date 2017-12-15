@@ -102,12 +102,15 @@ int main(int argc, char *argv[])
 		using Container     = slim::Container<Server, Streamer>;
 
 		// creating Container object with Server and Streamer
-		auto server   = Server{15000, 10};
-		auto streamer = Streamer{createPipelines()};
-		conwrap::ProcessorAsio<ContainerBase> processorAsio{std::unique_ptr<ContainerBase>{new Container(std::move(server), std::move(streamer))}};
+		auto serverPtr{std::make_unique<Server>(15000, 2)};
+		auto streamerPtr{std::make_unique<Streamer>(createPipelines())};
+		conwrap::ProcessorAsio<ContainerBase> processorAsio{std::unique_ptr<ContainerBase>{new Container(std::move(serverPtr), std::move(streamerPtr))}};
 
         // start streaming
-        processorAsio.getResource()->start();
+        processorAsio.process([](auto context)
+        {
+        	context.getResource()->start();
+        });
 
         // waiting for Control^C
         while(running)
@@ -116,7 +119,10 @@ int main(int argc, char *argv[])
         }
 
 		// stop streaming
-		processorAsio.getResource()->stop();
+        processorAsio.process([](auto context)
+        {
+        	context.getResource()->stop();
+        });
 	}
 	catch (const slim::Exception& error)
 	{

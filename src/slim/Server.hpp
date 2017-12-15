@@ -27,29 +27,34 @@ namespace slim
 	{
 		public:
 			Server(unsigned int p, unsigned int m)
-			: port(p)
-			, maxSessions(m) {}
+			: port{p}
+			, maxSessions{m} {}
 
 			// using Rule Of Zero
-			~Server() = default;
+			~Server()
+			{
+				LOG(INFO) << "server deleted";
+			}
 			Server(const Server&) = delete;             // non-copyable
 			Server& operator=(const Server&) = delete;  // non-assignable
-			Server(Server&& rhs) = default;
-			Server& operator=(Server&& rhs) = default;
+			Server(Server&& rhs) = delete;              // non-movable
+			Server& operator=(Server&& rhs) = delete;   // non-movable-assinable
 
 			void setProcessorProxy(conwrap::ProcessorAsioProxy<ContainerBase>* p);
 			void start();
 			void stop();
 
 		protected:
-			void startAcceptor();
-			void stopAcceptor();
+			std::unique_ptr<Session> createSession();
+			void                     deleteSession(Session& session);
+			void                     startAcceptor();
+			void                     stopAcceptor();
 
 		private:
 			unsigned int                                port;
 			unsigned int                                maxSessions;
 			conwrap::ProcessorAsioProxy<ContainerBase>* processorProxyPtr;
 			std::unique_ptr<asio::ip::tcp::acceptor>    acceptorPtr;
-			std::vector<Session>                        sessions;
+			std::vector<std::unique_ptr<Session>>       sessions;
 	};
 }
