@@ -19,6 +19,9 @@ Moreover, SlimStreamer captures PCM stream in a bit-perfect way (without resampl
    **#5** SlimStreamer sends PCM data to connected Squeezebox devices through SlimProto over TCP  
 
 # Hmm, I want to give it a try. Where do I start?
-This project is still ‘work in progress’. Capturing PCM data in a bit-perfect way was implemented and it works.  
+This project is still ‘work in progress’. Capturing PCM data in a bit-perfect way is implemented and it works.  
 TCP server, required for serving PCM data to Squeezebox devices is also implemented.  
 A missing part required to make it work end-to-end is communication with Squeezeboxes via SlimProto protocol.  
+
+Any feedback and comments are much appreciated!
+
