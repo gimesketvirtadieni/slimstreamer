@@ -1,5 +1,7 @@
 # Motivation
-There is plenty of audio streaming solutions out there; however, Squeezebox ecosystem (with its community, streaming protocol, devices, software receivers, etc.) remains among most popular solutions used. Despite the fact that it was originated back from 2000, it is still attractive for DIY community due to its openness, multi-room synchronization and streaming quality. Squeezebox streaming protocol does not require resampling, which is a key feature for bit-perfect streaming solution (Airplay, SnapCast, etc. are not bit-perfect as they resample to a predefined sample rate). There is one particular area within Squeezebox ecosystem, which could be MUCH better – Logitech Media Server (LMS).
+There is plenty of audio streaming solutions out there; however, Squeezebox ecosystem (with its community, streaming protocol, devices, software receivers, etc.) remains among most popular solutions used. Despite the fact that it was originated back from 2000, it is still attractive for DIY community due to its openness, multi-room synchronization and streaming quality. Squeezebox streaming protocol does not require resampling, which is a key feature for bit-perfect streaming solution (Airplay, SnapCast, etc. are not bit-perfect as they resample to a predefined sample rate).
+
+There is one particular area within Squeezebox ecosystem, which could be MUCH better – Logitech Media Server (LMS).
 
 # So what is the problem that SlimStreamer solves?
 After years of development, LMS, a central part of Squeezebox based solution, has become a big monolithic Web application.
