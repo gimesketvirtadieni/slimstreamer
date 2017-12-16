@@ -5,7 +5,7 @@ There is one particular area within Squeezebox ecosystem, which could be MUCH be
 # So what is the problem that SlimStreamer solves?
 After years of development, LMS, a central part of Squeezebox based solution, has become a big monolithic Web application.
 To be fair, it works nicely (thanks to community); however, it has an essential drawback (one may consider it as a design flaw) – everything has to be managed by LMS. Music collection (local / remote), streaming services, alarms, etc. have to be integrated within LMS through plugins or similar.  
-This is where SlimStreamer comes in: it decouples Squeezebox streaming capability from the rest of the functionality around managing music ([Single responsibility principle]: https://en.wikipedia.org/wiki/Single_responsibility_principle).
+This is where SlimStreamer comes in: it decouples Squeezebox streaming capability from the rest of the functionality around managing music ([Single responsibility principle](https://en.wikipedia.org/wiki/Single_responsibility_principle)).
 Any application that outputs audio to a default ALSA device can be used as music source for streaming.
 In fact, audio streaming is done transparently by SlimStreamer and SlimPlexos (ALSA plugin) behind the scene.
 Moreover, SlimStreamer captures PCM stream in bit-perfect way (without resampling to a predefined sample rate), which allows streaming audio in best possible quality!
