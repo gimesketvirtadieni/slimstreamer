@@ -18,7 +18,7 @@ namespace slim
 {
 	void Session::onClose(const std::error_code error)
 	{
-		LOG(DEBUG) << LABELS{"cli"} << "Closing session (id=" << this << ", error='" << error.message() << "')...";
+		LOG(DEBUG) << LABELS{"slim"} << "Closing session (id=" << this << ", error='" << error.message() << "')...";
 
 		// invoking close callback before session is desposed and setting opened status
 		if (opened && closeCallback)
@@ -27,9 +27,10 @@ namespace slim
 		}
 		opened = false;
 
+		// stopping this session after it's been closed
 		onStop();
 
-		LOG(DEBUG) << LABELS{"cli"} << "Session was closed (id=" << this << ")";
+		LOG(DEBUG) << LABELS{"slim"} << "Session was closed (id=" << this << ")";
 	}
 
 
@@ -72,7 +73,7 @@ namespace slim
 		}
 		else
 		{
-			LOG(DEBUG) << LABELS{"cli"} << "Opening session (id=" << this << ")...";
+			LOG(DEBUG) << LABELS{"slim"} << "Opening session (id=" << this << ")...";
 
 			// invoking open callback and setting opened status
 			if (!opened && openCallback)
@@ -84,7 +85,7 @@ namespace slim
 			// start receiving data
 			onData(error, 0);
 
-			LOG(DEBUG) << LABELS{"cli"} << "Session was opened (id=" << this << ")";
+			LOG(DEBUG) << LABELS{"slim"} << "Session was opened (id=" << this << ")";
 		}
 	}
 

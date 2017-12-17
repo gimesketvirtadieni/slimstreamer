@@ -16,33 +16,70 @@
 
 namespace slim
 {
-	std::unique_ptr<Session> Server::createSession()
+	void Server::addSession()
 	{
-		// creating new session
-		return std::make_unique<Session>(processorProxyPtr, [](auto&)
+		auto startCallback = [](auto&)
 		{
 			LOG(INFO) << "start callback";
-		}, [](auto&)
+		};
+
+		auto openCallback = [&](auto& session)
 		{
 			LOG(INFO) << "open callback";
-		}, [](Session& session)
+
+			// registering a new session if capacity allows so new requests can be accepted
+			if (sessions.size() < maxSessions)
+			{
+				addSession();
+			} else {
+				LOG(DEBUG) << LABELS{"slim"} << "Limit of active sessions was reached (id=" << this << ", sessions=" << sessions.size() << " max=" << maxSessions << ")";
+				stopAcceptor();
+			}
+		};
+
+		auto closeCallback = [&](auto& session)
 		{
 			LOG(INFO) << "close callback";
-		}, [&](auto& session)
+		};
+
+		auto stopCallback = [&](auto& session)
 		{
 			LOG(INFO) << "stop callback";
 
-			// session cannot be deleted at this moment as this method is called withing this session
+			// session cannot be removed at this moment as this method is called withing this session
 			processorProxyPtr->process([&]
 			{
-				deleteSession(session);
+				removeSession(session);
+
+				// starting acceptor if required and adding new session to accept connection
+				if (started && !acceptorPtr) {
+					startAcceptor();
+					addSession();
+				}
 			});
-		});
+		};
+
+		LOG(DEBUG) << LABELS{"slim"} << "Adding new session (sessions=" << sessions.size() << ")...";
+
+		// creating new session
+		auto sessionPtr{std::make_unique<Session>(processorProxyPtr, std::move(startCallback), std::move(openCallback), std::move(closeCallback), std::move(stopCallback))};
+
+		// start accepting connection
+		sessionPtr->start(*acceptorPtr);
+
+		// adding session to the sessions vector
+		sessions.push_back(std::move(sessionPtr));
+
+		LOG(DEBUG) << LABELS{"slim"} << "New session was added (id=" << this << ", sessions=" << sessions.size() << ")";
 	}
 
 
-	void Server::deleteSession(Session& session)
+	void Server::removeSession(Session& session)
 	{
+		auto sessionPtr{&session};
+
+		LOG(DEBUG) << LABELS{"slim"} << "Removing session (id=" << sessionPtr << ", sessions=" << sessions.size() << ")...";
+
 		// removing session from the vector
 		sessions.erase(
 			std::remove_if(
@@ -55,6 +92,8 @@ namespace slim
 			),
 			sessions.end()
 		);
+
+		LOG(DEBUG) << LABELS{"slim"} << "Session was removed (id=" << sessionPtr << ", sessions=" << sessions.size() << ")";
 	}
 
 
@@ -70,16 +109,9 @@ namespace slim
 
 		// start accepting new sessions
 		startAcceptor();
+		addSession();
 
-		// creating new session required to accept connections
-		auto sessionPtr{createSession()};
-
-		// start accepting on this newly created session
-		sessionPtr->start(*acceptorPtr);
-
-		// adding session into a vector so it can be used later on
-		sessions.push_back(std::move(sessionPtr));
-
+		started = true;
 		LOG(INFO) << LABELS{"slim"} << "Server was started (id=" << this << ")";
 	}
 
@@ -107,11 +139,12 @@ namespace slim
 	void Server::stop()
 	{
 		LOG(INFO) << LABELS{"slim"} << "Stopping server...";
+		started = false;
 
 		// stop accepting any new connections
 		stopAcceptor();
 
-		// closing active sessions; sessions will be deleted by onStop callback
+		// closing active sessions; sessions will be removed by onStop callback
 		for (auto& sessionPtr : sessions)
 		{
 			sessionPtr->stop();

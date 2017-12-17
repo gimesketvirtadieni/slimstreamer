@@ -28,7 +28,8 @@ namespace slim
 		public:
 			Server(unsigned int p, unsigned int m)
 			: port{p}
-			, maxSessions{m} {}
+			, maxSessions{m}
+			, started(false) {}
 
 			// using Rule Of Zero
 			~Server()
@@ -45,14 +46,15 @@ namespace slim
 			void stop();
 
 		protected:
-			std::unique_ptr<Session> createSession();
-			void                     deleteSession(Session& session);
-			void                     startAcceptor();
-			void                     stopAcceptor();
+			void addSession();
+			void removeSession(Session& session);
+			void startAcceptor();
+			void stopAcceptor();
 
 		private:
 			unsigned int                                port;
 			unsigned int                                maxSessions;
+			bool                                        started;
 			conwrap::ProcessorAsioProxy<ContainerBase>* processorProxyPtr;
 			std::unique_ptr<asio::ip::tcp::acceptor>    acceptorPtr;
 			std::vector<std::unique_ptr<Session>>       sessions;
