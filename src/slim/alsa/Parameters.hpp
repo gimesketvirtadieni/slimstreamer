@@ -13,7 +13,7 @@
 #pragma once
 
 #include <alsa/asoundlib.h>
-#include <cstddef>
+#include <cstddef>  // std::size_t
 #include <memory>
 #include <string>
 

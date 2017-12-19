@@ -36,6 +36,7 @@ namespace slim
 			Container(Container&& rhs) = default;
 			Container& operator=(Container&& rhs) = default;
 
+			// virtualization is required as Processor uses std::unique_ptr<ContainerBase>
 			virtual void setProcessorProxy(conwrap::ProcessorAsioProxy<ContainerBase>* p)
 			{
 				ContainerBase::setProcessorProxy(p);
@@ -43,13 +44,13 @@ namespace slim
 				streamerPtr->setProcessorProxy(p);
 			}
 
-			void start()
+			virtual void start() override
 			{
 				serverPtr->start();
 				streamerPtr->start();
 			}
 
-			void stop()
+			virtual void stop() override
 			{
 				streamerPtr->stop();
 				serverPtr->stop();

@@ -15,6 +15,7 @@
 #include <csignal>
 #include <exception>
 #include <g3log/logworker.hpp>
+#include <slim/conn/Callbacks.hpp>
 #include <memory>
 #include <string>
 #include <tuple>
@@ -22,12 +23,14 @@
 
 #include "slim/alsa/Parameters.hpp"
 #include "slim/alsa/Source.hpp"
+#include "slim/conn/Callbacks.hpp"
+#include "slim/conn/Server.hpp"
 #include "slim/Container.hpp"
 #include "slim/Exception.hpp"
 #include "slim/log/ConsoleSink.hpp"
 #include "slim/log/log.hpp"
 #include "slim/Pipeline.hpp"
-#include "slim/Server.hpp"
+#include "slim/proto/Session.hpp"
 #include "slim/Streamer.hpp"
 #include "slim/wave/Destination.hpp"
 
@@ -96,13 +99,52 @@ int main(int argc, char *argv[])
 
 	try
 	{
-		using Server        = slim::Server;
 		using Streamer      = slim::Streamer<slim::alsa::Source, slim::wave::Destination>;
 		using ContainerBase = slim::ContainerBase;
+		using Server        = slim::conn::Server<ContainerBase>;
 		using Container     = slim::Container<Server, Streamer>;
 
 		// creating Container object with Server and Streamer
-		auto serverPtr{std::make_unique<Server>(15000, 2)};
+		slim::conn::Callbacks<ContainerBase> callbacks
+		{
+			[](auto&)
+			{
+				LOG(INFO) << "start callback";
+			},
+			[&](auto&)
+			{
+				LOG(INFO) << "open callback";
+			},
+			[&](auto&, auto buffer, auto receivedSize)
+			{
+				LOG(INFO) << "data callback receivedSize=" << receivedSize;
+
+				// TODO: refactor to a different class
+				std::string helo{"HELO"};
+				std::string s{(char*)buffer, helo.size() + 1};
+				if (helo.compare(s))
+				{
+					LOG(INFO) << "HELO received";
+				}
+				else
+				{
+					for (unsigned long i = 0; i < receivedSize; i++)
+					{
+						LOG(INFO) << ((unsigned int)buffer[i]);
+					}
+				}
+			},
+			[&](auto&)
+			{
+				LOG(INFO) << "close callback";
+			},
+			[&](auto& connection)
+			{
+				LOG(INFO) << "stop callback";
+			}
+		};
+
+		auto serverPtr{std::make_unique<Server>(15000, 2, std::move(callbacks))};
 		auto streamerPtr{std::make_unique<Streamer>(createPipelines())};
 		conwrap::ProcessorAsio<ContainerBase> processorAsio{std::unique_ptr<ContainerBase>{new Container(std::move(serverPtr), std::move(streamerPtr))}};
 
