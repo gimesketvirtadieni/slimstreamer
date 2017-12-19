@@ -14,7 +14,6 @@
 
 #include <conwrap/ProcessorProxy.hpp>
 #include <memory>
-#include <mutex>
 #include <thread>
 #include <vector>
 
@@ -25,20 +24,19 @@
 namespace slim
 {
 	template<typename Source, typename Destination>
-	class Streamer
+	class Scheduler
 	{
 		public:
-			explicit Streamer(std::vector<Pipeline<Source, Destination>> p)
+			explicit Scheduler(std::vector<Pipeline<Source, Destination>> p)
 			: pipelines{std::move(p)}
-			, processorProxyPtr{nullptr}
-			, lockPtr{std::make_unique<std::mutex>()} {}
+			, processorProxyPtr{nullptr} {}
 
 			// using Rule Of Zero
-			~Streamer() = default;
-			Streamer(const Streamer&) = delete;             // non-copyable
-			Streamer& operator=(const Streamer&) = delete;  // non-assignable
-			Streamer(Streamer&& rhs) = default;
-			Streamer& operator=(Streamer&& rhs) = default;
+			~Scheduler() = default;
+			Scheduler(const Scheduler&) = delete;             // non-copyable
+			Scheduler& operator=(const Scheduler&) = delete;  // non-assignable
+			Scheduler(Scheduler&& rhs) = default;
+			Scheduler& operator=(Scheduler&& rhs) = default;
 
 			void setProcessorProxy(conwrap::ProcessorProxy<ContainerBase>* p)
 			{
@@ -47,8 +45,6 @@ namespace slim
 
 			void start()
 			{
-				std::lock_guard<std::mutex> guard{*lockPtr};
-
 				for (auto& pipeline : pipelines)
 				{
 					auto producerTask = [&]
@@ -94,8 +90,6 @@ namespace slim
 
 			void stop(bool gracefully = true)
 			{
-				std::lock_guard<std::mutex> guard{*lockPtr};
-
 				// signalling all pipelines to stop processing
 				for (auto& pipeline : pipelines)
 				{
@@ -155,6 +149,5 @@ namespace slim
 			std::vector<Pipeline<Source, Destination>> pipelines;
 			std::vector<std::thread>                   threads;
 			conwrap::ProcessorProxy<ContainerBase>*    processorProxyPtr;
-			std::unique_ptr<std::mutex>                lockPtr;
 	};
 }

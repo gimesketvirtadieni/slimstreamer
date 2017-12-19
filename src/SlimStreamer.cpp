@@ -15,7 +15,6 @@
 #include <csignal>
 #include <exception>
 #include <g3log/logworker.hpp>
-#include <slim/conn/Callbacks.hpp>
 #include <memory>
 #include <string>
 #include <tuple>
@@ -31,7 +30,7 @@
 #include "slim/log/log.hpp"
 #include "slim/Pipeline.hpp"
 #include "slim/proto/Session.hpp"
-#include "slim/Streamer.hpp"
+#include "slim/Scheduler.hpp"
 #include "slim/wave/Destination.hpp"
 
 
@@ -99,12 +98,12 @@ int main(int argc, char *argv[])
 
 	try
 	{
-		using Streamer      = slim::Streamer<slim::alsa::Source, slim::wave::Destination>;
+		using Scheduler     = slim::Scheduler<slim::alsa::Source, slim::wave::Destination>;
 		using ContainerBase = slim::ContainerBase;
 		using Server        = slim::conn::Server<ContainerBase>;
-		using Container     = slim::Container<Server, Streamer>;
+		using Container     = slim::Container<Server, Scheduler>;
 
-		// creating Container object with Server and Streamer
+		// creating Container object with Server and Scheduler
 		slim::conn::Callbacks<ContainerBase> callbacks
 		{
 			[](auto&)
@@ -145,8 +144,8 @@ int main(int argc, char *argv[])
 		};
 
 		auto serverPtr{std::make_unique<Server>(15000, 2, std::move(callbacks))};
-		auto streamerPtr{std::make_unique<Streamer>(createPipelines())};
-		conwrap::ProcessorAsio<ContainerBase> processorAsio{std::unique_ptr<ContainerBase>{new Container(std::move(serverPtr), std::move(streamerPtr))}};
+		auto schedulerPtr{std::make_unique<Scheduler>(createPipelines())};
+		conwrap::ProcessorAsio<ContainerBase> processorAsio{std::unique_ptr<ContainerBase>{new Container(std::move(serverPtr), std::move(schedulerPtr))}};
 
         // start streaming
         processorAsio.process([](auto context)
