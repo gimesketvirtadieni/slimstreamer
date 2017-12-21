@@ -20,6 +20,8 @@
 #include <memory>
 #include <vector>
 
+#include "slim/conn/Callbacks.hpp"
+#include "slim/conn/Connection.hpp"
 #include "slim/log/log.hpp"
 
 
@@ -27,11 +29,11 @@ namespace slim
 {
 	namespace conn
 	{
-		template <typename Container>
+		template <typename ContainerType>
 		class Server
 		{
 			public:
-				Server(unsigned int p, unsigned int m, CallbacksBase<Connection<Container>> c)
+				Server(unsigned int p, unsigned int m, Callbacks<ContainerType> c)
 				: port{p}
 				, maxConnections{m}
 				, callbacks
@@ -90,7 +92,7 @@ namespace slim
 				Server(Server&& rhs) = delete;              // non-movable
 				Server& operator=(Server&& rhs) = delete;   // non-movable-assinable
 
-				void setProcessorProxy(conwrap::ProcessorAsioProxy<Container>* p)
+				void setProcessorProxy(conwrap::ProcessorAsioProxy<ContainerType>* p)
 				{
 					processorProxyPtr = p;
 				}
@@ -130,7 +132,7 @@ namespace slim
 					LOG(DEBUG) << LABELS{"slim"} << "Adding new connection (connections=" << connections.size() << ")...";
 
 					// creating new connection
-					auto connectionPtr{std::make_unique<Connection<Container>>(processorProxyPtr, callbacks)};
+					auto connectionPtr{std::make_unique<Connection<ContainerType>>(processorProxyPtr, callbacks)};
 
 					// start accepting connection
 					connectionPtr->start(*acceptorPtr);
@@ -141,7 +143,7 @@ namespace slim
 					LOG(DEBUG) << LABELS{"slim"} << "New connection was added (id=" << this << ", connections=" << connections.size() << ")";
 				}
 
-				void removeConnection(Connection<Container>& connection)
+				void removeConnection(Connection<ContainerType>& connection)
 				{
 					LOG(DEBUG) << LABELS{"slim"} << "Removing connection (id=" << &connection << ", connections=" << connections.size() << ")...";
 
@@ -197,13 +199,13 @@ namespace slim
 				}
 
 			private:
-				unsigned int                                        port;
-				unsigned int                                        maxConnections;
-				CallbacksBase<Connection<Container>>                callbacks;
-				bool                                                started;
-				conwrap::ProcessorAsioProxy<Container>*             processorProxyPtr;
-				std::unique_ptr<asio::ip::tcp::acceptor>            acceptorPtr;
-				std::vector<std::unique_ptr<Connection<Container>>> connections;
+				unsigned int                                            port;
+				unsigned int                                            maxConnections;
+				Callbacks<ContainerType>                                callbacks;
+				bool                                                    started;
+				conwrap::ProcessorAsioProxy<ContainerType>*             processorProxyPtr;
+				std::unique_ptr<asio::ip::tcp::acceptor>                acceptorPtr;
+				std::vector<std::unique_ptr<Connection<ContainerType>>> connections;
 		};
 	}
 }

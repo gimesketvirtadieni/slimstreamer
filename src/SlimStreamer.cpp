@@ -30,8 +30,18 @@
 #include "slim/log/log.hpp"
 #include "slim/Pipeline.hpp"
 #include "slim/proto/Session.hpp"
+#include "slim/proto/Streamer.hpp"
 #include "slim/Scheduler.hpp"
 #include "slim/wave/Destination.hpp"
+
+
+using Scheduler     = slim::Scheduler<slim::alsa::Source, slim::wave::Destination>;
+using ContainerBase = slim::ContainerBase;
+using Server        = slim::conn::Server<ContainerBase>;
+using Connection    = slim::conn::Connection<ContainerBase>;
+using Streamer      = slim::proto::Streamer<Connection>;
+using Container     = slim::Container<Server, Scheduler>;
+using Callbacks     = slim::conn::Callbacks<ContainerBase>;
 
 
 static volatile bool running = true;
@@ -40,6 +50,34 @@ static volatile bool running = true;
 void signalHandler(int sig)
 {
 	running = false;
+}
+
+
+auto createCallbacks(Streamer& streamer)
+{
+	return std::move(Callbacks
+	{
+		[&](auto& connection)
+		{
+			streamer.onStart(connection);
+		},
+		[&](auto& connection)
+		{
+			streamer.onOpen(connection);
+		},
+		[&](auto& connection, auto buffer, auto receivedSize)
+		{
+			streamer.onData(connection, buffer, receivedSize);
+		},
+		[&](auto& connection)
+		{
+			streamer.onClose(connection);
+		},
+		[&](auto& connection)
+		{
+			streamer.onStop(connection);
+		}
+	});
 }
 
 
@@ -98,53 +136,17 @@ int main(int argc, char *argv[])
 
 	try
 	{
-		using Scheduler     = slim::Scheduler<slim::alsa::Source, slim::wave::Destination>;
-		using ContainerBase = slim::ContainerBase;
-		using Server        = slim::conn::Server<ContainerBase>;
-		using Container     = slim::Container<Server, Scheduler>;
+		// creating Streamer object
+		auto streamerPtr{std::make_unique<Streamer>()};
 
-		// creating Container object with Server and Scheduler
-		slim::conn::Callbacks<ContainerBase> callbacks
-		{
-			[](auto&)
-			{
-				LOG(INFO) << "start callback";
-			},
-			[&](auto&)
-			{
-				LOG(INFO) << "open callback";
-			},
-			[&](auto&, auto buffer, auto receivedSize)
-			{
-				LOG(INFO) << "data callback receivedSize=" << receivedSize;
+		// creating Callbacks object which 'glues' SlimProto Streamer with TCP Server
+		auto callbacks{std::move(createCallbacks(*streamerPtr))};
 
-				// TODO: refactor to a different class
-				std::string helo{"HELO"};
-				std::string s{(char*)buffer, helo.size() + 1};
-				if (helo.compare(s))
-				{
-					LOG(INFO) << "HELO received";
-				}
-				else
-				{
-					for (unsigned long i = 0; i < receivedSize; i++)
-					{
-						LOG(INFO) << ((unsigned int)buffer[i]);
-					}
-				}
-			},
-			[&](auto&)
-			{
-				LOG(INFO) << "close callback";
-			},
-			[&](auto& connection)
-			{
-				LOG(INFO) << "stop callback";
-			}
-		};
-
+		// creating Server and Scheduler objects
 		auto serverPtr{std::make_unique<Server>(15000, 2, std::move(callbacks))};
 		auto schedulerPtr{std::make_unique<Scheduler>(createPipelines())};
+
+		// creating Container object within Asio Processer with Server and Scheduler
 		conwrap::ProcessorAsio<ContainerBase> processorAsio{std::unique_ptr<ContainerBase>{new Container(std::move(serverPtr), std::move(schedulerPtr))}};
 
         // start streaming

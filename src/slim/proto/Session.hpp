@@ -12,6 +12,8 @@
 
 #pragma once
 
+#include "slim/log/log.hpp"
+
 
 namespace slim
 {
@@ -22,14 +24,25 @@ namespace slim
 		{
 			public:
 				Session(ConnectionType& c)
-				: connection(c) {}
+				: connection(c)
+				{
+					LOG(INFO) << "session created";
+				}
 
 				// using Rule Of Zero
-				~Session() = default;
+				~Session()
+				{
+					LOG(INFO) << "session deleted";
+				}
 				Session(const Session&) = delete;             // non-copyable
 				Session& operator=(const Session&) = delete;  // non-assignable
-				Session(Session&& rhs) = default;
-				Session& operator=(Session&& rhs) = default;
+				Session(Session&& rhs) = delete;              // non-movable
+				Session& operator=(Session&& rhs) = delete;   // non-movable-assignable
+
+				inline auto& getConnection()
+				{
+					return connection;
+				}
 
 			private:
 				ConnectionType& connection;
