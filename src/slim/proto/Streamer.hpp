@@ -60,7 +60,7 @@ namespace slim
 						}
 						else
 						{
-							LOG(INFO) << "Incorrect handshake message received, closing connection...";
+							LOG(INFO) << "Incorrect handshake message received";
 							connection.stop();
 						}
 					}
