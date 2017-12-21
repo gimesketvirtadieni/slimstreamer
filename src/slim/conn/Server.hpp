@@ -47,7 +47,10 @@ namespace slim
 						}
 
 						// registering a new connection if capacity allows so new requests can be accepted
-						if (connections.size() < maxConnections)
+						if (maxConnections > std::count_if(connections.begin(), connections.end(), [&](auto& connectionPtr)
+						{
+							return connectionPtr->isOpen();
+						}))
 						{
 							addConnection();
 						}
@@ -127,7 +130,7 @@ namespace slim
 				}
 
 			protected:
-				void addConnection()
+				auto& addConnection()
 				{
 					LOG(DEBUG) << LABELS{"slim"} << "Adding new connection (connections=" << connections.size() << ")...";
 
@@ -137,10 +140,15 @@ namespace slim
 					// start accepting connection
 					connectionPtr->start(*acceptorPtr);
 
+					// required to return to the caller
+					auto c = connectionPtr.get();
+
 					// adding connection to the connection vector
 					connections.push_back(std::move(connectionPtr));
 
-					LOG(DEBUG) << LABELS{"slim"} << "New connection was added (id=" << this << ", connections=" << connections.size() << ")";
+					LOG(DEBUG) << LABELS{"slim"} << "New connection was added (id=" << c << ", connections=" << connections.size() << ")";
+
+					return *c;
 				}
 
 				void removeConnection(Connection<ContainerType>& connection)

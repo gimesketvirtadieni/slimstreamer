@@ -37,17 +37,18 @@ namespace slim
 
 				~Connection()
 				{
-					try
-					{
-						stop();
-					}
-					catch(...) {}
+					stop();
 				}
 
 				Connection(const Connection&) = delete;             // non-copyable
 				Connection& operator=(const Connection&) = delete;  // non-assignable
 				Connection(Connection&& rhs) = delete;              // non-movable
 				Connection& operator=(Connection&& rhs) = delete;   // non-movable-assignable
+
+				inline auto isOpen()
+				{
+					return opened;
+				}
 
 				void start(asio::ip::tcp::acceptor& acceptor)
 				{
@@ -72,12 +73,23 @@ namespace slim
 
 				void stop()
 				{
-					if (nativeSocket.is_open())
+					// it will trigger chain of callbacks
+					if (nativeSocket.is_open()) try
 					{
-						// it will trigger chain of callbacks
 						nativeSocket.shutdown(asio::socket_base::shutdown_both);
+					}
+					catch(...) {}
+					try
+					{
 						nativeSocket.close();
 					}
+					catch(...) {}
+				}
+
+				// TODO: temporary method
+				auto& getNativeSocket()
+				{
+					return nativeSocket;
 				}
 
 			protected:
@@ -133,7 +145,7 @@ namespace slim
 
 				void onOpen(const std::error_code error)
 				{
-					if (error)
+					if (error || !nativeSocket.is_open())
 					{
 						onClose(error);
 					}
@@ -142,11 +154,14 @@ namespace slim
 						LOG(DEBUG) << LABELS{"slim"} << "Opening connection (id=" << this << ")...";
 
 						// invoking open callback and setting opened status
-						if (!opened && callbacks.openCallback)
+						if (!opened)
 						{
-							callbacks.openCallback(*this);
+							opened = true;
+							if (callbacks.openCallback)
+							{
+								callbacks.openCallback(*this);
+							}
 						}
-						opened = true;
 
 						// start receiving data
 						onData(error, 0);

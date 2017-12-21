@@ -12,6 +12,7 @@
 
 #pragma once
 
+#include <functional>
 #include <memory>
 #include <vector>
 
@@ -44,19 +45,23 @@ namespace slim
 				{
 					LOG(INFO) << "data callback receivedSize=" << receivedSize;
 
-					// TODO: refactor to a different class
-					std::string helo{"HELO"};
-					std::string s{(char*)buffer, helo.size() + 1};
-					if (helo.compare(s))
+					if (!applyToSession(connection, [&](auto& session)
 					{
-						LOG(INFO) << "HELO received";
-						addSession(connection);
-					}
-					else
+						session.onData(buffer, receivedSize);
+					}))
 					{
-						for (unsigned long i = 0; i < receivedSize; i++)
+						// TODO: refactor to a different class
+						std::string helo{"HELO"};
+						std::string s{(char*)buffer, helo.size()};
+						if (!helo.compare(s))
 						{
-							LOG(INFO) << ((unsigned int)buffer[i]);
+							LOG(INFO) << "HELO received";
+							addSession(connection).onData(buffer, receivedSize);
+						}
+						else
+						{
+							LOG(INFO) << "Incorrect handshake message received, closing connection...";
+							connection.stop();
 						}
 					}
 				}
@@ -77,8 +82,43 @@ namespace slim
 				}
 
 			protected:
-				void addSession(ConnectionType& connection)
+				auto& addSession(ConnectionType& connection)
 				{
+					LOG(DEBUG) << LABELS{"slim"} << "Adding new session (sessions=" << sessions.size() << ")...";
+
+					auto result = std::find_if(sessions.begin(), sessions.end(), [&](auto& sessionPtr)
+					{
+						return &(sessionPtr->getConnection()) == &connection;
+					});
+
+					Session<ConnectionType>* s;
+					if (result == sessions.end())
+					{
+						s = (sessions.emplace_back(std::make_unique<Session<ConnectionType>>(connection))).get();
+						LOG(DEBUG) << LABELS{"slim"} << "New session was added (id=" << s << ", sessions=" << sessions.size() << ")";
+					}
+					else
+					{
+						s = (*result).get();
+						LOG(INFO) << "Session already exists; probably client sent handshake message twice";
+					}
+
+					return *s;
+				}
+
+				bool applyToSession(ConnectionType& connection, std::function<void(Session<ConnectionType>&)> fun)
+				{
+					return sessions.end() != std::find_if(sessions.begin(), sessions.end(), [&](auto& sessionPtr)
+					{
+						auto found{false};
+
+						if (&(sessionPtr->getConnection()) == &connection)
+						{
+							found = true;
+							fun(*sessionPtr);
+						}
+						return found;
+					});
 				}
 
 				void removeSession(ConnectionType& connection)

@@ -27,6 +27,14 @@ namespace slim
 				: connection(c)
 				{
 					LOG(INFO) << "session created";
+
+					// writting to a socket
+					auto& socket = connection.getNativeSocket();
+					if (socket.is_open())
+					{
+						auto sent = socket.send(asio::buffer("heloo", 6));
+						LOG(INFO) << "sent=" << sent;
+					}
 				}
 
 				// using Rule Of Zero
@@ -42,6 +50,10 @@ namespace slim
 				inline auto& getConnection()
 				{
 					return connection;
+				}
+
+				void onData(unsigned char* buffer, std::size_t receivedSize)
+				{
 				}
 
 			private:
