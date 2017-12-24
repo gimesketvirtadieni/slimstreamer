@@ -20,7 +20,7 @@
 
 #include "slim/alsa/Parameters.hpp"
 #include "slim/Chunk.hpp"
-#include "slim/RealTimeQueue.hpp"
+#include "slim/util/RealTimeQueue.hpp"
 
 
 namespace slim
@@ -43,7 +43,7 @@ namespace slim
 				, producing{false}
 				, available{false}
 				, streaming{true}
-				, queuePtr{std::make_unique<RealTimeQueue<Chunk>>(parameters.getQueueSize(), [&](Chunk& chunk)
+				, queuePtr{std::make_unique<util::RealTimeQueue<Chunk>>(parameters.getQueueSize(), [&](Chunk& chunk)
 				{
 					// last channel does not contain PCM data so it will be filtered out
 					chunk.setSize(p.getFramesPerChunk() * (p.getChannels() - 1) * (p.getBitDepth() >> 3));
@@ -154,13 +154,13 @@ namespace slim
 
 			private:
 				// TODO: empty attribute should be refactored to a separate class
-				bool                                  empty      = false;
-				Parameters                            parameters;
-				snd_pcm_t*                            handlePtr;
-				std::atomic<bool>                     producing;
-				std::atomic<bool>                     available;
-				bool                                  streaming;
-				std::unique_ptr<RealTimeQueue<Chunk>> queuePtr;
+				bool                                        empty      = false;
+				Parameters                                  parameters;
+				snd_pcm_t*                                  handlePtr;
+				std::atomic<bool>                           producing;
+				std::atomic<bool>                           available;
+				bool                                        streaming;
+				std::unique_ptr<util::RealTimeQueue<Chunk>> queuePtr;
 		};
 	}
 }

@@ -16,7 +16,7 @@
 #include "slim/alsa/Source.hpp"
 #include "slim/Exception.hpp"
 #include "slim/log/log.hpp"
-#include "slim/ScopeGuard.hpp"
+#include "slim/util/ScopeGuard.hpp"
 
 
 namespace slim
@@ -106,7 +106,7 @@ namespace slim
 			auto                 deviceName  = parameters.getDeviceName();
 			auto                 rate        = parameters.getRate();
 			int                  result;
-			auto                 guard       = makeScopeGuard([&]()
+			auto                 guard       = util::makeScopeGuard([&]()
 			{
 				// releasing hardware and software parameters
 				if (hardwarePtr)

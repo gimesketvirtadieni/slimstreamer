@@ -13,6 +13,7 @@
 #pragma once
 
 #include "slim/log/log.hpp"
+#include "slim/proto/Command.hpp"
 
 
 namespace slim
@@ -28,11 +29,14 @@ namespace slim
 				{
 					LOG(INFO) << "session created";
 
+					auto command{Command{CommandSelection::STRM}};
+
 					// writting to a socket
+					// TODO: should be moved to Connection class
 					auto& socket = connection.getNativeSocket();
 					if (socket.is_open())
 					{
-						auto sent = socket.send(asio::buffer("heloo", 6));
+						auto sent = socket.send(asio::buffer(command.getBuffer(), command.getSize()));
 						LOG(INFO) << "sent=" << sent;
 					}
 				}
