@@ -12,8 +12,10 @@
 
 #pragma once
 
+#include <cstdint>  // std::u..._t types
+
 #include "slim/log/log.hpp"
-#include "slim/proto/Command.hpp"
+#include "slim/proto/CommandSTRM.hpp"
 
 
 namespace slim
@@ -29,16 +31,7 @@ namespace slim
 				{
 					LOG(INFO) << "session created";
 
-					auto command{Command{CommandSelection::STRM}};
-
-					// writting to a socket
-					// TODO: should be moved to Connection class
-					auto& socket = connection.getNativeSocket();
-					if (socket.is_open())
-					{
-						auto sent = socket.send(asio::buffer(command.getBuffer(), command.getSize()));
-						LOG(INFO) << "sent=" << sent;
-					}
+					send(CommandSTRM{});
 				}
 
 				// using Rule Of Zero
@@ -58,6 +51,28 @@ namespace slim
 
 				void onData(unsigned char* buffer, std::size_t receivedSize)
 				{
+				}
+
+			protected:
+				// TODO: should be moved to Connection class???
+				template<typename CommandType>
+				void send(CommandType command)
+				{
+					auto& socket = connection.getNativeSocket();
+					if (socket.is_open())
+					{
+						// preparing command size in indianess-independant way
+						auto size = command.getSize();
+						char sizeBuffer[2];
+						sizeBuffer[0] = 255 & (size >> 8);
+						sizeBuffer[1] = 255 & size;
+
+						// sending command size
+						socket.send(asio::buffer(sizeBuffer, sizeof(sizeBuffer)));
+
+						// sending command data
+						socket.send(asio::buffer(command.getBuffer(), command.getSize()));
+					}
 				}
 
 			private:

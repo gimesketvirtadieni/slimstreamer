@@ -35,7 +35,7 @@
 
 #include <atomic>
 #include <assert.h>
-#include <cstddef>
+#include <cstddef>  // std::size_t
 #include <functional>
 #include <type_traits>
 

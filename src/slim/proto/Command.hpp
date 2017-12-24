@@ -12,89 +12,30 @@
 
 #pragma once
 
-#include <cstdint>  // std::u..._t types
-#include <cstring>  // strcpy
-
-#include "slim/util/Buffer.hpp"
+#include <cstddef>  // std::size_t
 
 
 namespace slim
 {
 	namespace proto
 	{
-		enum CommandSelection
-		{
-			HELO,
-			STRM,
-		};
-
-
-		struct HELO
-		{
-			char          opcode[4];
-			std::uint32_t length;
-			std::uint8_t  deviceID;
-			std::uint8_t  revision;
-			std::uint8_t  mac[6];
-			std::uint8_t  uuid[16];
-			std::uint16_t wlanChannelList;
-			std::uint32_t bytesReceivedHigh;
-			std::uint32_t bytesReceivedLow;
-			char          language[2];
-		};
-
-
-		struct STRM
-		{
-			char          opcode[4];
-			char          command;
-			std::uint8_t  autostart;
-			std::uint8_t  format;
-			std::uint8_t  pcmSampleSize;
-			std::uint8_t  pcmSampleRate;
-			std::uint8_t  pcmChannels;
-			std::uint8_t  pcmEndianness;
-			std::uint8_t  threshold;
-			std::uint8_t  spdifEnable;
-			std::uint8_t  transitionPeriod;
-			std::uint8_t  transitionType;
-			std::uint8_t  flags;
-			std::uint8_t  outputThreshold;
-			std::uint8_t  slaves;
-			std::uint32_t replayGain;
-			std::uint16_t serverPort;
-			std::uint32_t serverIP;
-		};
-
-
+		template<typename CommandType>
 		class Command
 		{
 			public:
-				Command(CommandSelection commandSelection)
-				: buffer{1024}
-				{
-					strcpy(buffer.data(), "heloo");
-				}
-
 				// using Rule Of Zero
-			   ~Command() = default;
-				Command(const Command&) = delete;             // non-copyable
-				Command& operator=(const Command&) = delete;  // non-assignable
+				virtual ~Command() = default;
+				Command(const Command&) = default;
+				Command& operator=(const Command&) = default;
 				Command(Command&& rhs) = default;
 				Command& operator=(Command&& rhs) = default;
 
-				auto getBuffer()
-				{
-					return buffer.data();
-				}
+				virtual CommandType* getBuffer() = 0;
+				virtual std::size_t  getSize()   = 0;
 
-				auto getSize()
-				{
-					return buffer.size();
-				}
+			protected:
+				Command() = default;
 
-			private:
-				slim::util::Buffer buffer;
 		};
 	}
 }
