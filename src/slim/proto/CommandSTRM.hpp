@@ -26,11 +26,18 @@ namespace slim
 		{
 			void init()
 			{
-				opcode[0] = 's';
-				opcode[1] = 't';
-				opcode[2] = 'r';
-				opcode[3] = 'm';
-				command   = 'q';
+				opcode[0]     = 's';
+				opcode[1]     = 't';
+				opcode[2]     = 'r';
+				opcode[3]     = 'm';
+				command       = 'q';
+				autostart     = '0';  // do not autostart
+				format        = 'p';  // PCM
+				format        = 'p';  // PCM
+				pcmSampleSize = '1';  // 16 bit;   it does not mapper here as this is QUIT command
+				pcmSampleRate = '3';  // 44.1 kHz; it does not mapper here as this is QUIT command
+				pcmChannels   = '2';  // stereo;   it does not mapper here as this is QUIT command
+				pcmEndianness = '1';  // WAV;      it does not mapper here as this is QUIT command
 			}
 
 			char          opcode[4];
