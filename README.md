@@ -20,11 +20,11 @@ Moreover, SlimStreamer captures PCM stream in a bit-perfect way (without resampl
 
 # Hmm, I want to give it a try. Where do I start?
 This project is still ‘work in progress’:  
-   Capture-and-deliver PCM data to SlimStreamer a bit-perfect way is implemented and works
-   TCP server (running on 3483 port) required for serving SlimProto commands is implemented (although only few commands supported now)
-   SlimProto handshake works (Slimbox players are able to connect to SlimStreamer)
-   TCP server (running on 9000 port) required for streaming PCM data is being developed
-   HTTP streaming functionality is still missing
+   Capture-and-deliver PCM data to SlimStreamer a bit-perfect way is implemented and works  
+   TCP server (running on 3483 port) required for serving SlimProto commands is implemented (although only few commands supported now)  
+   SlimProto handshake works (Slimbox players are able to connect to SlimStreamer)  
+   TCP server (running on 9000 port) required for streaming PCM data is being developed  
+   HTTP streaming functionality is still missing  
 
 The project is getting closer and closer for end-2-end usage, stay tuned ;)
 
