@@ -19,9 +19,13 @@ Moreover, SlimStreamer captures PCM stream in a bit-perfect way (without resampl
    **#5** SlimStreamer sends PCM data to connected Squeezebox devices through SlimProto over TCP  
 
 # Hmm, I want to give it a try. Where do I start?
-This project is still ‘work in progress’. Capturing PCM data in a bit-perfect way is implemented and it works.  
-TCP server, required for serving PCM data to Squeezebox devices is also implemented.  
-A missing part required to make it work end-to-end is communication with Squeezeboxes via SlimProto protocol.  
+This project is still ‘work in progress’:  
+   Capture-and-deliver PCM data to SlimStreamer a bit-perfect way is implemented and works
+   TCP server (running on 3483 port) required for serving SlimProto commands is implemented (although only few commands supported now)
+   SlimProto handshake works (Slimbox players are able to connect to SlimStreamer)
+   TCP server (running on 9000 port) required for streaming PCM data is being developed
+   HTTP streaming functionality is still missing
+
+The project is getting closer and closer for end-2-end usage, stay tuned ;)
 
 Any feedback and comments are much appreciated!
-
