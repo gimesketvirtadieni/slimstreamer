@@ -13,7 +13,7 @@
 #pragma once
 
 #include <cstdint>  // std::u..._t types
-#include <cstring>  // strcpy
+#include <cstring>  // memset, memcpy
 
 #include "slim/proto/Command.hpp"
 
@@ -24,22 +24,6 @@ namespace slim
 	{
 		struct STRM
 		{
-			void init()
-			{
-				opcode[0]     = 's';
-				opcode[1]     = 't';
-				opcode[2]     = 'r';
-				opcode[3]     = 'm';
-				command       = 'q';
-				autostart     = '0';  // do not autostart
-				format        = 'p';  // PCM
-				format        = 'p';  // PCM
-				pcmSampleSize = '1';  // 16 bit;   it does not mapper here as this is QUIT command
-				pcmSampleRate = '3';  // 44.1 kHz; it does not mapper here as this is QUIT command
-				pcmChannels   = '2';  // stereo;   it does not mapper here as this is QUIT command
-				pcmEndianness = '1';  // WAV;      it does not mapper here as this is QUIT command
-			}
-
 			char          opcode[4];
 			char          command;
 			std::uint8_t  autostart;
@@ -58,7 +42,8 @@ namespace slim
 			std::uint32_t replayGain;
 			std::uint16_t serverPort;
 			std::uint32_t serverIP;
-		};
+		// TODO: clarify if there is an universal way to avoid padding
+		} __attribute__((packed));
 
 
 		class CommandSTRM : public Command<STRM>
@@ -66,7 +51,17 @@ namespace slim
 			public:
 				CommandSTRM()
 				{
-					strm.init();
+					memset(&strm, 0, sizeof(STRM));
+					memcpy(&strm.opcode, "strm", sizeof(strm.opcode));
+
+					strm.command       = 'q';
+					strm.autostart     = '0';  // do not autostart
+					strm.format        = 'p';  // PCM
+					strm.format        = 'p';  // PCM
+					strm.pcmSampleSize = '1';  // 16 bit;   it does not mapper here as this is QUIT command
+					strm.pcmSampleRate = '3';  // 44.1 kHz; it does not mapper here as this is QUIT command
+					strm.pcmChannels   = '2';  // stereo;   it does not mapper here as this is QUIT command
+					strm.pcmEndianness = '1';  // WAV;      it does not mapper here as this is QUIT command
 				}
 
 				// using Rule Of Zero
@@ -83,6 +78,8 @@ namespace slim
 
 				virtual std::size_t getSize() override
 				{
+					LOG(DEBUG) << "sizeof(STRM)=" << sizeof(STRM);
+
 					return sizeof(STRM);
 				}
 

@@ -21,13 +21,13 @@
 
 namespace slim
 {
-	template<typename ServerType, typename SchedulerType>
+	template<typename SchedulerType, typename CommandServerType>
 	class Container : public ContainerBase
 	{
 		public:
-			Container(std::unique_ptr<ServerType> se, std::unique_ptr<SchedulerType> st)
-			: serverPtr{std::move(se)}
-			, schedulerPtr{std::move(st)} {}
+			Container(std::unique_ptr<SchedulerType> sc, std::unique_ptr<CommandServerType> cse)
+			: schedulerPtr{std::move(sc)}
+			, commandServerPtr{std::move(cse)} {}
 
 			// using Rule Of Zero
 			virtual ~Container() = default;
@@ -40,24 +40,24 @@ namespace slim
 			virtual void setProcessorProxy(conwrap::ProcessorAsioProxy<ContainerBase>* p)
 			{
 				ContainerBase::setProcessorProxy(p);
-				serverPtr->setProcessorProxy(p);
+				commandServerPtr->setProcessorProxy(p);
 				schedulerPtr->setProcessorProxy(p);
 			}
 
 			virtual void start() override
 			{
-				serverPtr->start();
+				commandServerPtr->start();
 				schedulerPtr->start();
 			}
 
 			virtual void stop() override
 			{
 				schedulerPtr->stop();
-				serverPtr->stop();
+				commandServerPtr->stop();
 			}
 
 		private:
-			std::unique_ptr<ServerType>    serverPtr;
-			std::unique_ptr<SchedulerType> schedulerPtr;
+			std::unique_ptr<SchedulerType>     schedulerPtr;
+			std::unique_ptr<CommandServerType> commandServerPtr;
 	};
 }

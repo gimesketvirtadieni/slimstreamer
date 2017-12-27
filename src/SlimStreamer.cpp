@@ -34,13 +34,15 @@
 #include "slim/Scheduler.hpp"
 #include "slim/wave/Destination.hpp"
 
-
-using Scheduler     = slim::Scheduler<slim::alsa::Source, slim::wave::Destination>;
+using Source        = slim::alsa::Source;
+using Destination   = slim::wave::Destination;
+using Pipeline      = slim::Pipeline<Source, Destination>;
+using Scheduler     = slim::Scheduler<Source, Destination>;
 using ContainerBase = slim::ContainerBase;
 using Server        = slim::conn::Server<ContainerBase>;
 using Connection    = slim::conn::Connection<ContainerBase>;
 using Streamer      = slim::proto::Streamer<Connection>;
-using Container     = slim::Container<Server, Scheduler>;
+using Container     = slim::Container<Scheduler, Server>;
 using Callbacks     = slim::conn::Callbacks<ContainerBase>;
 
 
@@ -100,9 +102,9 @@ auto createPipelines()
 		{192000, "hw:2,1,6"},
 	};
 
-	slim::alsa::Parameters                                                   parameters{"", 3, SND_PCM_FORMAT_S32_LE, 0, 128, 0, 8};
-	std::vector<slim::Pipeline<slim::alsa::Source, slim::wave::Destination>> pipelines;
-	unsigned int                                                             chunkDurationMilliSecond{100};
+	slim::alsa::Parameters parameters{"", 3, SND_PCM_FORMAT_S32_LE, 0, 128, 0, 8};
+	std::vector<Pipeline>  pipelines;
+	unsigned int           chunkDurationMilliSecond{100};
 
 	for (auto& rate : rates)
 	{
@@ -113,7 +115,7 @@ auto createPipelines()
 		parameters.setDeviceName(deviceValue);
 		parameters.setFramesPerChunk((rateValue * chunkDurationMilliSecond) / 1000);
 
-		pipelines.emplace_back(slim::alsa::Source{parameters}, slim::wave::Destination{std::to_string(std::get<0>(rate)) + ".wav", 2, std::get<0>(rate), 32});
+		pipelines.emplace_back(Source{parameters}, Destination{std::to_string(std::get<0>(rate)) + ".wav", 2, std::get<0>(rate), 32});
 	}
 
 	return pipelines;
@@ -136,18 +138,15 @@ int main(int argc, char *argv[])
 
 	try
 	{
-		// creating Streamer object
+		// creating Streamer and Scheduler objects
 		auto streamerPtr{std::make_unique<Streamer>()};
-
-		// creating Callbacks object which 'glues' SlimProto Streamer with TCP Server
-		auto callbacks{std::move(createCallbacks(*streamerPtr))};
-
-		// creating Server and Scheduler objects
-		auto serverPtr{std::make_unique<Server>(15000, 2, std::move(callbacks))};
 		auto schedulerPtr{std::make_unique<Scheduler>(createPipelines())};
 
+		// Callbacks object which 'glues' SlimProto Streamer with TCP Server
+		auto commandServerPtr{std::make_unique<Server>(15000, 2, createCallbacks(*streamerPtr))};
+
 		// creating Container object within Asio Processer with Server and Scheduler
-		conwrap::ProcessorAsio<ContainerBase> processorAsio{std::unique_ptr<ContainerBase>{new Container(std::move(serverPtr), std::move(schedulerPtr))}};
+		conwrap::ProcessorAsio<ContainerBase> processorAsio{std::unique_ptr<ContainerBase>{new Container(std::move(schedulerPtr), std::move(commandServerPtr))}};
 
         // start streaming
         processorAsio.process([](auto context)

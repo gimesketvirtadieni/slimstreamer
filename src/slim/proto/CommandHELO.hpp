@@ -23,8 +23,6 @@ namespace slim
 	{
 		struct HELO
 		{
-			void init() {}
-
 			char          opcode[4];
 			std::uint32_t length;
 			std::uint8_t  deviceID;
@@ -35,7 +33,8 @@ namespace slim
 			std::uint32_t bytesReceivedHigh;
 			std::uint32_t bytesReceivedLow;
 			char          language[2];
-		};
+		// TODO: clarify if there is an universal way to avoid padding
+		} __attribute__((packed));
 
 
 		class CommandHELO : public Command<HELO>
@@ -43,7 +42,9 @@ namespace slim
 			public:
 				CommandHELO()
 				{
-					helo.init();
+					// TODO: work in progress
+					memset(&helo, 0, sizeof(HELO));
+					memcpy(&helo.opcode, "helo", sizeof(helo.opcode));
 				}
 
 				// using Rule Of Zero

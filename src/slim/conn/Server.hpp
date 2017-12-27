@@ -39,7 +39,7 @@ namespace slim
 				, callbacks
 				{
 					std::move(c.startCallback),
-					callbacks.openCallback = [&, openCallback = std::move(c.openCallback)](auto& connection)
+					[&, openCallback = std::move(c.openCallback)](auto& connection)
 					{
 						if (openCallback)
 						{
@@ -62,7 +62,7 @@ namespace slim
 					},
 					std::move(c.dataCallback),
 					std::move(c.closeCallback),
-					callbacks.stopCallback = [&, stopCallback = std::move(c.stopCallback)](auto& connection)
+					[&, stopCallback = std::move(c.stopCallback)](auto& connection)
 					{
 						if (stopCallback)
 						{
@@ -83,9 +83,11 @@ namespace slim
 						});
 					}
 				}
-				, started{false} {}
+				, started{false}
+				{
+					LOG(INFO) << "server created";
+				}
 
-				// using Rule Of Zero
 				~Server()
 				{
 					LOG(INFO) << "server deleted";

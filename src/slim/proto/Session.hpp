@@ -15,6 +15,9 @@
 #include <cstdint>  // std::u..._t types
 
 #include "slim/log/log.hpp"
+#include "slim/proto/CommandAUDE.hpp"
+#include "slim/proto/CommandAUDG.hpp"
+#include "slim/proto/CommandSETD.hpp"
 #include "slim/proto/CommandSTRM.hpp"
 
 
@@ -32,6 +35,10 @@ namespace slim
 					LOG(INFO) << "session created";
 
 					send(CommandSTRM{});
+					send(CommandSETD{DeviceID::RequestName});
+					send(CommandSETD{DeviceID::Squeezebox3});
+					send(CommandAUDE{true, true});
+					send(CommandAUDG{});
 				}
 
 				// using Rule Of Zero
@@ -51,6 +58,10 @@ namespace slim
 
 				void onData(unsigned char* buffer, std::size_t receivedSize)
 				{
+					//LOG(DEBUG) << "onData";
+					//for (unsigned int ii = 0; ii < receivedSize; ii++) {
+					//	LOG(DEBUG) << buffer[ii];
+					//}
 				}
 
 			protected:

@@ -37,6 +37,7 @@ namespace slim
 				CallbacksBase(CallbacksBase&& rhs) = default;
 				CallbacksBase& operator=(CallbacksBase&& rhs) = default;
 
+			// TODO: make private
 			//private:
 				std::function<void(ConnectionType&)>                                    startCallback;
 				std::function<void(ConnectionType&)>                                    openCallback;
