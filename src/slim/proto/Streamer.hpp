@@ -17,7 +17,8 @@
 #include <vector>
 
 #include "slim/log/log.hpp"
-#include "slim/proto/Session.hpp"
+#include "slim/proto/CommandSession.hpp"
+#include "slim/proto/StreamingSession.hpp"
 
 
 namespace slim
@@ -36,16 +37,56 @@ namespace slim
 				Streamer(Streamer&& rhs) = delete;              // non-movable
 				Streamer& operator=(Streamer&& rhs) = delete;   // non-movable-assinable
 
-				void onClose(ConnectionType& connection)
+				void onHTTPClose(ConnectionType& connection)
 				{
-					removeSession(connection);
+					LOG(INFO) << "HTTP close callback";
+
+					removeSession(streamingSessions, connection);
 				}
 
-				void onData(ConnectionType& connection, unsigned char* buffer, std::size_t receivedSize)
+				void onHTTPData(ConnectionType& connection, unsigned char* buffer, std::size_t receivedSize)
 				{
-					LOG(INFO) << "data callback receivedSize=" << receivedSize;
+					LOG(INFO) << "HTTP data callback receivedSize=" << receivedSize;
 
-					if (!applyToSession(connection, [&](auto& session)
+					if (!applyToSession(streamingSessions, connection, [&](StreamingSession<ConnectionType>& session)
+					{
+						session.onData(buffer, receivedSize);
+					}))
+					{
+						// TODO: work in progress
+						LOG(INFO) << "HTTP request received";
+
+						addSession(streamingSessions, connection).onData(buffer, receivedSize);
+					}
+				}
+
+				void onHTTPOpen(ConnectionType& connection)
+				{
+					LOG(INFO) << "HTTP open callback";
+				}
+
+				void onHTTPStart(ConnectionType& connection)
+				{
+					LOG(INFO) << "HTTP start callback";
+				}
+
+				void onHTTPStop(ConnectionType& connection)
+				{
+					LOG(INFO) << "HTTP stop callback";
+				}
+
+				void onSlimProtoClose(ConnectionType& connection)
+				{
+					LOG(INFO) << "SlimProto close callback";
+
+					removeSession(commandSessions, connection);
+				}
+
+				void onSlimProtoData(ConnectionType& connection, unsigned char* buffer, std::size_t receivedSize)
+				{
+					LOG(INFO) << "SlimProto data callback receivedSize=" << receivedSize;
+
+					if (!applyToSession(commandSessions, connection, [&](CommandSession<ConnectionType>& session)
 					{
 						session.onData(buffer, receivedSize);
 					}))
@@ -55,34 +96,37 @@ namespace slim
 						std::string s{(char*)buffer, helo.size()};
 						if (!helo.compare(s))
 						{
-							LOG(INFO) << "HELO received";
-							addSession(connection).onData(buffer, receivedSize);
+							LOG(INFO) << "HELO command received";
+
+							addSession(commandSessions, connection).onData(buffer, receivedSize);
 						}
 						else
 						{
 							LOG(INFO) << "Incorrect handshake message received";
+
 							connection.stop();
 						}
 					}
 				}
 
-				void onOpen(ConnectionType& connection)
+				void onSlimProtoOpen(ConnectionType& connection)
 				{
-					LOG(INFO) << "open callback";
+					LOG(INFO) << "SlimProto open callback";
 				}
 
-				void onStart(ConnectionType& connection)
+				void onSlimProtoStart(ConnectionType& connection)
 				{
-					LOG(INFO) << "start callback";
+					LOG(INFO) << "SlimProto start callback";
 				}
 
-				void onStop(ConnectionType& connection)
+				void onSlimProtoStop(ConnectionType& connection)
 				{
-					LOG(INFO) << "stop callback";
+					LOG(INFO) << "SlimProto stop callback";
 				}
 
 			protected:
-				auto& addSession(ConnectionType& connection)
+				template<typename SessionType>
+				auto& addSession(std::vector<std::unique_ptr<SessionType>>& sessions, ConnectionType& connection)
 				{
 					LOG(DEBUG) << LABELS{"slim"} << "Adding new session (sessions=" << sessions.size() << ")...";
 
@@ -91,22 +135,23 @@ namespace slim
 						return &(sessionPtr->getConnection()) == &connection;
 					});
 
-					Session<ConnectionType>* s;
+					SessionType* s{nullptr};
 					if (result == sessions.end())
 					{
-						s = (sessions.emplace_back(std::make_unique<Session<ConnectionType>>(connection))).get();
+						s = (sessions.emplace_back(std::make_unique<SessionType>(connection))).get();
 						LOG(DEBUG) << LABELS{"slim"} << "New session was added (id=" << s << ", sessions=" << sessions.size() << ")";
 					}
 					else
 					{
 						s = (*result).get();
-						LOG(INFO) << "Session already exists; probably client sent handshake message twice";
+						LOG(INFO) << "Session already exists";
 					}
 
 					return *s;
 				}
 
-				bool applyToSession(ConnectionType& connection, std::function<void(Session<ConnectionType>&)> fun)
+				template<typename SessionType, typename FunctionType>
+				bool applyToSession(std::vector<std::unique_ptr<SessionType>>& sessions, ConnectionType& connection, FunctionType fun)
 				{
 					return sessions.end() != std::find_if(sessions.begin(), sessions.end(), [&](auto& sessionPtr)
 					{
@@ -117,28 +162,37 @@ namespace slim
 							found = true;
 							fun(*sessionPtr);
 						}
+
 						return found;
 					});
 				}
 
-				void removeSession(ConnectionType& connection)
+				template<typename SessionType>
+				void removeSession(std::vector<std::unique_ptr<SessionType>>& sessions, ConnectionType& connection)
 				{
+					LOG(DEBUG) << LABELS{"slim"} << "Removing session (sessions=" << sessions.size() << ")...";
+
 					// removing session from the vector
-					sessions.erase(
-						std::remove_if(
-							sessions.begin(),
-							sessions.end(),
-							[&](auto& sessionPtr) -> bool
-							{
-								return &(sessionPtr->getConnection()) == &connection;
-							}
-						),
-						sessions.end()
-					);
+					SessionType* s{nullptr};
+					sessions.erase(std::remove_if(sessions.begin(), sessions.end(), [&](auto& sessionPtr) -> bool
+					{
+						auto found{false};
+
+						if (&(sessionPtr->getConnection()) == &connection)
+						{
+							s     = sessionPtr.get();
+							found = true;
+						}
+
+						return found;
+					}), sessions.end());
+
+					LOG(DEBUG) << LABELS{"slim"} << "Session was removed (id=" << s << ", sessions=" << sessions.size() << ")";
 				}
 
 			private:
-				std::vector<std::unique_ptr<Session<ConnectionType>>> sessions;
+				std::vector<std::unique_ptr<CommandSession<ConnectionType>>>   commandSessions;
+				std::vector<std::unique_ptr<StreamingSession<ConnectionType>>> streamingSessions;
 		};
 	}
 }

@@ -15,6 +15,7 @@
 #include <csignal>
 #include <exception>
 #include <g3log/logworker.hpp>
+#include <slim/proto/CommandSession.hpp>
 #include <memory>
 #include <string>
 #include <tuple>
@@ -29,7 +30,6 @@
 #include "slim/log/ConsoleSink.hpp"
 #include "slim/log/log.hpp"
 #include "slim/Pipeline.hpp"
-#include "slim/proto/Session.hpp"
 #include "slim/proto/Streamer.hpp"
 #include "slim/Scheduler.hpp"
 #include "slim/wave/Destination.hpp"
@@ -42,7 +42,7 @@ using ContainerBase = slim::ContainerBase;
 using Server        = slim::conn::Server<ContainerBase>;
 using Connection    = slim::conn::Connection<ContainerBase>;
 using Streamer      = slim::proto::Streamer<Connection>;
-using Container     = slim::Container<Scheduler, Server>;
+using Container     = slim::Container<Scheduler, Server, Server>;
 using Callbacks     = slim::conn::Callbacks<ContainerBase>;
 
 
@@ -55,29 +55,57 @@ void signalHandler(int sig)
 }
 
 
-auto createCallbacks(Streamer& streamer)
+auto createCommandCallbacks(Streamer& streamer)
 {
 	return std::move(Callbacks
 	{
 		[&](auto& connection)
 		{
-			streamer.onStart(connection);
+			streamer.onSlimProtoStart(connection);
 		},
 		[&](auto& connection)
 		{
-			streamer.onOpen(connection);
+			streamer.onSlimProtoOpen(connection);
 		},
 		[&](auto& connection, auto buffer, auto receivedSize)
 		{
-			streamer.onData(connection, buffer, receivedSize);
+			streamer.onSlimProtoData(connection, buffer, receivedSize);
 		},
 		[&](auto& connection)
 		{
-			streamer.onClose(connection);
+			streamer.onSlimProtoClose(connection);
 		},
 		[&](auto& connection)
 		{
-			streamer.onStop(connection);
+			streamer.onSlimProtoStop(connection);
+		}
+	});
+}
+
+
+auto createStreamingCallbacks(Streamer& streamer)
+{
+	return std::move(Callbacks
+	{
+		[&](auto& connection)
+		{
+			streamer.onHTTPStart(connection);
+		},
+		[&](auto& connection)
+		{
+			streamer.onHTTPOpen(connection);
+		},
+		[&](auto& connection, auto buffer, auto receivedSize)
+		{
+			streamer.onHTTPData(connection, buffer, receivedSize);
+		},
+		[&](auto& connection)
+		{
+			streamer.onHTTPClose(connection);
+		},
+		[&](auto& connection)
+		{
+			streamer.onHTTPStop(connection);
 		}
 	});
 }
@@ -142,11 +170,19 @@ int main(int argc, char *argv[])
 		auto streamerPtr{std::make_unique<Streamer>()};
 		auto schedulerPtr{std::make_unique<Scheduler>(createPipelines())};
 
-		// Callbacks object which 'glues' SlimProto Streamer with TCP Server
-		auto commandServerPtr{std::make_unique<Server>(15000, 2, createCallbacks(*streamerPtr))};
+		// Callbacks object 'glues' SlimProto Streamer with TCP Command Server
+		auto commandServerPtr{std::make_unique<Server>(15000, 2, createCommandCallbacks(*streamerPtr))};
+
+		auto streamingServerPtr{std::make_unique<Server>(9001, 2, createStreamingCallbacks(*streamerPtr))};
 
 		// creating Container object within Asio Processer with Server and Scheduler
-		conwrap::ProcessorAsio<ContainerBase> processorAsio{std::unique_ptr<ContainerBase>{new Container(std::move(schedulerPtr), std::move(commandServerPtr))}};
+		conwrap::ProcessorAsio<ContainerBase> processorAsio
+		{
+			std::unique_ptr<ContainerBase>
+			{
+				new Container(std::move(schedulerPtr), std::move(commandServerPtr), std::move(streamingServerPtr))
+			}
+		};
 
         // start streaming
         processorAsio.process([](auto context)

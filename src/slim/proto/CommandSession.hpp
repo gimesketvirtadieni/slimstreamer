@@ -26,30 +26,31 @@ namespace slim
 	namespace proto
 	{
 		template<typename ConnectionType>
-		class Session
+		class CommandSession
 		{
 			public:
-				Session(ConnectionType& c)
+				CommandSession(ConnectionType& c)
 				: connection(c)
 				{
-					LOG(INFO) << "session created";
+					LOG(INFO) << "SlimProto session created";
 
-					send(CommandSTRM{});
+					send(CommandSTRM{CommandSelection::Stop});
 					send(CommandSETD{DeviceID::RequestName});
 					send(CommandSETD{DeviceID::Squeezebox3});
 					send(CommandAUDE{true, true});
 					send(CommandAUDG{});
+
+					send(CommandSTRM{CommandSelection::Start});
 				}
 
-				// using Rule Of Zero
-				~Session()
+				~CommandSession()
 				{
-					LOG(INFO) << "session deleted";
+					LOG(INFO) << "SlimProto session deleted";
 				}
-				Session(const Session&) = delete;             // non-copyable
-				Session& operator=(const Session&) = delete;  // non-assignable
-				Session(Session&& rhs) = delete;              // non-movable
-				Session& operator=(Session&& rhs) = delete;   // non-movable-assignable
+				CommandSession(const CommandSession&) = delete;             // non-copyable
+				CommandSession& operator=(const CommandSession&) = delete;  // non-assignable
+				CommandSession(CommandSession&& rhs) = delete;              // non-movable
+				CommandSession& operator=(CommandSession&& rhs) = delete;   // non-movable-assignable
 
 				inline auto& getConnection()
 				{
@@ -58,10 +59,6 @@ namespace slim
 
 				void onData(unsigned char* buffer, std::size_t receivedSize)
 				{
-					//LOG(DEBUG) << "onData";
-					//for (unsigned int ii = 0; ii < receivedSize; ii++) {
-					//	LOG(DEBUG) << buffer[ii];
-					//}
 				}
 
 			protected:

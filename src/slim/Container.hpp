@@ -21,13 +21,14 @@
 
 namespace slim
 {
-	template<typename SchedulerType, typename CommandServerType>
+	template<typename SchedulerType, typename CommandServerType, typename StreamingServerType>
 	class Container : public ContainerBase
 	{
 		public:
-			Container(std::unique_ptr<SchedulerType> sc, std::unique_ptr<CommandServerType> cse)
+			Container(std::unique_ptr<SchedulerType> sc, std::unique_ptr<CommandServerType> cse, std::unique_ptr<StreamingServerType> sse)
 			: schedulerPtr{std::move(sc)}
-			, commandServerPtr{std::move(cse)} {}
+			, commandServerPtr{std::move(cse)}
+			, streamingServerPtr{std::move(sse)} {}
 
 			// using Rule Of Zero
 			virtual ~Container() = default;
@@ -41,12 +42,14 @@ namespace slim
 			{
 				ContainerBase::setProcessorProxy(p);
 				commandServerPtr->setProcessorProxy(p);
+				streamingServerPtr->setProcessorProxy(p);
 				schedulerPtr->setProcessorProxy(p);
 			}
 
 			virtual void start() override
 			{
 				commandServerPtr->start();
+				streamingServerPtr->start();
 				schedulerPtr->start();
 			}
 
@@ -54,10 +57,12 @@ namespace slim
 			{
 				schedulerPtr->stop();
 				commandServerPtr->stop();
+				streamingServerPtr->stop();
 			}
 
 		private:
-			std::unique_ptr<SchedulerType>     schedulerPtr;
-			std::unique_ptr<CommandServerType> commandServerPtr;
+			std::unique_ptr<SchedulerType>       schedulerPtr;
+			std::unique_ptr<CommandServerType>   commandServerPtr;
+			std::unique_ptr<StreamingServerType> streamingServerPtr;
 	};
 }

@@ -46,22 +46,29 @@ namespace slim
 		} __attribute__((packed));
 
 
+		enum class CommandSelection : char
+		{
+			Start = 's',
+			Stop  = 'q',
+		};
+
+
 		class CommandSTRM : public Command<STRM>
 		{
 			public:
-				CommandSTRM()
+				CommandSTRM(CommandSelection commandSelection)
 				{
 					memset(&strm, 0, sizeof(STRM));
 					memcpy(&strm.opcode, "strm", sizeof(strm.opcode));
 
-					strm.command       = 'q';
+					strm.command       = static_cast<char>(commandSelection);
 					strm.autostart     = '0';  // do not autostart
 					strm.format        = 'p';  // PCM
 					strm.format        = 'p';  // PCM
-					strm.pcmSampleSize = '1';  // 16 bit;   it does not mapper here as this is QUIT command
-					strm.pcmSampleRate = '3';  // 44.1 kHz; it does not mapper here as this is QUIT command
-					strm.pcmChannels   = '2';  // stereo;   it does not mapper here as this is QUIT command
-					strm.pcmEndianness = '1';  // WAV;      it does not mapper here as this is QUIT command
+					strm.pcmSampleSize = '1';  // 16 bit;   it does not matter here as this is QUIT command
+					strm.pcmSampleRate = '3';  // 44.1 kHz; it does not matter here as this is QUIT command
+					strm.pcmChannels   = '2';  // stereo;   it does not matter here as this is QUIT command
+					strm.pcmEndianness = '1';  // WAV;      it does not matter here as this is QUIT command
 				}
 
 				// using Rule Of Zero
@@ -78,8 +85,6 @@ namespace slim
 
 				virtual std::size_t getSize() override
 				{
-					LOG(DEBUG) << "sizeof(STRM)=" << sizeof(STRM);
-
 					return sizeof(STRM);
 				}
 

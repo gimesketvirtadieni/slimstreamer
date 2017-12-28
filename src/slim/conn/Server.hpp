@@ -158,17 +158,10 @@ namespace slim
 					LOG(DEBUG) << LABELS{"slim"} << "Removing connection (id=" << &connection << ", connections=" << connections.size() << ")...";
 
 					// removing connection from the vector
-					connections.erase(
-						std::remove_if(
-							connections.begin(),
-							connections.end(),
-							[&](auto& connectionPtr) -> bool
-							{
-								return connectionPtr.get() == &connection;
-							}
-						),
-						connections.end()
-					);
+					connections.erase(std::remove_if(connections.begin(), connections.end(), [&](auto& connectionPtr) -> bool
+					{
+						return connectionPtr.get() == &connection;
+					}), connections.end());
 
 					LOG(DEBUG) << LABELS{"slim"} << "Connection was removed (connections=" << connections.size() << ")";
 				}
