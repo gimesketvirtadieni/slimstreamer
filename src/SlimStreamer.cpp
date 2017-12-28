@@ -15,7 +15,6 @@
 #include <csignal>
 #include <exception>
 #include <g3log/logworker.hpp>
-#include <slim/proto/CommandSession.hpp>
 #include <memory>
 #include <string>
 #include <tuple>
@@ -30,20 +29,25 @@
 #include "slim/log/ConsoleSink.hpp"
 #include "slim/log/log.hpp"
 #include "slim/Pipeline.hpp"
+#include "slim/proto/CommandSession.hpp"
+#include "slim/proto/Destination.hpp"
 #include "slim/proto/Streamer.hpp"
 #include "slim/Scheduler.hpp"
 #include "slim/wave/Destination.hpp"
 
+using ContainerBase = slim::ContainerBase;
+using Connection    = slim::conn::Connection<ContainerBase>;
+using Server        = slim::conn::Server<ContainerBase>;
+using Callbacks     = slim::conn::Callbacks<ContainerBase>;
+using Streamer      = slim::proto::Streamer<Connection>;
+
 using Source        = slim::alsa::Source;
-using Destination   = slim::wave::Destination;
+//using Destination   = slim::wave::Destination;
+using Destination   = slim::proto::Destination<Connection>;
 using Pipeline      = slim::Pipeline<Source, Destination>;
 using Scheduler     = slim::Scheduler<Source, Destination>;
-using ContainerBase = slim::ContainerBase;
-using Server        = slim::conn::Server<ContainerBase>;
-using Connection    = slim::conn::Connection<ContainerBase>;
-using Streamer      = slim::proto::Streamer<Connection>;
+
 using Container     = slim::Container<Scheduler, Server, Server>;
-using Callbacks     = slim::conn::Callbacks<ContainerBase>;
 
 
 static volatile bool running = true;
@@ -111,7 +115,7 @@ auto createStreamingCallbacks(Streamer& streamer)
 }
 
 
-auto createPipelines()
+auto createPipelines(Streamer& streamer)
 {
 	std::vector<std::tuple<unsigned int, std::string>> rates
 	{
@@ -142,8 +146,8 @@ auto createPipelines()
 		parameters.setRate(rateValue);
 		parameters.setDeviceName(deviceValue);
 		parameters.setFramesPerChunk((rateValue * chunkDurationMilliSecond) / 1000);
-
-		pipelines.emplace_back(Source{parameters}, Destination{std::to_string(std::get<0>(rate)) + ".wav", 2, std::get<0>(rate), 32});
+		//pipelines.emplace_back(Source{parameters}, Destination{std::to_string(std::get<0>(rate)) + ".wav", 2, std::get<0>(rate), 32});
+		pipelines.emplace_back(Source{parameters}, Destination{streamer});
 	}
 
 	return pipelines;
@@ -166,16 +170,15 @@ int main(int argc, char *argv[])
 
 	try
 	{
-		// creating Streamer and Scheduler objects
+		// Callbacks objects 'glue' SlimProto Streamer with TCP Command Servers
 		auto streamerPtr{std::make_unique<Streamer>()};
-		auto schedulerPtr{std::make_unique<Scheduler>(createPipelines())};
-
-		// Callbacks object 'glues' SlimProto Streamer with TCP Command Server
-		auto commandServerPtr{std::make_unique<Server>(15000, 2, createCommandCallbacks(*streamerPtr))};
-
+		auto commandServerPtr{std::make_unique<Server>(3484, 2, createCommandCallbacks(*streamerPtr))};
 		auto streamingServerPtr{std::make_unique<Server>(9001, 2, createStreamingCallbacks(*streamerPtr))};
 
-		// creating Container object within Asio Processer with Server and Scheduler
+		// creating Scheduler object
+		auto schedulerPtr{std::make_unique<Scheduler>(createPipelines(*streamerPtr))};
+
+		// creating Container object within Asio Processor with Scheduler and Servers
 		conwrap::ProcessorAsio<ContainerBase> processorAsio
 		{
 			std::unique_ptr<ContainerBase>

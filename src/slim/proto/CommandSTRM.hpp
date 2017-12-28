@@ -42,6 +42,8 @@ namespace slim
 			std::uint32_t replayGain;
 			std::uint16_t serverPort;
 			std::uint32_t serverIP;
+
+			char          httpHeader[64];
 		// TODO: clarify if there is an universal way to avoid padding
 		} __attribute__((packed));
 
@@ -69,6 +71,14 @@ namespace slim
 					strm.pcmSampleRate = '3';  // 44.1 kHz; it does not matter here as this is QUIT command
 					strm.pcmChannels   = '2';  // stereo;   it does not matter here as this is QUIT command
 					strm.pcmEndianness = '1';  // WAV;      it does not matter here as this is QUIT command
+
+					if (strm.command == static_cast<char>(CommandSelection::Start))
+					{
+						// TODO: crap
+						((unsigned char*)(&strm.serverPort))[0] = 35;
+						((unsigned char*)(&strm.serverPort))[1] = 41;
+						std::strcpy(strm.httpHeader, "GET /stream.pcm?player=MAC");
+					}
 				}
 
 				// using Rule Of Zero
@@ -85,7 +95,7 @@ namespace slim
 
 				virtual std::size_t getSize() override
 				{
-					return sizeof(STRM);
+					return sizeof(strm) - (strm.command == static_cast<char>(CommandSelection::Start) ? (sizeof(strm.httpHeader) - strlen(strm.httpHeader)) : sizeof(strm.httpHeader));
 				}
 
 			private:

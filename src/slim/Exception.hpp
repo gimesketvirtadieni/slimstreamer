@@ -39,5 +39,8 @@ namespace slim
 			Exception& operator=(Exception&& rhs) = default;
 	};
 
-	std::ostream& operator<< (std::ostream& os, const Exception& exception);
+	inline std::ostream& operator<< (std::ostream& os, const Exception& exception)
+	{
+		return os << exception.what();
+	}
 }
