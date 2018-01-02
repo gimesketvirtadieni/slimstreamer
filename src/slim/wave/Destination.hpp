@@ -34,8 +34,8 @@ namespace slim
 			using OutputStreamCallback = util::OutputStreamCallback<Callback>;
 
 			public:
-				explicit Destination(std::string fileName, unsigned int channels, unsigned int sampleRate, int bitsPerSample)
-				: fileStreamPtr{std::make_unique<std::ofstream>(fileName, std::ios::binary)}
+				explicit Destination(std::unique_ptr<std::ofstream> fs, unsigned int channels, unsigned int sampleRate, int bitsPerSample)
+				: fileStreamPtr{std::move(fs)}
 				, outputStreamCallbackPtr{std::make_unique<OutputStreamCallback>([&fileStream = (*fileStreamPtr)](auto* buffer, auto size) mutable
 				{
 					fileStream.write(reinterpret_cast<const char*>(buffer), size);
