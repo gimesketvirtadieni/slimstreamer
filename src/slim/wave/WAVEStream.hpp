@@ -21,10 +21,10 @@ namespace slim
 {
 	namespace wave
 	{
-		class WAVEFile
+		class WAVEStream
 		{
 			public:
-				explicit WAVEFile(std::unique_ptr<std::ostream> os, unsigned int c, unsigned int s, int b)
+				explicit WAVEStream(std::unique_ptr<std::ostream> os, unsigned int c, unsigned int s, int b)
 				: outputStreamPtr{std::move(os)}
 				, channels{c}
 				, sampleRate{s}
@@ -33,11 +33,11 @@ namespace slim
 				, byteRate{sampleRate * bytesPerFrame} {}
 
 				// using Rule Of Zero
-			   ~WAVEFile() = default;
-				WAVEFile(const WAVEFile&) = delete;             // non-copyable
-				WAVEFile& operator=(const WAVEFile&) = delete;  // non-assignable
-				WAVEFile(WAVEFile&&) = default;
-				WAVEFile& operator=(WAVEFile&&) = default;
+			   ~WAVEStream() = default;
+				WAVEStream(const WAVEStream&) = delete;             // non-copyable
+				WAVEStream& operator=(const WAVEStream&) = delete;  // non-assignable
+				WAVEStream(WAVEStream&&) = default;
+				WAVEStream& operator=(WAVEStream&&) = default;
 
 				auto& getOutputStream()
 				{

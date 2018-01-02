@@ -13,26 +13,26 @@
 #include <cstdint>
 
 #include "slim/log/log.hpp"
-#include "slim/wave/WAVEFile.hpp"
+#include "slim/wave/WAVEStream.hpp"
 
 
 namespace slim
 {
 	namespace wave
 	{
-		void WAVEFile::write(std::string str)
+		void WAVEStream::write(std::string str)
 		{
 			write(str.c_str(), str.length());
 		}
 
 
-		void WAVEFile::write(const void* buffer, std::size_t size)
+		void WAVEStream::write(const void* buffer, std::size_t size)
 		{
 			outputStreamPtr->write(reinterpret_cast<const char*>(buffer), size);
 		}
 
 
-		void WAVEFile::writeHeader(std::uint32_t size)
+		void WAVEStream::writeHeader(std::uint32_t size)
 		{
 			const char chunkID[]     = {0x52, 0x49, 0x46, 0x46};
 			const char format[]      = {0x57, 0x41, 0x56, 0x45};

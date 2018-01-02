@@ -19,8 +19,8 @@
 
 #include "slim/Chunk.hpp"
 #include "slim/log/log.hpp"
-#include "slim/wave/WAVEFile.hpp"
 #include "slim/util/OutputStreamCallback.hpp"
+#include "slim/wave/WAVEStream.hpp"
 
 
 namespace slim
@@ -35,10 +35,10 @@ namespace slim
 
 			public:
 				explicit Destination(std::unique_ptr<std::ofstream> fs, unsigned int channels, unsigned int sampleRate, int bitsPerSample)
-				: waveFile{std::move(fs), channels, sampleRate, bitsPerSample}
+				: waveStream{std::move(fs), channels, sampleRate, bitsPerSample}
 				, bytesPerFrame{channels * (bitsPerSample >> 3)}
 				{
-					waveFile.writeHeader();
+					waveStream.writeHeader();
 				}
 
 				// there is a need for a custom destructor so Rule Of Zero cannot be used
@@ -47,10 +47,10 @@ namespace slim
 				{
 					if (!empty)
 					{
-						waveFile.getOutputStream().seekp(0, std::ios::end);
-						auto size = waveFile.getOutputStream().tellp();
-						waveFile.getOutputStream().seekp(0, std::ios::beg);
-						waveFile.writeHeader(size);
+						waveStream.getOutputStream().seekp(0, std::ios::end);
+						auto size = waveStream.getOutputStream().tellp();
+						waveStream.getOutputStream().seekp(0, std::ios::beg);
+						waveStream.writeHeader(size);
 					}
 				}
 
@@ -58,7 +58,7 @@ namespace slim
 				Destination& operator=(const Destination&) = delete;
 
 				Destination(Destination&& rhs)
-				: waveFile{std::move(rhs.waveFile)}
+				: waveStream{std::move(rhs.waveStream)}
 				, bytesPerFrame{std::move(rhs.bytesPerFrame)}
 				{
 					rhs.empty = true;
@@ -71,14 +71,14 @@ namespace slim
 					// any resources should be released for this object here because it will take over resources from rhs object
 					if (!empty)
 					{
-						waveFile.getOutputStream().seekp(0, std::ios::end);
-						auto size = waveFile.getOutputStream().tellp();
-						waveFile.getOutputStream().seekp(0, std::ios::beg);
-						waveFile.writeHeader(size);
+						waveStream.getOutputStream().seekp(0, std::ios::end);
+						auto size = waveStream.getOutputStream().tellp();
+						waveStream.getOutputStream().seekp(0, std::ios::beg);
+						waveStream.writeHeader(size);
 					}
 					rhs.empty = true;
 
-					swap(waveFile, rhs.waveFile);
+					swap(waveStream, rhs.waveStream);
 					swap(bytesPerFrame, rhs.bytesPerFrame);
 
 					return *this;
@@ -88,7 +88,7 @@ namespace slim
 				{
 					auto size{chunk.getDataSize()};
 
-					waveFile.write(chunk.getBuffer(), size);
+					waveStream.write(chunk.getBuffer(), size);
 
 					LOG(DEBUG) << "Written " << (size / bytesPerFrame) << " frames";
 				}
@@ -96,7 +96,7 @@ namespace slim
 			private:
 				// TODO: empty attribute should be refactored to a separate class
 				bool         empty = false;
-				WAVEFile     waveFile;
+				WAVEStream   waveStream;
 				unsigned int bytesPerFrame;
 		};
 	}
