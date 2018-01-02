@@ -39,6 +39,11 @@ namespace slim
 				WAVEFile(WAVEFile&&) = default;
 				WAVEFile& operator=(WAVEFile&&) = default;
 
+				auto& getOutputStream()
+				{
+					return *outputStreamPtr;
+				}
+
 				void write(std::string str);
 				void write(const void* buffer, std::size_t size);
 				void writeHeader(std::uint32_t size = 0);

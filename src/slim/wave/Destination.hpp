@@ -35,13 +35,7 @@ namespace slim
 
 			public:
 				explicit Destination(std::unique_ptr<std::ofstream> fs, unsigned int channels, unsigned int sampleRate, int bitsPerSample)
-				: fileStreamPtr{std::move(fs)}
-				, outputStreamCallbackPtr{std::make_unique<OutputStreamCallback>([&fileStream = (*fileStreamPtr)](auto* buffer, auto size) mutable
-				{
-					fileStream.write(reinterpret_cast<const char*>(buffer), size);
-					return size;
-				})}
-				, waveFile{std::make_unique<std::ostream>(outputStreamCallbackPtr.get()), channels, sampleRate, bitsPerSample}
+				: waveFile{std::move(fs), channels, sampleRate, bitsPerSample}
 				, bytesPerFrame{channels * (bitsPerSample >> 3)}
 				{
 					waveFile.writeHeader();
@@ -53,9 +47,9 @@ namespace slim
 				{
 					if (!empty)
 					{
-						fileStreamPtr->seekp(0, std::ios::end);
-						auto size = fileStreamPtr->tellp();
-						fileStreamPtr->seekp(0, std::ios::beg);
+						waveFile.getOutputStream().seekp(0, std::ios::end);
+						auto size = waveFile.getOutputStream().tellp();
+						waveFile.getOutputStream().seekp(0, std::ios::beg);
 						waveFile.writeHeader(size);
 					}
 				}
@@ -64,9 +58,7 @@ namespace slim
 				Destination& operator=(const Destination&) = delete;
 
 				Destination(Destination&& rhs)
-				: fileStreamPtr{std::move(rhs.fileStreamPtr)}
-				, outputStreamCallbackPtr{std::move(rhs.outputStreamCallbackPtr)}
-				, waveFile{std::move(rhs.waveFile)}
+				: waveFile{std::move(rhs.waveFile)}
 				, bytesPerFrame{std::move(rhs.bytesPerFrame)}
 				{
 					rhs.empty = true;
@@ -79,15 +71,13 @@ namespace slim
 					// any resources should be released for this object here because it will take over resources from rhs object
 					if (!empty)
 					{
-						fileStreamPtr->seekp(0, std::ios::end);
-						auto size = fileStreamPtr->tellp();
-						fileStreamPtr->seekp(0, std::ios::beg);
+						waveFile.getOutputStream().seekp(0, std::ios::end);
+						auto size = waveFile.getOutputStream().tellp();
+						waveFile.getOutputStream().seekp(0, std::ios::beg);
 						waveFile.writeHeader(size);
 					}
 					rhs.empty = true;
 
-					swap(fileStreamPtr, rhs.fileStreamPtr);
-					swap(outputStreamCallbackPtr, rhs.outputStreamCallbackPtr);
 					swap(waveFile, rhs.waveFile);
 					swap(bytesPerFrame, rhs.bytesPerFrame);
 
@@ -105,11 +95,9 @@ namespace slim
 
 			private:
 				// TODO: empty attribute should be refactored to a separate class
-				bool                                  empty = false;
-				std::unique_ptr<std::ofstream>        fileStreamPtr;
-				std::unique_ptr<OutputStreamCallback> outputStreamCallbackPtr;
-				WAVEFile                              waveFile;
-				unsigned int                          bytesPerFrame;
+				bool         empty = false;
+				WAVEFile     waveFile;
+				unsigned int bytesPerFrame;
 		};
 	}
 }
