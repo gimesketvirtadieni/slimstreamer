@@ -12,10 +12,9 @@
 
 #pragma once
 
-#include <fstream>
-#include <string>
-
-#include "slim/Chunk.hpp"
+#include <cstdint>  // std::int..._t
+#include <iostream>
+#include <memory>
 
 
 namespace slim
@@ -25,81 +24,32 @@ namespace slim
 		class WAVEFile
 		{
 			public:
-				explicit WAVEFile(std::string f, unsigned int c, unsigned int s, int b)
-				: fileName{f}
+				explicit WAVEFile(std::unique_ptr<std::ostream> os, unsigned int c, unsigned int s, int b)
+				: outputStreamPtr{std::move(os)}
 				, channels{c}
 				, sampleRate{s}
 				, bitsPerSample{b}
 				, bytesPerFrame{channels * (bitsPerSample >> 3)}
-				, byteRate{sampleRate * bytesPerFrame}
-				, outputFile{fileName, std::ios::binary}
-				{
-					writeHeader();
-				}
+				, byteRate{sampleRate * bytesPerFrame} {}
 
-				// there is a need for a custom destructor so Rule Of Zero cannot be used
-				// Instead of The Rule of The Big Four (and a half) the following approach is used: http://scottmeyers.blogspot.dk/2014/06/the-drawbacks-of-implementing-move.html
-				~WAVEFile()
-				{
-					if (!empty)
-					{
-						updateHeader();
-					}
-				}
-
+				// using Rule Of Zero
+			   ~WAVEFile() = default;
 				WAVEFile(const WAVEFile&) = delete;             // non-copyable
 				WAVEFile& operator=(const WAVEFile&) = delete;  // non-assignable
+				WAVEFile(WAVEFile&&) = default;
+				WAVEFile& operator=(WAVEFile&&) = default;
 
-				WAVEFile(WAVEFile&& rhs)
-				: fileName{std::move(rhs.fileName)}
-				, channels{std::move(rhs.channels)}
-				, sampleRate{std::move(rhs.sampleRate)}
-				, bitsPerSample{std::move(rhs.bitsPerSample)}
-				, bytesPerFrame{std::move(rhs.bytesPerFrame)}
-				, byteRate{std::move(rhs.byteRate)}
-				, outputFile{std::move(rhs.outputFile)}
-				{
-					rhs.empty = true;
-				}
-
-				WAVEFile& operator=(WAVEFile&& rhs)
-				{
-					using std::swap;
-
-					// any resources should be released for this object here because it will take over resources from rhs object
-					if (!empty)
-					{
-						updateHeader();
-					}
-					rhs.empty = true;
-
-					swap(fileName, rhs.fileName);
-					swap(channels, rhs.channels);
-					swap(sampleRate, rhs.sampleRate);
-					swap(bitsPerSample, rhs.bitsPerSample);
-					swap(bytesPerFrame, rhs.bytesPerFrame);
-					swap(byteRate, rhs.byteRate);
-					swap(outputFile, rhs.outputFile);
-
-					return *this;
-				}
-
-				void write(const unsigned char* buffer, size_t size);
-
-			protected:
-				void updateHeader();
-				void writeHeader();
+				void write(std::string str);
+				void write(const void* buffer, std::size_t size);
+				void writeHeader(std::uint32_t size = 0);
 
 			private:
-				// TODO: empty attribute should be refactored to a separate class
-				bool          empty         = false;
-				std::string   fileName;
-				unsigned int  channels;
-				unsigned int  sampleRate;
-				int           bitsPerSample;
-				unsigned int  bytesPerFrame;
-				unsigned int  byteRate;
-				std::ofstream outputFile;
+				std::unique_ptr<std::ostream> outputStreamPtr;
+				unsigned int                  channels;
+				unsigned int                  sampleRate;
+				int                           bitsPerSample;
+				unsigned int                  bytesPerFrame;
+				unsigned int                  byteRate;
 		};
 	}
 }

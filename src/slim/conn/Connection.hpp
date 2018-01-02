@@ -60,7 +60,7 @@ namespace slim
 
 					// TODO: validate result???
 					acceptor.async_accept(
-						this->nativeSocket,
+						nativeSocket,
 						[&](const std::error_code& error)
 						{
 							processorProxyPtr->wrap([=]
