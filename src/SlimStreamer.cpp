@@ -43,8 +43,8 @@ using Callbacks     = slim::conn::Callbacks<ContainerBase>;
 using Streamer      = slim::proto::Streamer<Connection>;
 
 using Source        = slim::alsa::Source;
-using Destination   = slim::wave::Destination;
-//using Destination   = slim::proto::Destination<Connection>;
+//using Destination   = slim::wave::Destination;
+using Destination   = slim::proto::Destination<Connection>;
 using Pipeline      = slim::Pipeline<Source, Destination>;
 using Scheduler     = slim::Scheduler<Source, Destination>;
 
@@ -147,8 +147,8 @@ auto createPipelines(Streamer& streamer)
 		parameters.setRate(rateValue);
 		parameters.setDeviceName(deviceValue);
 		parameters.setFramesPerChunk((rateValue * chunkDurationMilliSecond) / 1000);
-		pipelines.emplace_back(Source{parameters}, Destination{std::make_unique<std::ofstream>(std::to_string(std::get<0>(rate)) + ".wav", std::ios::binary), 2, std::get<0>(rate), 32});
-		//pipelines.emplace_back(Source{parameters}, Destination{streamer});
+		//pipelines.emplace_back(Source{parameters}, Destination{std::make_unique<std::ofstream>(std::to_string(std::get<0>(rate)) + ".wav", std::ios::binary), 2, std::get<0>(rate), 32});
+		pipelines.emplace_back(Source{parameters}, Destination{streamer});
 	}
 
 	return pipelines;

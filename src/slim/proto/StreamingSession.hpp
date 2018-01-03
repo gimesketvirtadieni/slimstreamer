@@ -12,7 +12,12 @@
 
 #pragma once
 
+#include <functional>
+#include <iostream>
+
 #include "slim/log/log.hpp"
+#include "slim/util/OutputStreamCallback.hpp"
+#include "slim/wave/WAVEStream.hpp"
 
 
 namespace slim
@@ -22,17 +27,30 @@ namespace slim
 		template<typename ConnectionType>
 		class StreamingSession
 		{
+			using OutputStreamCallback = util::OutputStreamCallback<std::function<std::streamsize(const char*, std::streamsize)>>;
+
 			public:
 				StreamingSession(ConnectionType& c)
 				: connection(c)
+				, outputStreamCallback{[&](auto* buffer, auto size) mutable
+				{
+					// TODO: work in progress
+					connection.getNativeSocket();
+					return 1;
+				}}
+				, waveStream{std::make_unique<std::ostream>(&outputStreamCallback), 2, 44100, 32}
 				{
 					LOG(INFO) << "HTTP session created";
+
+					// TODO: work in progress
+					waveStream.writeHeader();
 				}
 
 				~StreamingSession()
 				{
 					LOG(INFO) << "HTTP session deleted";
 				}
+
 				StreamingSession(const StreamingSession&) = delete;             // non-copyable
 				StreamingSession& operator=(const StreamingSession&) = delete;  // non-assignable
 				StreamingSession(StreamingSession&& rhs) = delete;              // non-movable
@@ -54,7 +72,9 @@ namespace slim
 				}
 
 			private:
-				ConnectionType& connection;
+				ConnectionType&      connection;
+				OutputStreamCallback outputStreamCallback;
+				wave::WAVEStream     waveStream;
 		};
 	}
 }

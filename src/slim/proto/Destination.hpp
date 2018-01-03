@@ -15,6 +15,7 @@
 #include "slim/Chunk.hpp"
 #include "slim/log/log.hpp"
 #include "slim/proto/Streamer.hpp"
+#include "slim/wave/WAVEStream.hpp"
 
 
 namespace slim
@@ -36,7 +37,9 @@ namespace slim
 				Destination& operator=(Destination&& rhs) = default;
 
 				void consume(Chunk& chunk)
-				{}
+				{
+					//waveStream.write(chunk.getBuffer(), size);
+				}
 
 			private:
 				Streamer<ConnectionType>& streamer;
