@@ -29,8 +29,14 @@ namespace slim
 			std::uint32_t oldGainRight;
 			std::uint8_t  adjust;
 			std::uint8_t  preamp;
-			std::uint32_t gainLeft;
-			std::uint32_t gainRight;
+			std::uint8_t  gainLeft1;
+			std::uint8_t  gainLeft2;
+			std::uint8_t  gainLeft3;
+			std::uint8_t  gainLeft4;
+			std::uint8_t  gainRight1;
+			std::uint8_t  gainRight2;
+			std::uint8_t  gainRight3;
+			std::uint8_t  gainRight4;
 			std::uint16_t sequenceID;  // not sure
 		// TODO: clarify if there is an universal way to avoid padding
 		} __attribute__((packed));
@@ -46,6 +52,12 @@ namespace slim
 
 					audg.adjust = 1;
 					audg.preamp = 255;
+
+					// TODO: work in progress
+					audg.gainLeft3  = 40;
+					audg.gainLeft4  = 255;
+					audg.gainRight3 = 40;
+					audg.gainRight4 = 255;
 				}
 
 				// using Rule Of Zero

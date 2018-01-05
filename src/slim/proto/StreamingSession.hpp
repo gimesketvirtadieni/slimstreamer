@@ -35,15 +35,24 @@ namespace slim
 				, outputStreamCallback{[&](auto* buffer, auto size) mutable
 				{
 					// TODO: work in progress
-					connection.getNativeSocket();
-					return 1;
+					auto& socket = connection.getNativeSocket();
+					if (socket.is_open())
+					{
+						socket.send(asio::buffer(buffer, size));
+					}
+
+					return size;
 				}}
-				, waveStream{std::make_unique<std::ostream>(&outputStreamCallback), 2, 44100, 32}
+				, waveStream{std::make_unique<std::ostream>(&outputStreamCallback), 2, 48000, 32}
 				{
 					LOG(INFO) << "HTTP session created";
 
 					// TODO: work in progress
-					waveStream.writeHeader();
+					waveStream.write("HTTP/1.1 200 OK\n");
+					waveStream.write("Server: Logitech Media Server (7.9.1 - 1513400996)\n");
+					waveStream.write("Connection: close\n");
+					waveStream.write("Content-Type: audio/x-wave\n");
+					waveStream.write("\r\n\r\n");
 				}
 
 				~StreamingSession()
@@ -55,6 +64,11 @@ namespace slim
 				StreamingSession& operator=(const StreamingSession&) = delete;  // non-assignable
 				StreamingSession(StreamingSession&& rhs) = delete;              // non-movable
 				StreamingSession& operator=(StreamingSession&& rhs) = delete;   // non-movable-assignable
+
+				inline void consume(Chunk& chunk)
+				{
+					waveStream.write(chunk.getBuffer(), chunk.getDataSize());
+				}
 
 				inline auto& getConnection()
 				{

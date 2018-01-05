@@ -37,6 +37,14 @@ namespace slim
 				Streamer(Streamer&& rhs) = delete;              // non-movable
 				Streamer& operator=(Streamer&& rhs) = delete;   // non-movable-assinable
 
+				inline void consume(Chunk& chunk)
+				{
+					for (auto& sessionPtr : streamingSessions)
+					{
+						sessionPtr->consume(chunk);
+					}
+				}
+
 				void onHTTPClose(ConnectionType& connection)
 				{
 					LOG(INFO) << "HTTP close callback";
@@ -56,7 +64,15 @@ namespace slim
 						// TODO: work in progress
 						LOG(INFO) << "HTTP request received";
 
-						addSession(streamingSessions, connection).onData(buffer, receivedSize);
+						// TODO: refactor to a different class
+						std::string get{"GET"};
+						std::string s{(char*)buffer, get.size()};
+						if (!get.compare(s))
+						{
+							LOG(INFO) << "HTTP GET request received";
+
+							addSession(streamingSessions, connection).onData(buffer, receivedSize);
+						}
 					}
 				}
 

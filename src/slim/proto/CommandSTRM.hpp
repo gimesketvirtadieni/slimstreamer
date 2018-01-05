@@ -28,10 +28,10 @@ namespace slim
 			char          command;
 			std::uint8_t  autostart;
 			std::uint8_t  format;
-			std::uint8_t  pcmSampleSize;
-			std::uint8_t  pcmSampleRate;
-			std::uint8_t  pcmChannels;
-			std::uint8_t  pcmEndianness;
+			std::uint8_t  sampleSize;
+			std::uint8_t  sampleRate;
+			std::uint8_t  channels;
+			std::uint8_t  endianness;
 			std::uint8_t  threshold;
 			std::uint8_t  spdifEnable;
 			std::uint8_t  transitionPeriod;
@@ -63,14 +63,13 @@ namespace slim
 					memset(&strm, 0, sizeof(STRM));
 					memcpy(&strm.opcode, "strm", sizeof(strm.opcode));
 
-					strm.command       = static_cast<char>(commandSelection);
-					strm.autostart     = '0';  // do not autostart
-					strm.format        = 'p';  // PCM
-					strm.format        = 'p';  // PCM
-					strm.pcmSampleSize = '1';  // 16 bit;   it does not matter here as this is QUIT command
-					strm.pcmSampleRate = '3';  // 44.1 kHz; it does not matter here as this is QUIT command
-					strm.pcmChannels   = '2';  // stereo;   it does not matter here as this is QUIT command
-					strm.pcmEndianness = '1';  // WAV;      it does not matter here as this is QUIT command
+					strm.command    = static_cast<char>(commandSelection);
+					strm.autostart  = '1';  // autostart
+					strm.format     = 'p';  // PCM
+					strm.sampleSize = '3';  // 32 bits per sample
+					strm.sampleRate = '3';  // 44.1 kHz
+					strm.channels   = '2';  // stereo
+					strm.endianness = '1';  // WAV
 
 					if (strm.command == static_cast<char>(CommandSelection::Start))
 					{
