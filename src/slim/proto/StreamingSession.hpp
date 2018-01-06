@@ -48,11 +48,11 @@ namespace slim
 					LOG(INFO) << "HTTP session created";
 
 					// TODO: work in progress
-					waveStream.write("HTTP/1.1 200 OK\n");
-					waveStream.write("Server: Logitech Media Server (7.9.1 - 1513400996)\n");
-					waveStream.write("Connection: close\n");
-					waveStream.write("Content-Type: audio/x-wave\n");
-					waveStream.write("\r\n\r\n");
+					waveStream.write("HTTP/1.1 200 OK\r\n");
+					waveStream.write("Server: SlimStreamer (0.0.1)\r\n");
+					waveStream.write("Connection: close\r\n");
+					waveStream.write("Content-Type: audio/x-wave\r\n");
+					waveStream.write("\r\n");
 				}
 
 				~StreamingSession()
