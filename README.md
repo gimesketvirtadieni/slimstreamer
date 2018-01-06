@@ -22,9 +22,11 @@ Moreover, SlimStreamer captures PCM stream in a bit-perfect way (without resampl
 This project is still ‘work in progress’:  
   * Capture-and-deliver PCM data to SlimStreamer in a bit-perfect way is implemented and works
   * TCP server (running on 3483 port) required for serving SlimProto commands is implemented (although only few commands are supported for now)
-  * SlimProto handshake works (Squeezebox players, including squeezelite, are able to connect to SlimStreamer)
-  * TCP server (running on 9000 port) required for streaming PCM data is being developed
-  * HTTP streaming functionality is still missing
+  * SlimProto handshake works (Squeezebox players should be able to connect, although tested only with squeezelite)
+  * TCP server (running on 9000 port) required for streaming PCM data works
+  * HTTP streaming functionality works (only for 44.1 kHz audio)
+  * Streams synchronization is still missing
+  * There are many 'shortcuts' left in the codebase so in many ways it is still requires maturing
 
 The project is getting closer and closer for end-2-end usage, stay tuned ;)
 
