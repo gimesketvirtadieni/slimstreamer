@@ -38,8 +38,8 @@ namespace slim
 				, maxConnections{m}
 				, callbacks
 				{
-					std::move(c.startCallback),
-					[&, openCallback = std::move(c.openCallback)](auto& connection)
+					std::move(c.getStartCallback()),
+					[&, openCallback = std::move(c.getOpenCallback())](auto& connection)
 					{
 						if (openCallback)
 						{
@@ -60,9 +60,9 @@ namespace slim
 							stopAcceptor();
 						}
 					},
-					std::move(c.dataCallback),
-					std::move(c.closeCallback),
-					[&, stopCallback = std::move(c.stopCallback)](auto& connection)
+					std::move(c.getDataCallback()),
+					std::move(c.getCloseCallback()),
+					[&, stopCallback = std::move(c.getStopCallback())](auto& connection)
 					{
 						if (stopCallback)
 						{

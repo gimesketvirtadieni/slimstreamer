@@ -79,9 +79,9 @@ namespace slim
 				void start(asio::ip::tcp::acceptor& acceptor)
 				{
 					// invoking open callback before any connectivy action
-					if (callbacks.startCallback)
+					if (callbacks.getStartCallback())
 					{
-						callbacks.startCallback(*this);
+						callbacks.getStartCallback()(*this);
 					}
 
 					// TODO: validate result???
@@ -118,9 +118,9 @@ namespace slim
 					LOG(DEBUG) << LABELS{"slim"} << "Closing connection (id=" << this << ", error='" << error.message() << "')...";
 
 					// invoking close callback before connection is desposed and setting opened status
-					if (opened && callbacks.closeCallback)
+					if (opened && callbacks.getCloseCallback())
 					{
-						callbacks.closeCallback(*this);
+						callbacks.getCloseCallback()(*this);
 					}
 					opened = false;
 
@@ -140,9 +140,9 @@ namespace slim
 					else
 					{
 						// calling onData callback that does all the usefull work
-						if (receivedSize > 0 && callbacks.dataCallback)
+						if (receivedSize > 0 && callbacks.getDataCallback())
 						{
-							callbacks.dataCallback(*this, buffer, receivedSize);
+							callbacks.getDataCallback()(*this, buffer, receivedSize);
 						}
 
 						// submitting a new task here allows other tasks to progress
@@ -177,9 +177,9 @@ namespace slim
 						if (!opened)
 						{
 							opened = true;
-							if (callbacks.openCallback)
+							if (callbacks.getOpenCallback())
 							{
-								callbacks.openCallback(*this);
+								callbacks.getOpenCallback()(*this);
 							}
 						}
 
@@ -196,9 +196,9 @@ namespace slim
 					processorProxyPtr->process([&]
 					{
 						// invoking stop callback
-						if (callbacks.stopCallback)
+						if (callbacks.getStopCallback())
 						{
-							callbacks.stopCallback(*this);
+							callbacks.getStopCallback()(*this);
 						}
 					});
 				}

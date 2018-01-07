@@ -30,17 +30,17 @@ namespace slim
 			using OutputStreamCallback = util::OutputStreamCallback<std::function<std::streamsize(const char*, std::streamsize)>>;
 
 			public:
-				StreamingSession(ConnectionType& c)
+				StreamingSession(ConnectionType& c, unsigned int channels, unsigned int sampleRate, unsigned int bitePerSample)
 				: connection(c)
 				, outputStreamCallback{[&](auto* buffer, auto size) mutable
 				{
 					return connection.send(buffer, size);
 				}}
-				, waveStream{std::make_unique<std::ostream>(&outputStreamCallback), 2, 48000, 32}
+				, waveStream{std::make_unique<std::ostream>(&outputStreamCallback), channels, sampleRate, bitePerSample}
 				{
 					LOG(INFO) << "HTTP session created";
 
-					// TODO: work in progress
+					// sending HTTP response with the headers
 					waveStream.write("HTTP/1.1 200 OK\r\n");
 					waveStream.write("Server: SlimStreamer (0.0.1)\r\n");
 					waveStream.write("Connection: close\r\n");
@@ -68,14 +68,14 @@ namespace slim
 					return connection;
 				}
 
-				void onData(unsigned char* buffer, std::size_t receivedSize)
+				void onRequest(unsigned char* buffer, std::size_t receivedSize)
 				{
 					LOG(DEBUG) << "HTTP onData";
 
-					for (unsigned int ii = 0; ii < receivedSize; ii++)
-					{
-						LOG(DEBUG) << buffer[ii];
-					}
+					//for (unsigned int ii = 0; ii < receivedSize; ii++)
+					//{
+					//	LOG(DEBUG) << buffer[ii];
+					//}
 				}
 
 			private:

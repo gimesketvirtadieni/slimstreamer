@@ -24,7 +24,7 @@ namespace slim
 		class WAVEStream
 		{
 			public:
-				explicit WAVEStream(std::unique_ptr<std::ostream> os, unsigned int c, unsigned int s, int b)
+				explicit WAVEStream(std::unique_ptr<std::ostream> os, unsigned int c, unsigned int s, unsigned int b)
 				: outputStreamPtr{std::move(os)}
 				, channels{c}
 				, sampleRate{s}
@@ -52,7 +52,7 @@ namespace slim
 				std::unique_ptr<std::ostream> outputStreamPtr;
 				unsigned int                  channels;
 				unsigned int                  sampleRate;
-				int                           bitsPerSample;
+				unsigned int                  bitsPerSample;
 				unsigned int                  bytesPerFrame;
 				unsigned int                  byteRate;
 		};

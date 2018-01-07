@@ -37,8 +37,33 @@ namespace slim
 				CallbacksBase(CallbacksBase&& rhs) = default;
 				CallbacksBase& operator=(CallbacksBase&& rhs) = default;
 
-			// TODO: make private
-			//private:
+				// TODO: reconsider, using getters like this is not 'nice'
+				inline auto& getCloseCallback()
+				{
+					return closeCallback;
+				}
+
+				inline auto& getDataCallback()
+				{
+					return dataCallback;
+				}
+
+				inline auto& getOpenCallback()
+				{
+					return openCallback;
+				}
+
+				inline auto& getStartCallback()
+				{
+					return startCallback;
+				}
+
+				inline auto& getStopCallback()
+				{
+					return stopCallback;
+				}
+
+			private:
 				std::function<void(ConnectionType&)>                                    startCallback;
 				std::function<void(ConnectionType&)>                                    openCallback;
 				std::function<void(ConnectionType&, unsigned char*, const std::size_t)> dataCallback;

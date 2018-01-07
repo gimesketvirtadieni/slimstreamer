@@ -34,7 +34,7 @@ namespace slim
 			using OutputStreamCallback = util::OutputStreamCallback<Callback>;
 
 			public:
-				explicit Destination(std::unique_ptr<std::ofstream> fs, unsigned int channels, unsigned int sampleRate, int bitsPerSample)
+				explicit Destination(std::unique_ptr<std::ofstream> fs, unsigned int channels, unsigned int sampleRate, unsigned int bitsPerSample)
 				: waveStream{std::move(fs), channels, sampleRate, bitsPerSample}
 				, bytesPerFrame{channels * (bitsPerSample >> 3)}
 				{

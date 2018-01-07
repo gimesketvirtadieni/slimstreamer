@@ -57,7 +57,7 @@ namespace slim
 					return connection;
 				}
 
-				void onData(unsigned char* buffer, std::size_t receivedSize)
+				void onRequest(unsigned char* buffer, std::size_t receivedSize)
 				{
 				}
 

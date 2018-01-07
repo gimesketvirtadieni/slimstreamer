@@ -58,7 +58,7 @@ namespace slim
 
 					if (!applyToSession(streamingSessions, connection, [&](StreamingSession<ConnectionType>& session)
 					{
-						session.onData(buffer, receivedSize);
+						session.onRequest(buffer, receivedSize);
 					}))
 					{
 						// TODO: work in progress
@@ -71,7 +71,8 @@ namespace slim
 						{
 							LOG(INFO) << "HTTP GET request received";
 
-							addSession(streamingSessions, connection).onData(buffer, receivedSize);
+							auto sessionPtr = std::make_unique<StreamingSession<ConnectionType>>(connection, 2, 44100, 32);
+							addSession(streamingSessions, std::move(sessionPtr)).onRequest(buffer, receivedSize);
 						}
 					}
 				}
@@ -104,7 +105,7 @@ namespace slim
 
 					if (!applyToSession(commandSessions, connection, [&](CommandSession<ConnectionType>& session)
 					{
-						session.onData(buffer, receivedSize);
+						session.onRequest(buffer, receivedSize);
 					}))
 					{
 						// TODO: refactor to a different class
@@ -114,7 +115,8 @@ namespace slim
 						{
 							LOG(INFO) << "HELO command received";
 
-							addSession(commandSessions, connection).onData(buffer, receivedSize);
+							auto sessionPtr = std::make_unique<CommandSession<ConnectionType>>(connection);
+							addSession(commandSessions, std::move(sessionPtr)).onRequest(buffer, receivedSize);
 						}
 						else
 						{
@@ -142,19 +144,20 @@ namespace slim
 
 			protected:
 				template<typename SessionType>
-				auto& addSession(std::vector<std::unique_ptr<SessionType>>& sessions, ConnectionType& connection)
+				auto& addSession(std::vector<std::unique_ptr<SessionType>>& sessions, std::unique_ptr<SessionType> sessionPtr)
 				{
 					LOG(DEBUG) << LABELS{"slim"} << "Adding new session (sessions=" << sessions.size() << ")...";
 
-					auto result = std::find_if(sessions.begin(), sessions.end(), [&](auto& sessionPtr)
+					auto result = std::find_if(sessions.begin(), sessions.end(), [&](auto& s)
 					{
-						return &(sessionPtr->getConnection()) == &connection;
+						return &(s->getConnection()) == &(sessionPtr->getConnection());
 					});
 
 					SessionType* s{nullptr};
 					if (result == sessions.end())
 					{
-						s = (sessions.emplace_back(std::make_unique<SessionType>(connection))).get();
+						s = sessionPtr.get();
+						sessions.push_back(std::move(sessionPtr));
 						LOG(DEBUG) << LABELS{"slim"} << "New session was added (id=" << s << ", sessions=" << sessions.size() << ")";
 					}
 					else
