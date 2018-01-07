@@ -22,11 +22,18 @@ namespace slim
 {
 	namespace proto
 	{
-		struct SETD
+		struct SETDData
 		{
 			char         opcode[4];
 			std::uint8_t id;
 		// TODO: clarify if there is an universal way to avoid padding
+		} __attribute__((packed));
+
+
+		struct SETD
+		{
+			char     size[2];
+			SETDData data;
 		} __attribute__((packed));
 
 
@@ -43,9 +50,14 @@ namespace slim
 				CommandSETD(DeviceID deviceID)
 				{
 					memset(&setd, 0, sizeof(SETD));
-					memcpy(&setd.opcode, "setd", sizeof(setd.opcode));
+					memcpy(&setd.data.opcode, "setd", sizeof(setd.data.opcode));
 
-					setd.id = static_cast<std::uint8_t>(deviceID);
+					setd.data.id = static_cast<std::uint8_t>(deviceID);
+
+					// preparing command size in indianless way
+					auto size = sizeof(setd.data);
+					setd.size[0] = 255 & (size >> 8);
+					setd.size[1] = 255 & size;
 				}
 
 				// using Rule Of Zero

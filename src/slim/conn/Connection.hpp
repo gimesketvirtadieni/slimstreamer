@@ -15,24 +15,33 @@
 #include <conwrap/ProcessorAsioProxy.hpp>
 #include <cstddef>  // std::size_t
 #include <functional>
+#include <iostream>
 #include <memory>
 
 #include "slim/conn/CallbacksBase.hpp"
 #include "slim/log/log.hpp"
+#include "slim/util/OutputStreamCallback.hpp"
 
 
 namespace slim
 {
 	namespace conn
 	{
-		template <typename Container>
+		template <typename ContainerType>
 		class Connection
 		{
+			using SocketStreamCallback = util::OutputStreamCallback<std::function<std::streamsize(const char*, std::streamsize)>>;
+
 			public:
-				Connection(conwrap::ProcessorAsioProxy<Container>* p, CallbacksBase<Connection<Container>>& c)
+				Connection(conwrap::ProcessorAsioProxy<ContainerType>* p, CallbacksBase<Connection<ContainerType>>& c)
 				: processorProxyPtr{p}
 				, callbacks{c}
 				, nativeSocket{*processorProxyPtr->getDispatcher()}
+				, socketStreamCallback{[&](auto* buffer, auto size) mutable
+				{
+					return send(buffer, size);
+				}}
+				, socketStream{&socketStreamCallback}
 				, opened{false} {}
 
 				~Connection()
@@ -45,9 +54,26 @@ namespace slim
 				Connection(Connection&& rhs) = delete;              // non-movable
 				Connection& operator=(Connection&& rhs) = delete;   // non-movable-assignable
 
+				inline auto& getSocketStream()
+				{
+					return socketStream;
+				}
+
 				inline auto isOpen()
 				{
 					return opened;
+				}
+
+				inline auto send(const void* buffer, const std::size_t size)
+				{
+					std::size_t sent = size;
+
+					if (nativeSocket.is_open())
+					{
+						sent = nativeSocket.send(asio::buffer(buffer, size));
+					}
+
+					return sent;
 				}
 
 				void start(asio::ip::tcp::acceptor& acceptor)
@@ -84,12 +110,6 @@ namespace slim
 						nativeSocket.close();
 					}
 					catch(...) {}
-				}
-
-				// TODO: temporary method
-				auto& getNativeSocket()
-				{
-					return nativeSocket;
 				}
 
 			protected:
@@ -184,14 +204,16 @@ namespace slim
 				}
 
 			private:
-				conwrap::ProcessorAsioProxy<Container>* processorProxyPtr;
-				CallbacksBase<Connection<Container>>&   callbacks;
-				asio::ip::tcp::socket                   nativeSocket;
-				bool                                    opened;
+				conwrap::ProcessorAsioProxy<ContainerType>* processorProxyPtr;
+				CallbacksBase<Connection<ContainerType>>&   callbacks;
+				asio::ip::tcp::socket                       nativeSocket;
+				SocketStreamCallback                        socketStreamCallback;
+				std::ostream                                socketStream;
+				bool                                        opened;
 
 				// TODO: think of some smarter way of managing buffer
-				const std::size_t                       bufferSize = 1024;
-				unsigned char                           buffer[1024];
+				const std::size_t                           bufferSize = 1024;
+				unsigned char                               buffer[1024];
 		};
 	}
 }

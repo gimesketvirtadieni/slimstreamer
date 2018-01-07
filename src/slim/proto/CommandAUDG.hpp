@@ -22,7 +22,7 @@ namespace slim
 {
 	namespace proto
 	{
-		struct AUDG
+		struct AUDGData
 		{
 			char          opcode[4];
 			std::uint32_t oldGainLeft;
@@ -42,22 +42,34 @@ namespace slim
 		} __attribute__((packed));
 
 
+		struct AUDG
+		{
+			char     size[2];
+			AUDGData data;
+		} __attribute__((packed));
+
+
 		class CommandAUDG : public Command<AUDG>
 		{
 			public:
 				CommandAUDG()
 				{
 					memset(&audg, 0, sizeof(AUDG));
-					memcpy(&audg.opcode, "audg", sizeof(audg.opcode));
+					memcpy(&audg.data.opcode, "audg", sizeof(audg.data.opcode));
 
-					audg.adjust = 1;
-					audg.preamp = 255;
+					audg.data.adjust = 1;
+					audg.data.preamp = 255;
 
 					// TODO: work in progress
-					audg.gainLeft3  = 40;
-					audg.gainLeft4  = 255;
-					audg.gainRight3 = 40;
-					audg.gainRight4 = 255;
+					audg.data.gainLeft3  = 40;
+					audg.data.gainLeft4  = 255;
+					audg.data.gainRight3 = 40;
+					audg.data.gainRight4 = 255;
+
+					// preparing command size in indianless way
+					auto size = sizeof(audg.data);
+					audg.size[0] = 255 & (size >> 8);
+					audg.size[1] = 255 & size;
 				}
 
 				// using Rule Of Zero

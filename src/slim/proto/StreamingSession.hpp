@@ -34,14 +34,7 @@ namespace slim
 				: connection(c)
 				, outputStreamCallback{[&](auto* buffer, auto size) mutable
 				{
-					// TODO: work in progress
-					auto& socket = connection.getNativeSocket();
-					if (socket.is_open())
-					{
-						socket.send(asio::buffer(buffer, size));
-					}
-
-					return size;
+					return connection.send(buffer, size);
 				}}
 				, waveStream{std::make_unique<std::ostream>(&outputStreamCallback), 2, 48000, 32}
 				{

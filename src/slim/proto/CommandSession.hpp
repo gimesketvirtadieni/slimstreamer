@@ -62,24 +62,14 @@ namespace slim
 				}
 
 			protected:
-				// TODO: should be moved to Connection class???
+				// TODO: should be moved to Command class???
 				template<typename CommandType>
 				void send(CommandType command)
 				{
-					auto& socket = connection.getNativeSocket();
-					if (socket.is_open())
+					// TODO: introduce buffer wrapper so it can be passed to a stream; then in can be moved to a Command class
+					for (std::size_t i = 0; i < command.getSize();)
 					{
-						// preparing command size in indianess-independant way
-						auto size = command.getSize();
-						char sizeBuffer[2];
-						sizeBuffer[0] = 255 & (size >> 8);
-						sizeBuffer[1] = 255 & size;
-
-						// sending command size
-						socket.send(asio::buffer(sizeBuffer, sizeof(sizeBuffer)));
-
-						// sending command data
-						socket.send(asio::buffer(command.getBuffer(), command.getSize()));
+						i += connection.send(command.getBuffer() + i, command.getSize() - i);
 					}
 				}
 

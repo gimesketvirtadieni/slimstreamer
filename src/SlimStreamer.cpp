@@ -141,8 +141,7 @@ auto createPipelines(Streamer& streamer)
 
 	for (auto& rate : rates)
 	{
-		auto rateValue{std::get<0>(rate)};
-		auto deviceValue{std::get<1>(rate)};
+		auto[rateValue, deviceValue] = rate;
 
 		parameters.setRate(rateValue);
 		parameters.setDeviceName(deviceValue);

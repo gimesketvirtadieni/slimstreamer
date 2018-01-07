@@ -21,7 +21,7 @@ namespace slim
 {
 	namespace proto
 	{
-		struct HELO
+		struct HELOData
 		{
 			char          opcode[4];
 			std::uint32_t length;
@@ -37,6 +37,13 @@ namespace slim
 		} __attribute__((packed));
 
 
+		struct HELO
+		{
+			char     size[2];
+			HELOData data;
+		} __attribute__((packed));
+
+
 		class CommandHELO : public Command<HELO>
 		{
 			public:
@@ -44,7 +51,12 @@ namespace slim
 				{
 					// TODO: work in progress
 					memset(&helo, 0, sizeof(HELO));
-					memcpy(&helo.opcode, "helo", sizeof(helo.opcode));
+					memcpy(&helo.data.opcode, "helo", sizeof(helo.data.opcode));
+
+					// preparing command size in indianless way
+					auto size = sizeof(helo.data);
+					helo.size[0] = 255 & (size >> 8);
+					helo.size[1] = 255 & size;
 				}
 
 				// using Rule Of Zero

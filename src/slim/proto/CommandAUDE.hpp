@@ -22,12 +22,19 @@ namespace slim
 {
 	namespace proto
 	{
-		struct AUDE
+		struct AUDEData
 		{
 			char         opcode[4];
 			std::uint8_t enableSPDIF;
 			std::uint8_t enableDAC;
 		// TODO: clarify if there is an universal way to avoid padding
+		} __attribute__((packed));
+
+
+		struct AUDE
+		{
+			char     size[2];
+			AUDEData data;
 		} __attribute__((packed));
 
 
@@ -37,10 +44,15 @@ namespace slim
 				CommandAUDE(bool spdif, bool dac)
 				{
 					memset(&aude, 0, sizeof(AUDE));
-					memcpy(&aude.opcode, "aude", sizeof(aude.opcode));
+					memcpy(&aude.data.opcode, "aude", sizeof(aude.data.opcode));
 
-					aude.enableSPDIF = (spdif ? 1 : 0);
-					aude.enableDAC   = (dac   ? 1 : 0);
+					aude.data.enableSPDIF = (spdif ? 1 : 0);
+					aude.data.enableDAC   = (dac   ? 1 : 0);
+
+					// preparing command size in indianless way
+					auto size = sizeof(aude.data);
+					aude.size[0] = 255 & (size >> 8);
+					aude.size[1] = 255 & size;
 				}
 
 				// using Rule Of Zero

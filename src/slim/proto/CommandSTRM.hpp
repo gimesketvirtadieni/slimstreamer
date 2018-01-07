@@ -22,7 +22,7 @@ namespace slim
 {
 	namespace proto
 	{
-		struct STRM
+		struct STRMData
 		{
 			char          opcode[4];
 			char          command;
@@ -48,6 +48,13 @@ namespace slim
 		} __attribute__((packed));
 
 
+		struct STRM
+		{
+			char     size[2];
+			STRMData data;
+		} __attribute__((packed));
+
+
 		enum class CommandSelection : char
 		{
 			Start = 's',
@@ -61,23 +68,28 @@ namespace slim
 				CommandSTRM(CommandSelection commandSelection)
 				{
 					memset(&strm, 0, sizeof(STRM));
-					memcpy(&strm.opcode, "strm", sizeof(strm.opcode));
+					memcpy(&strm.data.opcode, "strm", sizeof(strm.data.opcode));
 
-					strm.command    = static_cast<char>(commandSelection);
-					strm.autostart  = '1';  // autostart
-					strm.format     = 'p';  // PCM
-					strm.sampleSize = '3';  // 32 bits per sample
-					strm.sampleRate = '3';  // 44.1 kHz
-					strm.channels   = '2';  // stereo
-					strm.endianness = '1';  // WAV
+					strm.data.command    = static_cast<char>(commandSelection);
+					strm.data.autostart  = '1';  // autostart
+					strm.data.format     = 'p';  // PCM
+					strm.data.sampleSize = '3';  // 32 bits per sample
+					strm.data.sampleRate = '3';  // 44.1 kHz
+					strm.data.channels   = '2';  // stereo
+					strm.data.endianness = '1';  // WAV
 
-					if (strm.command == static_cast<char>(CommandSelection::Start))
+					if (strm.data.command == static_cast<char>(CommandSelection::Start))
 					{
 						// TODO: crap
-						((unsigned char*)(&strm.serverPort))[0] = 35;
-						((unsigned char*)(&strm.serverPort))[1] = 41;
-						std::strcpy(strm.httpHeader, "GET /stream.pcm?player=MAC");
+						((unsigned char*)(&strm.data.serverPort))[0] = 35;
+						((unsigned char*)(&strm.data.serverPort))[1] = 41;
+						std::strcpy(strm.data.httpHeader, "GET /stream.pcm?player=MAC");
 					}
+
+					// preparing command size in indianless way
+					auto size = getDataSize();
+					strm.size[0] = 255 & (size >> 8);
+					strm.size[1] = 255 & size;
 				}
 
 				// using Rule Of Zero
@@ -94,7 +106,24 @@ namespace slim
 
 				virtual std::size_t getSize() override
 				{
-					return sizeof(strm) - (strm.command == static_cast<char>(CommandSelection::Start) ? (sizeof(strm.httpHeader) - strlen(strm.httpHeader)) : sizeof(strm.httpHeader));
+					return sizeof(strm.size) + getDataSize();
+				}
+
+			protected:
+				std::size_t getDataSize()
+				{
+					auto size = sizeof(strm.data);
+
+					if (strm.data.command == static_cast<char>(CommandSelection::Start))
+					{
+						size -= (sizeof(strm.data.httpHeader) - strlen(strm.data.httpHeader));
+					}
+					else
+					{
+						size -= sizeof(strm.data.httpHeader);
+					}
+
+					return size;
 				}
 
 			private:
