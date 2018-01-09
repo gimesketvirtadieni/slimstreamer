@@ -129,7 +129,7 @@ namespace slim
 
 				inline void supply(std::function<void(Chunk&)> consumer)
 				{
-					// this call does NOT block if buffer is empty
+					// this call does NOT block if bounded queue (buffer) is empty
 					queuePtr->dequeue([&](Chunk& chunk)
 					{
 						consumer(chunk);
@@ -142,7 +142,7 @@ namespace slim
 			protected:
 				void              close();
 				snd_pcm_sframes_t containsData(unsigned char* buffer, snd_pcm_sframes_t frames);
-				void              copyData(unsigned char* buffer, snd_pcm_sframes_t frames, Chunk& chunk);
+				snd_pcm_sframes_t copyData(unsigned char* srcBuffer, unsigned char* dstBuffer, snd_pcm_sframes_t frames);
 
 				inline auto formatError(std::string message, int error)
 				{

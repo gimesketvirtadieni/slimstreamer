@@ -61,13 +61,12 @@ namespace slim
 		}
 
 
-		void Source::copyData(unsigned char* srcBuffer, snd_pcm_sframes_t srcFrames, Chunk& chunk)
+		snd_pcm_sframes_t Source::copyData(unsigned char* srcBuffer, unsigned char* dstBuffer, snd_pcm_sframes_t frames)
 		{
 			auto bytesPerFrame{parameters.getChannels() * (parameters.getBitDepth() >> 3)};
-			auto dstBuffer{chunk.getBuffer()};
-			auto dstFrames{snd_pcm_sframes_t{0}};
+			auto framesCopied{snd_pcm_sframes_t{0}};
 
-			for (snd_pcm_sframes_t i = 0; i < srcFrames; i++)
+			for (snd_pcm_sframes_t i = 0; i < frames; i++)
 			{
 				StreamMarker value{srcBuffer[(i + 1) * bytesPerFrame - 1]};  // last byte of the current frame
 				if (value == StreamMarker::beginningOfStream)
@@ -90,12 +89,13 @@ namespace slim
 					dstBuffer += (parameters.getChannels() - 1) * (parameters.getBitDepth() >> 3);
 
 					// increasing destination frames counter
-					dstFrames++;
+					framesCopied++;
 				}
 			}
 
-			// setting new chunk size
-			chunk.setDataSize(dstFrames * (parameters.getChannels() - 1) * (parameters.getBitDepth() >> 3));
+			// returning copied size in frames
+			return framesCopied;
+
 		}
 
 
@@ -228,7 +228,8 @@ namespace slim
 						// reading PCM data directly into the queue
 						queuePtr->enqueue([&](Chunk& chunk)
 						{
-							copyData(srcBuffer + offset * bytesPerFrame, frames - offset, chunk);
+							// setting new chunk size in bytes
+							chunk.setDataSize(copyData(srcBuffer + offset * bytesPerFrame, chunk.getBuffer(), frames - offset) * (parameters.getChannels() - 1) * (parameters.getBitDepth() >> 3));
 
 							// available is used to provide optimization for a scheduler submitting tasks to a processor
 							available.store(true, std::memory_order_release);

@@ -30,13 +30,14 @@ namespace slim
 			using OutputStreamCallback = util::OutputStreamCallback<std::function<std::streamsize(const char*, std::streamsize)>>;
 
 			public:
-				StreamingSession(ConnectionType& c, unsigned int channels, unsigned int sampleRate, unsigned int bitePerSample)
+				StreamingSession(ConnectionType& c, unsigned int channels, unsigned int sr, unsigned int bitePerSample)
 				: connection(c)
 				, outputStreamCallback{[&](auto* buffer, auto size) mutable
 				{
 					return connection.send(buffer, size);
 				}}
-				, waveStream{std::make_unique<std::ostream>(&outputStreamCallback), channels, sampleRate, bitePerSample}
+				, samplingRate{sr}
+				, waveStream{std::make_unique<std::ostream>(&outputStreamCallback), channels, samplingRate, bitePerSample}
 				{
 					LOG(INFO) << "HTTP session created";
 
@@ -58,14 +59,27 @@ namespace slim
 				StreamingSession(StreamingSession&& rhs) = delete;              // non-movable
 				StreamingSession& operator=(StreamingSession&& rhs) = delete;   // non-movable-assignable
 
-				inline void consume(Chunk& chunk)
+				inline void onChunk(Chunk& chunk, unsigned int sr)
 				{
-					waveStream.write(chunk.getBuffer(), chunk.getDataSize());
+					if (samplingRate == sr)
+					{
+						waveStream.write(chunk.getBuffer(), chunk.getDataSize());
+					}
+					else
+					{
+						// TODO: handle properly; work in progress
+						LOG(DEBUG) << "incorrect rate session rate=" << samplingRate << " data chunk rate=" << sr;
+					}
 				}
 
 				inline auto& getConnection()
 				{
 					return connection;
+				}
+
+				inline auto getSamplingRate()
+				{
+					return samplingRate;
 				}
 
 				void onRequest(unsigned char* buffer, std::size_t receivedSize)
@@ -81,6 +95,7 @@ namespace slim
 			private:
 				ConnectionType&      connection;
 				OutputStreamCallback outputStreamCallback;
+				unsigned int         samplingRate;
 				wave::WAVEStream     waveStream;
 		};
 	}

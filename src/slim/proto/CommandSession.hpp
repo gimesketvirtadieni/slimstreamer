@@ -39,8 +39,6 @@ namespace slim
 					send(CommandSETD{DeviceID::Squeezebox3});
 					send(CommandAUDE{true, true});
 					send(CommandAUDG{});
-
-					send(CommandSTRM{CommandSelection::Start});
 				}
 
 				~CommandSession()
@@ -61,8 +59,8 @@ namespace slim
 				{
 				}
 
-			protected:
-				// TODO: should be moved to Command class???
+			// TODO: refactor usage
+			//protected:
 				template<typename CommandType>
 				void send(CommandType command)
 				{

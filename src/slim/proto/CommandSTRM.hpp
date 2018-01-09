@@ -66,6 +66,12 @@ namespace slim
 		{
 			public:
 				CommandSTRM(CommandSelection commandSelection)
+				: CommandSTRM{commandSelection, 0}
+				{
+					// TODO: validate usage of parameters
+				};
+
+				CommandSTRM(CommandSelection commandSelection, unsigned int samplingRate)
 				{
 					memset(&strm, 0, sizeof(STRM));
 					memcpy(&strm.data.opcode, "strm", sizeof(strm.data.opcode));

@@ -37,11 +37,40 @@ namespace slim
 				Streamer(Streamer&& rhs) = delete;              // non-movable
 				Streamer& operator=(Streamer&& rhs) = delete;   // non-movable-assinable
 
-				inline void consume(Chunk& chunk)
+				inline void onChunk(Chunk& chunk, unsigned int sr)
 				{
+					if (sr && !samplingRate)
+					{
+						samplingRate = sr;
+
+						// TODO: send STRM command here
+						for (auto& sessionPtr : commandSessions)
+						{
+							sessionPtr->send(CommandSTRM{CommandSelection::Start, samplingRate});
+						}
+					}
+					else if (sr && samplingRate != sr)
+					{
+						// TODO: send new stream command
+
+						// TODO: reset current sampling rate to zero and deffere chunk transmition
+					}
+
+					// TODO: this approach is not good enough; HTTP sessions should be linked with SlimProto session
+					auto totalClients{commandSessions.size()};
+					auto counter{totalClients};
 					for (auto& sessionPtr : streamingSessions)
 					{
-						sessionPtr->consume(chunk);
+						sessionPtr->onChunk(chunk, samplingRate);
+
+						// TODO: if not deffered
+						counter--;
+					}
+
+					// TODO: implement means to deffere chunk transmition
+					if (counter)
+					{
+						LOG(WARNING) << "Current chunk transmition was skipped for " << counter << " client(s)";
 					}
 				}
 
@@ -212,6 +241,7 @@ namespace slim
 			private:
 				std::vector<std::unique_ptr<CommandSession<ConnectionType>>>   commandSessions;
 				std::vector<std::unique_ptr<StreamingSession<ConnectionType>>> streamingSessions;
+				unsigned int                                                   samplingRate = 0;
 		};
 	}
 }

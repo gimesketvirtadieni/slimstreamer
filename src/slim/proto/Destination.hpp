@@ -25,8 +25,9 @@ namespace slim
 		class Destination
 		{
 			public:
-				Destination(Streamer<ConnectionType>& s)
-				: streamer{s} {}
+				Destination(Streamer<ConnectionType>& s, unsigned int sr)
+				: streamer{s}
+				, samplingRate{sr} {}
 
 				// using Rule Of Zero
 				~Destination() = default;
@@ -37,11 +38,12 @@ namespace slim
 
 				inline void consume(Chunk& chunk)
 				{
-					streamer.consume(chunk);
+					streamer.onChunk(chunk, samplingRate);
 				}
 
 			private:
 				Streamer<ConnectionType>& streamer;
+				unsigned int              samplingRate;
 		};
 	}
 }
