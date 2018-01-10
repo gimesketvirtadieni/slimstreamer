@@ -51,9 +51,18 @@ namespace slim
 					}
 					else if (sr && samplingRate != sr)
 					{
-						// TODO: send new stream command
-
 						// TODO: reset current sampling rate to zero and deffere chunk transmition
+						samplingRate = 0;
+
+						LOG(DEBUG) << "SAM1";
+
+						// TODO: validate
+						for (auto& sessionPtr : streamingSessions)
+						{
+							sessionPtr->getConnection().stop();
+						}
+
+						LOG(DEBUG) << "SAM2";
 					}
 
 					// TODO: this approach is not good enough; HTTP sessions should be linked with SlimProto session
@@ -100,7 +109,7 @@ namespace slim
 						{
 							LOG(INFO) << "HTTP GET request received";
 
-							auto sessionPtr = std::make_unique<StreamingSession<ConnectionType>>(connection, 2, 44100, 32);
+							auto sessionPtr = std::make_unique<StreamingSession<ConnectionType>>(connection, 2, samplingRate, 32);
 							addSession(streamingSessions, std::move(sessionPtr)).onRequest(buffer, receivedSize);
 						}
 					}

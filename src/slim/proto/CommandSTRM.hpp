@@ -66,10 +66,7 @@ namespace slim
 		{
 			public:
 				CommandSTRM(CommandSelection commandSelection)
-				: CommandSTRM{commandSelection, 0}
-				{
-					// TODO: validate usage of parameters
-				};
+				: CommandSTRM{commandSelection, 0} {}
 
 				CommandSTRM(CommandSelection commandSelection, unsigned int samplingRate)
 				{
@@ -80,7 +77,7 @@ namespace slim
 					strm.data.autostart  = '1';  // autostart
 					strm.data.format     = 'p';  // PCM
 					strm.data.sampleSize = '3';  // 32 bits per sample
-					strm.data.sampleRate = '3';  // 44.1 kHz
+					strm.data.sampleRate = mapSamplingRate(samplingRate);
 					strm.data.channels   = '2';  // stereo
 					strm.data.endianness = '1';  // WAV
 
@@ -130,6 +127,59 @@ namespace slim
 					}
 
 					return size;
+				}
+
+				// TODO: refactor
+				char mapSamplingRate(unsigned int samplingRate)
+				{
+					// TODO: use std::optional
+					char result = '?';
+
+					// TODO: use vector from config
+					if (samplingRate == 8000)
+					{
+						result = '5';
+					}
+					else if (samplingRate == 11025)
+					{
+						result = '0';
+					}
+					else if (samplingRate == 12000)
+					{
+						result = '6';
+					}
+					else if (samplingRate == 16000)
+					{
+						result = '7';
+					}
+					else if (samplingRate == 22500)
+					{
+						result = '1';
+					}
+					else if (samplingRate == 24000)
+					{
+						result = '8';
+					}
+					else if (samplingRate == 32000)
+					{
+						result = '2';
+					}
+					else if (samplingRate == 44100)
+					{
+						result = '3';
+					}
+					else if (samplingRate == 48000)
+					{
+						result = '4';
+					}
+					else if (samplingRate == 96000)
+					{
+						result = '9';
+					}
+
+					// TODO: 176400, 192000
+
+					return result;
 				}
 
 			private:

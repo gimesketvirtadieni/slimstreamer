@@ -67,8 +67,8 @@ namespace slim
 					}
 					else
 					{
-						// TODO: handle properly; work in progress
-						LOG(DEBUG) << "incorrect rate session rate=" << samplingRate << " data chunk rate=" << sr;
+						// TODO: implement differing chunks processing
+						LOG(WARNING) << "Skipping chunk transmition due to client and PCM sampling rate";
 					}
 				}
 
