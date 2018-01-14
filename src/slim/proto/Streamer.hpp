@@ -51,7 +51,7 @@ namespace slim
 							for (auto& sessionEntry : commandSessions)
 							{
 								sessionEntry.second->send(CommandSTRM{CommandSelection::Time});
-;							}
+							}
 
 							counter = 0;
 						}
