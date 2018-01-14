@@ -59,6 +59,7 @@ namespace slim
 		{
 			Start = 's',
 			Stop  = 'q',
+			Time  = 't',
 		};
 
 

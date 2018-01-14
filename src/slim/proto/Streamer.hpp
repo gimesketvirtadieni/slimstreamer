@@ -43,9 +43,18 @@ namespace slim
 				{
 					LOG(DEBUG) << "Timer thread started";
 
-					while(timerRunning)
+					for(unsigned int counter{0}; timerRunning; counter++, std::this_thread::sleep_for(std::chrono::milliseconds{200}))
 			        {
-						std::this_thread::sleep_for(std::chrono::milliseconds{200});
+						if (counter > 24)
+						{
+							// sending
+							for (auto& sessionEntry : commandSessions)
+							{
+								sessionEntry.second->send(CommandSTRM{CommandSelection::Time});
+;							}
+
+							counter = 0;
+						}
 			        }
 
 					LOG(DEBUG) << "Timer thread stopped";
