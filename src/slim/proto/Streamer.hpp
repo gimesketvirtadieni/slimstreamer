@@ -12,8 +12,12 @@
 
 #pragma once
 
+#include <algorithm>
 #include <functional>
 #include <memory>
+#include <sstream>  // std::stringstream
+#include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "slim/log/log.hpp"
@@ -28,6 +32,9 @@ namespace slim
 		template<typename ConnectionType>
 		class Streamer
 		{
+			template<typename SessionType>
+			using SessionsMap = std::unordered_map<ConnectionType*, std::unique_ptr<SessionType>>;
+
 			public:
 				// using Rule Of Zero
 				Streamer() = default;
@@ -43,10 +50,14 @@ namespace slim
 					{
 						samplingRate = sr;
 
-						// TODO: send STRM command here
-						for (auto& sessionPtr : commandSessions)
+						// sending command to start streaming
+						for (auto& sessionEntry : commandSessions)
 						{
-							sessionPtr->send(CommandSTRM{CommandSelection::Start, samplingRate});
+							// TODO: use MAC provided in HELO message
+							std::stringstream ss;
+					        ss << static_cast<const void*>(sessionEntry.second.get());
+
+					        sessionEntry.second->send(CommandSTRM{CommandSelection::Start, samplingRate, ss.str()});
 						}
 					}
 					else if (sr && samplingRate != sr)
@@ -57,20 +68,20 @@ namespace slim
 						LOG(DEBUG) << "SAM1";
 
 						// TODO: validate
-						for (auto& sessionPtr : streamingSessions)
+						for (auto& sessionEntry : streamingSessions)
 						{
-							sessionPtr->getConnection().stop();
+							sessionEntry.first->stop();
 						}
 
 						LOG(DEBUG) << "SAM2";
 					}
 
 					// TODO: this approach is not good enough; HTTP sessions should be linked with SlimProto session
-					auto totalClients{commandSessions.size()};
+					auto totalClients{streamingSessions.size()};
 					auto counter{totalClients};
-					for (auto& sessionPtr : streamingSessions)
+					for (auto& sessionEntry : streamingSessions)
 					{
-						sessionPtr->onChunk(chunk, samplingRate);
+						sessionEntry.second->onChunk(chunk, samplingRate);
 
 						// TODO: if not deffered
 						counter--;
@@ -99,7 +110,6 @@ namespace slim
 						session.onRequest(buffer, receivedSize);
 					}))
 					{
-						// TODO: work in progress
 						LOG(INFO) << "HTTP request received";
 
 						// TODO: refactor to a different class
@@ -107,10 +117,44 @@ namespace slim
 						std::string s{(char*)buffer, get.size()};
 						if (!get.compare(s))
 						{
-							LOG(INFO) << "HTTP GET request received";
+							// TODO: use std::optional
+							auto  clientID{StreamingSession<ConnectionType>::parseClientID({(char*)buffer, receivedSize})};
+							auto* commandSessionPtr{(CommandSession<ConnectionType>*)nullptr};
+							if (clientID.length() > 0)
+							{
+								LOG(INFO) << "Client ID was parsed from HTTP request (clientID=" << clientID << ")";
 
-							auto sessionPtr = std::make_unique<StreamingSession<ConnectionType>>(connection, 2, samplingRate, 32);
-							addSession(streamingSessions, std::move(sessionPtr)).onRequest(buffer, receivedSize);
+								// TODO: use hashmap id
+								std::find_if(commandSessions.begin(), commandSessions.end(), [&](auto& sessionEntry)
+								{
+									auto found{false};
+
+									if (sessionEntry.second->getClientID() == clientID)
+									{
+										found             = true;
+										commandSessionPtr = sessionEntry.second.get();
+									}
+
+									return found;
+								});
+							}
+
+							// if there a SlimProto connection found that originated this HTTP request
+							if (commandSessionPtr)
+							{
+								// TODO: work in progress
+								auto sessionPtr{std::make_unique<StreamingSession<ConnectionType>>(connection, clientID, 2, samplingRate, 32)};
+								sessionPtr->onRequest(buffer, receivedSize);
+
+								// saving streaming session
+								addSession(streamingSessions, connection, std::move(sessionPtr));
+							}
+							else
+							{
+								// closing HTTP connection due to incorrect reference to SlimProto session
+								LOG(ERROR) << "Could not correlate HTTP request with a valid SlimProto session";
+								connection.stop();
+							}
 						}
 					}
 				}
@@ -153,13 +197,13 @@ namespace slim
 						{
 							LOG(INFO) << "HELO command received";
 
-							auto sessionPtr = std::make_unique<CommandSession<ConnectionType>>(connection);
-							addSession(commandSessions, std::move(sessionPtr)).onRequest(buffer, receivedSize);
+							auto sessionPtr{std::make_unique<CommandSession<ConnectionType>>(connection)};
+							sessionPtr->onRequest(buffer, receivedSize);
+							addSession(commandSessions, connection, std::move(sessionPtr));
 						}
 						else
 						{
 							LOG(INFO) << "Incorrect handshake message received";
-
 							connection.stop();
 						}
 					}
@@ -182,25 +226,24 @@ namespace slim
 
 			protected:
 				template<typename SessionType>
-				auto& addSession(std::vector<std::unique_ptr<SessionType>>& sessions, std::unique_ptr<SessionType> sessionPtr)
+				auto& addSession(SessionsMap<SessionType>& sessions, ConnectionType& connection, std::unique_ptr<SessionType> sessionPtr)
 				{
 					LOG(DEBUG) << LABELS{"slim"} << "Adding new session (sessions=" << sessions.size() << ")...";
 
-					auto result = std::find_if(sessions.begin(), sessions.end(), [&](auto& s)
-					{
-						return &(s->getConnection()) == &(sessionPtr->getConnection());
-					});
+					auto* s{(SessionType*)nullptr};
+					auto  found{sessions.find(&connection)};
 
-					SessionType* s{nullptr};
-					if (result == sessions.end())
+					if (found == sessions.end())
 					{
 						s = sessionPtr.get();
-						sessions.push_back(std::move(sessionPtr));
+
+						// saving session in a map; using pointer to a relevant connection as an ID
+						sessions[&connection] = std::move(sessionPtr);
 						LOG(DEBUG) << LABELS{"slim"} << "New session was added (id=" << s << ", sessions=" << sessions.size() << ")";
 					}
 					else
 					{
-						s = (*result).get();
+						s = (*found).second.get();
 						LOG(INFO) << "Session already exists";
 					}
 
@@ -208,49 +251,37 @@ namespace slim
 				}
 
 				template<typename SessionType, typename FunctionType>
-				bool applyToSession(std::vector<std::unique_ptr<SessionType>>& sessions, ConnectionType& connection, FunctionType fun)
+				bool applyToSession(SessionsMap<SessionType>& sessions, ConnectionType& connection, FunctionType fun)
 				{
-					return sessions.end() != std::find_if(sessions.begin(), sessions.end(), [&](auto& sessionPtr)
+					auto found{sessions.find(&connection)};
+
+					if (found != sessions.end())
 					{
-						auto found{false};
+						fun(*(*found).second);
+					}
 
-						if (&(sessionPtr->getConnection()) == &connection)
-						{
-							found = true;
-							fun(*sessionPtr);
-						}
-
-						return found;
-					});
+					return (found != sessions.end());
 				}
 
 				template<typename SessionType>
-				void removeSession(std::vector<std::unique_ptr<SessionType>>& sessions, ConnectionType& connection)
+				void removeSession(SessionsMap<SessionType>& sessions, ConnectionType& connection)
 				{
 					LOG(DEBUG) << LABELS{"slim"} << "Removing session (sessions=" << sessions.size() << ")...";
 
-					// removing session from the vector
-					SessionType* s{nullptr};
-					sessions.erase(std::remove_if(sessions.begin(), sessions.end(), [&](auto& sessionPtr) -> bool
+					auto found{sessions.find(&connection)};
+
+					if (found != sessions.end())
 					{
-						auto found{false};
-
-						if (&(sessionPtr->getConnection()) == &connection)
-						{
-							s     = sessionPtr.get();
-							found = true;
-						}
-
-						return found;
-					}), sessions.end());
-
-					LOG(DEBUG) << LABELS{"slim"} << "Session was removed (id=" << s << ", sessions=" << sessions.size() << ")";
+						auto* s{(*found).second.get()};
+						sessions.erase(found);
+						LOG(DEBUG) << LABELS{"slim"} << "Session was removed (id=" << s << ", sessions=" << sessions.size() << ")";
+					}
 				}
 
 			private:
-				std::vector<std::unique_ptr<CommandSession<ConnectionType>>>   commandSessions;
-				std::vector<std::unique_ptr<StreamingSession<ConnectionType>>> streamingSessions;
-				unsigned int                                                   samplingRate = 0;
+				SessionsMap<CommandSession<ConnectionType>>   commandSessions;
+				SessionsMap<StreamingSession<ConnectionType>> streamingSessions;
+				unsigned int                                  samplingRate = 0;
 		};
 	}
 }

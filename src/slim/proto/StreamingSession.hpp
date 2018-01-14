@@ -14,6 +14,7 @@
 
 #include <functional>
 #include <iostream>
+#include <string>
 
 #include "slim/log/log.hpp"
 #include "slim/util/OutputStreamCallback.hpp"
@@ -30,8 +31,9 @@ namespace slim
 			using OutputStreamCallback = util::OutputStreamCallback<std::function<std::streamsize(const char*, std::streamsize)>>;
 
 			public:
-				StreamingSession(ConnectionType& c, unsigned int channels, unsigned int sr, unsigned int bitePerSample)
-				: connection(c)
+				StreamingSession(ConnectionType& co, std::string cl, unsigned int channels, unsigned int sr, unsigned int bitePerSample)
+				: connection{co}
+				, clientID{cl}
 				, outputStreamCallback{[&](auto* buffer, auto size) mutable
 				{
 					return connection.send(buffer, size);
@@ -72,9 +74,9 @@ namespace slim
 					}
 				}
 
-				inline auto& getConnection()
+				inline auto getClientID()
 				{
-					return connection;
+					return clientID;
 				}
 
 				inline auto getSamplingRate()
@@ -92,8 +94,23 @@ namespace slim
 					//}
 				}
 
+				static auto parseClientID(std::string header)
+				{
+					std::string result{};
+					std::string separator{"="};
+
+					auto index = header.find(separator);
+					if ( index != std::string::npos)
+					{
+						result = std::string{header.c_str() + index + separator.length(), header.length() - index - separator.length()};
+					}
+
+					return result;
+				}
+
 			private:
 				ConnectionType&      connection;
+				std::string          clientID;
 				OutputStreamCallback outputStreamCallback;
 				unsigned int         samplingRate;
 				wave::WAVEStream     waveStream;

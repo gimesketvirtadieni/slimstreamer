@@ -66,9 +66,9 @@ namespace slim
 		{
 			public:
 				CommandSTRM(CommandSelection commandSelection)
-				: CommandSTRM{commandSelection, 0} {}
+				: CommandSTRM{commandSelection, 0, {}} {}
 
-				CommandSTRM(CommandSelection commandSelection, unsigned int samplingRate)
+				CommandSTRM(CommandSelection commandSelection, unsigned int samplingRate, std::string clientID)
 				{
 					memset(&strm, 0, sizeof(STRM));
 					memcpy(&strm.data.opcode, "strm", sizeof(strm.data.opcode));
@@ -86,7 +86,7 @@ namespace slim
 						// TODO: crap
 						((unsigned char*)(&strm.data.serverPort))[0] = 35;
 						((unsigned char*)(&strm.data.serverPort))[1] = 41;
-						std::strcpy(strm.data.httpHeader, "GET /stream.pcm?player=MAC");
+						std::strcpy(strm.data.httpHeader, (std::string{"GET /stream.pcm?player="} += clientID).c_str());
 					}
 
 					// preparing command size in indianless way

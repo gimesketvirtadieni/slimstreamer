@@ -12,7 +12,9 @@
 
 #pragma once
 
-#include <cstdint>  // std::u..._t types
+#include <cstddef>  // std::size_t
+#include <sstream>  // std::stringstream
+#include <string>
 
 #include "slim/log/log.hpp"
 #include "slim/proto/CommandAUDE.hpp"
@@ -34,7 +36,12 @@ namespace slim
 				{
 					LOG(INFO) << "SlimProto session created";
 
-					send(CommandSTRM{CommandSelection::Stop});
+					// TODO: get from parameter
+					std::stringstream ss;
+			        ss << static_cast<const void*>(this);
+			        clientID = ss.str();
+
+			        send(CommandSTRM{CommandSelection::Stop});
 					send(CommandSETD{DeviceID::RequestName});
 					send(CommandSETD{DeviceID::Squeezebox3});
 					send(CommandAUDE{true, true});
@@ -50,12 +57,12 @@ namespace slim
 				CommandSession(CommandSession&& rhs) = delete;              // non-movable
 				CommandSession& operator=(CommandSession&& rhs) = delete;   // non-movable-assignable
 
-				inline auto& getConnection()
+				inline auto getClientID()
 				{
-					return connection;
+					return clientID;
 				}
 
-				void onRequest(unsigned char* buffer, std::size_t receivedSize)
+				inline void onRequest(unsigned char* buffer, std::size_t receivedSize)
 				{
 				}
 
@@ -73,6 +80,7 @@ namespace slim
 
 			private:
 				ConnectionType& connection;
+				std::string     clientID;
 		};
 	}
 }
