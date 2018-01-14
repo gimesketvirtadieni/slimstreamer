@@ -18,6 +18,7 @@
 #include <memory>
 #include <sstream>  // std::stringstream
 #include <string>
+#include <thread>
 #include <unordered_map>
 #include <vector>
 
@@ -37,9 +38,25 @@ namespace slim
 			using SessionsMap = std::unordered_map<ConnectionType*, std::unique_ptr<SessionType>>;
 
 			public:
-				// using Rule Of Zero
-				Streamer() = default;
-			   ~Streamer() = default;
+				Streamer()
+				: timerThread{[&]
+				{
+					LOG(DEBUG) << "Timer thread started";
+
+					while(timerRunning)
+			        {
+						std::this_thread::sleep_for(std::chrono::milliseconds{200});
+			        }
+
+					LOG(DEBUG) << "Timer thread stopped";
+				}} {}
+
+			   ~Streamer()
+				{
+					timerRunning = false;
+					timerThread.join();
+				}
+
 				Streamer(const Streamer&) = delete;             // non-copyable
 				Streamer& operator=(const Streamer&) = delete;  // non-assignable
 				Streamer(Streamer&& rhs) = delete;              // non-movable
@@ -289,6 +306,8 @@ namespace slim
 				SessionsMap<StreamingSession<ConnectionType>> streamingSessions;
 				unsigned int                                  samplingRate{0};
 				conwrap::ProcessorProxy<ContainerBase>*       processorProxyPtr{nullptr};
+				volatile bool                                 timerRunning{true};
+				std::thread                                   timerThread;
 		};
 	}
 }
