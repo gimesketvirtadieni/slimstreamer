@@ -48,7 +48,7 @@ using Destination   = slim::proto::Destination<Connection>;
 using Pipeline      = slim::Pipeline<Source, Destination>;
 using Scheduler     = slim::Scheduler<Source, Destination>;
 
-using Container     = slim::Container<Scheduler, Server, Server>;
+using Container     = slim::Container<Scheduler, Server, Server, Streamer>;
 
 
 static volatile bool running = true;
@@ -183,7 +183,7 @@ int main(int argc, char *argv[])
 		{
 			std::unique_ptr<ContainerBase>
 			{
-				new Container(std::move(schedulerPtr), std::move(commandServerPtr), std::move(streamingServerPtr))
+				new Container(std::move(schedulerPtr), std::move(commandServerPtr), std::move(streamingServerPtr), std::move(streamerPtr))
 			}
 		};
 

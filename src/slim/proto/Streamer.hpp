@@ -13,6 +13,7 @@
 #pragma once
 
 #include <algorithm>
+#include <conwrap/ProcessorProxy.hpp>
 #include <functional>
 #include <memory>
 #include <sstream>  // std::stringstream
@@ -224,6 +225,11 @@ namespace slim
 					LOG(INFO) << "SlimProto stop callback";
 				}
 
+				void setProcessorProxy(conwrap::ProcessorProxy<ContainerBase>* p)
+				{
+					processorProxyPtr = p;
+				}
+
 			protected:
 				template<typename SessionType>
 				auto& addSession(SessionsMap<SessionType>& sessions, ConnectionType& connection, std::unique_ptr<SessionType> sessionPtr)
@@ -281,7 +287,8 @@ namespace slim
 			private:
 				SessionsMap<CommandSession<ConnectionType>>   commandSessions;
 				SessionsMap<StreamingSession<ConnectionType>> streamingSessions;
-				unsigned int                                  samplingRate = 0;
+				unsigned int                                  samplingRate{0};
+				conwrap::ProcessorProxy<ContainerBase>*       processorProxyPtr{nullptr};
 		};
 	}
 }
