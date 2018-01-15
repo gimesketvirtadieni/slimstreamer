@@ -12,6 +12,7 @@
 
 #pragma once
 
+#include <chrono>
 #include <cstddef>  // std::size_t
 #include <sstream>  // std::stringstream
 #include <string>
@@ -52,6 +53,7 @@ namespace slim
 				{
 					LOG(INFO) << "SlimProto session deleted";
 				}
+
 				CommandSession(const CommandSession&) = delete;             // non-copyable
 				CommandSession& operator=(const CommandSession&) = delete;  // non-assignable
 				CommandSession(CommandSession&& rhs) = delete;              // non-movable
@@ -66,16 +68,32 @@ namespace slim
 				{
 				}
 
+				inline void ping()
+				{
+					auto before{std::chrono::steady_clock::now()};
+					send(CommandSTRM{CommandSelection::Time});
+					auto after{std::chrono::steady_clock::now()};
+
+					calculatePingTime(before, after);
+				}
+
 			// TODO: refactor usage
 			//protected:
 				template<typename CommandType>
-				void send(CommandType command)
+				inline void send(CommandType command)
 				{
 					// TODO: introduce buffer wrapper so it can be passed to a stream; then in can be moved to a Command class
 					for (std::size_t i = 0; i < command.getSize();)
 					{
 						i += connection.send(command.getBuffer() + i, command.getSize() - i);
 					}
+				}
+
+			protected:
+				inline void calculatePingTime(std::chrono::time_point<std::chrono::steady_clock> before, std::chrono::time_point<std::chrono::steady_clock> after)
+				{
+					// TODO: work in progress
+					//LOG(INFO) << "ELAPSED " << std::chrono::duration_cast<std::chrono::microseconds>(after - before).count();
 				}
 
 			private:

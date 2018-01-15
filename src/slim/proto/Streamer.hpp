@@ -13,6 +13,7 @@
 #pragma once
 
 #include <algorithm>
+#include <chrono>
 #include <conwrap/ProcessorProxy.hpp>
 #include <functional>
 #include <memory>
@@ -47,10 +48,17 @@ namespace slim
 			        {
 						if (counter > 24)
 						{
-							// sending
-							for (auto& sessionEntry : commandSessions)
+							// TODO: use std::optional
+							if (processorProxyPtr)
 							{
-								sessionEntry.second->send(CommandSTRM{CommandSelection::Time});
+								processorProxyPtr->process([&]
+								{
+									// sending ping command to measure round-trip latency
+									for (auto& sessionEntry : commandSessions)
+									{
+										sessionEntry.second->ping();
+									}
+								});
 							}
 
 							counter = 0;
