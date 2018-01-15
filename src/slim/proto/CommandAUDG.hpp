@@ -61,9 +61,9 @@ namespace slim
 					audg.data.preamp = 255;
 
 					// TODO: work in progress
-					audg.data.gainLeft3  = 40;
+					audg.data.gainLeft3  = 80;
 					audg.data.gainLeft4  = 255;
-					audg.data.gainRight3 = 40;
+					audg.data.gainRight3 = 80;
 					audg.data.gainRight4 = 255;
 
 					// preparing command size in indianless way
