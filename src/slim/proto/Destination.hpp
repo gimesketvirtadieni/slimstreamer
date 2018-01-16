@@ -36,9 +36,10 @@ namespace slim
 				Destination(Destination&& rhs) = default;
 				Destination& operator=(Destination&& rhs) = default;
 
-				inline void consume(Chunk& chunk)
+				inline bool consume(Chunk& chunk)
 				{
-					streamer.onChunk(chunk, samplingRate);
+					// return false in case chunk needs to be deffered
+					return streamer.onChunk(chunk, samplingRate);
 				}
 
 			private:

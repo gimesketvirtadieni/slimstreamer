@@ -233,6 +233,9 @@ namespace slim
 
 							// available is used to provide optimization for a scheduler submitting tasks to a processor
 							available.store(true, std::memory_order_release);
+
+							// adding chunk to a queue always succeeds as data is available
+							return true;
 						}, [&]
 						{
 							// calling overflow callback in case it was not possible to enqueue a chunk

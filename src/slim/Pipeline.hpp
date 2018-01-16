@@ -44,11 +44,15 @@ namespace slim
 
 			inline void processChunks(unsigned int maxChunks)
 			{
-				for (unsigned int count{0}; count < maxChunks && source.isAvailable(); count++)
+				// no need to return defer status to the scheduler as deferring chunks is handled by a pipeline, source and destination
+				auto done{true};
+
+				// processing chunks as long as destination is not deferring them AND max chunks per task is not reached AND there are chunks available
+				for (unsigned int count{0}; done && count < maxChunks && source.isAvailable(); count++)
 				{
-					source.supply([&](Chunk& chunk)
+					done = source.supply([&](Chunk& chunk)
 					{
-						destination.consume(chunk);
+						return destination.consume(chunk);
 					});
 				}
 			}

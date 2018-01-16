@@ -114,7 +114,7 @@ namespace slim
 			}
 
 		protected:
-			void stream()
+			inline void stream()
 			{
 				for(auto producing{true}, available{true}; producing;)
 				{
@@ -123,16 +123,15 @@ namespace slim
 
 					for (auto& pipeline : pipelines)
 					{
-						auto task = [&]
-						{
-							// TODO: calculate maxChunks per processing quantum
-							pipeline.processChunks(5);
-						};
-
 						// if there is PCM data ready to be read
 						if ((producing = pipeline.isProducing()) && (available = pipeline.isAvailable()))
 						{
-							processorProxyPtr->process(task);
+							// submitting a task to the process which would process X chunks at most
+							processorProxyPtr->process([&]
+							{
+								// TODO: calculate maxChunks per processing quantum
+								pipeline.processChunks(5);
+							});
 						}
 					}
 

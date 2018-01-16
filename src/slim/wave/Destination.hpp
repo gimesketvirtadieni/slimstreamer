@@ -84,13 +84,16 @@ namespace slim
 					return *this;
 				}
 
-				inline void consume(Chunk& chunk)
+				inline bool consume(Chunk& chunk)
 				{
 					auto size{chunk.getDataSize()};
 
 					waveStream.write(chunk.getBuffer(), size);
 
 					LOG(DEBUG) << "Written " << (size / bytesPerFrame) << " frames";
+
+					// deferring chunk is irrelevant for WAVE file destination
+					return true;
 				}
 
 			private:

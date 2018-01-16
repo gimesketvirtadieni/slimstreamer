@@ -95,29 +95,37 @@ namespace slim
 				RealTimeQueue& operator=(RealTimeQueue&&) = delete;       // non-movable
 
 				template<typename M, typename H = std::function<void()>>
-				void enqueue(M mover, H overflowHandler = [] {})
+				inline bool enqueue(M mover, H overflowHandler = [] {})
 				{
-					const size_t head = _head.load(std::memory_order_relaxed);
+					const size_t head{_head.load(std::memory_order_relaxed)};
+					auto         done{true};
 
 					if (((_tail.load(std::memory_order_acquire) - (head + 1)) & _mask) >= 1) {
-						mover(_buffer[head & _mask]);
-						_head.store(head + 1, std::memory_order_release);
+						if ((done = mover(_buffer[head & _mask]))) {
+							_head.store(head + 1, std::memory_order_release);
+						}
 					} else {
 						overflowHandler();
 					}
+
+					return done;
 				}
 
 				template<typename M, typename H = std::function<void()>>
-				void dequeue(M mover, H underfowHandler = [] {})
+				inline bool dequeue(M mover, H underfowHandler = [] {})
 				{
-					const size_t tail = _tail.load(std::memory_order_relaxed);
+					const size_t tail{_tail.load(std::memory_order_relaxed)};
+					auto         done{true};
 
 					if (((_head.load(std::memory_order_acquire) - tail) & _mask) >= 1) {
-						mover(_buffer[_tail & _mask]);
-						_tail.store(tail + 1, std::memory_order_release);
+						if ((done = mover(_buffer[_tail & _mask]))) {
+							_tail.store(tail + 1, std::memory_order_release);
+						}
 					} else {
 						underfowHandler();
 					}
+
+					return done;
 				}
 
 			private:

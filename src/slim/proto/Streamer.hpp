@@ -79,10 +79,14 @@ namespace slim
 				Streamer(Streamer&& rhs) = delete;              // non-movable
 				Streamer& operator=(Streamer&& rhs) = delete;   // non-movable-assinable
 
-				inline void onChunk(Chunk& chunk, unsigned int sr)
+				inline bool onChunk(Chunk& chunk, unsigned int sr)
 				{
+					auto done{true};
+
 					if (sr && !samplingRate)
 					{
+						// deferre chunk transmition and set a new sampling rate
+						done         = false;
 						samplingRate = sr;
 
 						// sending command to start streaming
@@ -97,36 +101,56 @@ namespace slim
 					}
 					else if (sr && samplingRate != sr)
 					{
-						// TODO: reset current sampling rate to zero and deffere chunk transmition
+						// deferre chunk transmition and reset current sampling rate to zero
+						done         = false;
 						samplingRate = 0;
-
-						LOG(DEBUG) << "SAM1";
 
 						// TODO: validate
 						for (auto& sessionEntry : streamingSessions)
 						{
 							sessionEntry.first->stop();
 						}
-
-						LOG(DEBUG) << "SAM2";
 					}
-
-					// TODO: this approach is not good enough; HTTP sessions should be linked with SlimProto session
-					auto totalClients{streamingSessions.size()};
-					auto counter{totalClients};
-					for (auto& sessionEntry : streamingSessions)
+					else if (sr)
 					{
-						sessionEntry.second->onChunk(chunk, samplingRate);
+						// making sure all HTTP sessions have reconnected so they can use a new sampling rate
+						for (auto& sessionEntry : streamingSessions)
+						{
+							if (samplingRate != sessionEntry.second->getSamplingRate())
+							{
+								LOG(DEBUG) << "Deferring chunk transmition due to HTTP sessions reconnect";
+								done = false;
 
-						// TODO: if not deffered
-						counter--;
+								// TODO: implement cruise control; for now sleep is good enough
+								// this sleep prevents from busy spinning until all HTTP sessions reconnect
+								std::this_thread::sleep_for(std::chrono::milliseconds{20});
+								break;
+							}
+						}
+
+						// if there is no need to defer chunk processing
+						if (done)
+						{
+							// TODO: this approach is not good enough; HTTP sessions should be linked with SlimProto session
+							auto totalClients{streamingSessions.size()};
+							auto counter{totalClients};
+							for (auto& sessionEntry : streamingSessions)
+							{
+								sessionEntry.second->onChunk(chunk, samplingRate);
+
+								// TODO: if not deferred
+								counter--;
+							}
+
+							if (counter)
+							{
+								LOG(WARNING) << "Current chunk transmition was skipped for " << counter << " client(s)";
+							}
+						}
 					}
 
-					// TODO: implement means to deffere chunk transmition
-					if (counter)
-					{
-						LOG(WARNING) << "Current chunk transmition was skipped for " << counter << " client(s)";
-					}
+					// TODO: implement deferring chunk transmition till full extend; now it will just submit a new task into the processor
+					return done;
 				}
 
 				void onHTTPClose(ConnectionType& connection)

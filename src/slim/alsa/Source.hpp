@@ -127,12 +127,12 @@ namespace slim
 				void start(std::function<void()> overflowCallback = [] {});
 				void stop(bool gracefully = true);
 
-				inline void supply(std::function<void(Chunk&)> consumer)
+				inline bool supply(std::function<bool(Chunk&)> consumer)
 				{
 					// this call does NOT block if bounded queue (buffer) is empty
-					queuePtr->dequeue([&](Chunk& chunk)
+					return queuePtr->dequeue([&](Chunk& chunk)
 					{
-						consumer(chunk);
+						return consumer(chunk);
 					}, [&]
 					{
 						available.store(false, std::memory_order_release);
