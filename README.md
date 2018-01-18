@@ -16,18 +16,21 @@ Moreover, SlimStreamer captures PCM stream in a bit-perfect way (without resampl
    **#2** ALSA directs this PCM stream to SlimPlexor ALSA plugin, which is defined as the default ALSA device  
    **#3** SlimPlexor ALSA plugin redirects PCM data to a predefined ALSA loopback device (one per sample rate)  
    **#4** SlimStreamer keeps reading from all predefined ALSA loopback devices (sample rate is fixed for each loopback device)  
-   **#5** SlimStreamer sends PCM data to connected Squeezebox devices through SlimProto over TCP  
+   **#5** SlimStreamer exchanges messages (commands) with Squeezebox devices through SlimProto protocol  
+   **#6** SlimStreamer streams PCM data to connected Squeezebox devices through HTTP protocol
 
 # Hmm, I want to give it a try. Where do I start?
 This project is still ‘work in progress’:  
-  * Capture-and-deliver PCM data to SlimStreamer in a bit-perfect way is implemented and works
+  * Capture-and-deliver PCM data to SlimStreamer in a bit-perfect is done
   * TCP server (running on 3483 port) required for serving SlimProto commands is implemented (although only few commands are supported for now)
   * SlimProto handshake works (Squeezebox players should be able to connect, although tested only with squeezelite)
   * TCP server (running on 9000 port) required for streaming PCM data works
-  * HTTP streaming functionality works (only for 44.1 kHz audio)
+  * HTTP streaming functionality works
+  * Streaming functionality supports multiple samling rates
   * Streams synchronization is still missing
+  * Streaming data should be encoded in lossless way (to prevent from sending 'raw' PCM data over the network)
   * There are many 'shortcuts' left in the codebase so in many ways it is still requires maturing
 
-The project is getting closer and closer for end-2-end usage, stay tuned ;)
+The project is almost ready for alpha testing, working on building instructions, stay tuned ;)
 
 Any feedback and comments are much appreciated!
