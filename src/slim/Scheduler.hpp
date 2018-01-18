@@ -130,6 +130,7 @@ namespace slim
 							processorProxyPtr->process([&]
 							{
 								// TODO: calculate maxChunks per processing quantum
+								// TODO: consider exit reason for scheduling tasks
 								pipeline.processChunks(5);
 							});
 						}

@@ -17,6 +17,7 @@
 #include <conwrap/ProcessorProxy.hpp>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <sstream>  // std::stringstream
 #include <string>
 #include <thread>
@@ -83,9 +84,21 @@ namespace slim
 				{
 					auto done{true};
 
+					if (sr && samplingRate != sr)
+					{
+						// resetting current sampling rate to zero so futher routine can handle it
+						samplingRate = 0;
+
+						// stopping all streaming sessions which will make them reconnect using a new sampling rate
+						for (auto& sessionEntry : streamingSessions)
+						{
+							sessionEntry.first->stop();
+						}
+					}
+
 					if (sr && !samplingRate)
 					{
-						// deferre chunk transmition and set a new sampling rate
+						// deferring chunk transmition and setting a new sampling rate
 						done         = false;
 						samplingRate = sr;
 
@@ -99,47 +112,65 @@ namespace slim
 					        sessionEntry.second->send(CommandSTRM{CommandSelection::Start, samplingRate, ss.str()});
 						}
 					}
-					else if (sr && samplingRate != sr)
-					{
-						// deferre chunk transmition and reset current sampling rate to zero
-						done         = false;
-						samplingRate = 0;
 
-						// TODO: validate
-						for (auto& sessionEntry : streamingSessions)
-						{
-							sessionEntry.first->stop();
-						}
-					}
-					else if (sr)
+					if (sr && samplingRate == sr && done)
 					{
-						// making sure all HTTP sessions have reconnected so they can use a new sampling rate
-						for (auto& sessionEntry : streamingSessions)
+						// TODO: these validation should be optimized by using internal status
+						auto finish{hasToFinish()};
+
+						// if there is time for streaming validations
+						if (!finish)
 						{
-							if (samplingRate != sessionEntry.second->getSamplingRate())
+							// if amount of HTTP session is not equal to SlimProto sessions
+							if (streamingSessions.size() != commandSessions.size())
 							{
-								LOG(DEBUG) << "Deferring chunk transmition due to HTTP sessions reconnect";
+								LOG(DEBUG) << "Deferring chunk transmition due to missing HTTP sessions";
 								done = false;
 
 								// TODO: implement cruise control; for now sleep is good enough
 								// this sleep prevents from busy spinning until all HTTP sessions reconnect
 								std::this_thread::sleep_for(std::chrono::milliseconds{20});
-								break;
 							}
+							else
+							{
+								// making sure all HTTP sessions have reconnected so they can use a new sampling rate
+								for (auto& sessionEntry : streamingSessions)
+								{
+									if (samplingRate != sessionEntry.second->getSamplingRate())
+									{
+										LOG(DEBUG) << "Deferring chunk transmition due to HTTP sessions reconnect";
+										done = false;
+
+										// TODO: implement cruise control; for now sleep is good enough
+										// this sleep prevents from busy spinning until all HTTP sessions reconnect
+										std::this_thread::sleep_for(std::chrono::milliseconds{20});
+										break;
+									}
+								}
+							}
+						}
+						else
+						{
+							LOG(DEBUG) << "Could not defer chunk processing due to reached threashold";
 						}
 
 						// if there is no need to defer chunk processing
 						if (done)
 						{
 							// TODO: this approach is not good enough; HTTP sessions should be linked with SlimProto session
-							auto totalClients{streamingSessions.size()};
+							auto totalClients{commandSessions.size()};
 							auto counter{totalClients};
+
+							// resetting period during which chunk processing can be deferred
+							deferStarted.reset();
+
 							for (auto& sessionEntry : streamingSessions)
 							{
-								sessionEntry.second->onChunk(chunk, samplingRate);
-
-								// TODO: if not deferred
-								counter--;
+								if (samplingRate == sessionEntry.second->getSamplingRate())
+								{
+									sessionEntry.second->onChunk(chunk, samplingRate);
+									counter--;
+								}
 							}
 
 							if (counter)
@@ -149,7 +180,6 @@ namespace slim
 						}
 					}
 
-					// TODO: implement deferring chunk transmition till full extend; now it will just submit a new task into the processor
 					return done;
 				}
 
@@ -290,7 +320,7 @@ namespace slim
 
 			protected:
 				template<typename SessionType>
-				auto& addSession(SessionsMap<SessionType>& sessions, ConnectionType& connection, std::unique_ptr<SessionType> sessionPtr)
+				inline auto& addSession(SessionsMap<SessionType>& sessions, ConnectionType& connection, std::unique_ptr<SessionType> sessionPtr)
 				{
 					LOG(DEBUG) << LABELS{"slim"} << "Adding new session (sessions=" << sessions.size() << ")...";
 
@@ -315,7 +345,7 @@ namespace slim
 				}
 
 				template<typename SessionType, typename FunctionType>
-				bool applyToSession(SessionsMap<SessionType>& sessions, ConnectionType& connection, FunctionType fun)
+				inline bool applyToSession(SessionsMap<SessionType>& sessions, ConnectionType& connection, FunctionType fun)
 				{
 					auto found{sessions.find(&connection)};
 
@@ -327,8 +357,25 @@ namespace slim
 					return (found != sessions.end());
 				}
 
+				inline bool hasToFinish()
+				{
+					auto finish{false};
+
+					if (deferStarted.has_value())
+					{
+						auto diff{std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - deferStarted.value()).count()};
+						finish = (diff > 100);
+					}
+					else
+					{
+						deferStarted = std::chrono::steady_clock::now();
+					}
+
+					return finish;
+				}
+
 				template<typename SessionType>
-				void removeSession(SessionsMap<SessionType>& sessions, ConnectionType& connection)
+				inline void removeSession(SessionsMap<SessionType>& sessions, ConnectionType& connection)
 				{
 					LOG(DEBUG) << LABELS{"slim"} << "Removing session (sessions=" << sessions.size() << ")...";
 
@@ -349,6 +396,9 @@ namespace slim
 				conwrap::ProcessorProxy<ContainerBase>*       processorProxyPtr{nullptr};
 				volatile bool                                 timerRunning{true};
 				std::thread                                   timerThread;
+
+				using TimePoint = std::chrono::time_point<std::chrono::steady_clock>;
+				std::optional<TimePoint> deferStarted{std::nullopt};
 		};
 	}
 }
