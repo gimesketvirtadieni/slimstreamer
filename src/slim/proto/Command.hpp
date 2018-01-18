@@ -35,7 +35,6 @@ namespace slim
 
 			protected:
 				Command() = default;
-
 		};
 	}
 }

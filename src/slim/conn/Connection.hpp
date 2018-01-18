@@ -54,6 +54,11 @@ namespace slim
 				Connection(Connection&& rhs) = delete;              // non-movable
 				Connection& operator=(Connection&& rhs) = delete;   // non-movable-assignable
 
+				inline auto& getNativeSocket()
+				{
+					return nativeSocket;
+				}
+
 				inline auto& getSocketStream()
 				{
 					return socketStream;

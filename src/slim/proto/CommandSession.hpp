@@ -70,11 +70,28 @@ namespace slim
 
 				inline void ping()
 				{
-					auto before{std::chrono::steady_clock::now()};
-					send(CommandSTRM{CommandSelection::Time});
-					auto after{std::chrono::steady_clock::now()};
+					// TODO: introduce buffer wrapper so it can be passed to a stream; then in can be moved to a Command class
+					auto  command{CommandSTRM{CommandSelection::Time}};
+					auto  buffer{command.getBuffer()};
+					auto  size{command.getSize()};
+					auto& nativeSocket{connection.getNativeSocket()};
 
-					calculatePingTime(before, after);
+					if (nativeSocket.is_open())
+					{
+						auto asioBuffer{asio::buffer(buffer, size)};
+
+						// saving ping time as close as possible before sending data out
+						lastPingTime = std::chrono::steady_clock::now();
+
+						// sending first part
+						auto sent{nativeSocket.send(asioBuffer)};
+
+						// sending remainder (this almost never happens)
+						while (sent < size)
+						{
+							sent += nativeSocket.send(asio::buffer(&buffer[sent], size - sent));
+						}
+					}
 				}
 
 			// TODO: refactor usage
@@ -89,16 +106,11 @@ namespace slim
 					}
 				}
 
-			protected:
-				inline void calculatePingTime(std::chrono::time_point<std::chrono::steady_clock> before, std::chrono::time_point<std::chrono::steady_clock> after)
-				{
-					// TODO: work in progress
-					//LOG(INFO) << "ELAPSED " << std::chrono::duration_cast<std::chrono::microseconds>(after - before).count();
-				}
-
 			private:
-				ConnectionType& connection;
-				std::string     clientID;
+				ConnectionType&                                    connection;
+				std::string                                        clientID;
+				// TODO: initialization ???
+				std::chrono::time_point<std::chrono::steady_clock> lastPingTime;
 		};
 	}
 }
