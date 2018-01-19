@@ -6,7 +6,7 @@ There is one particular area within Squeezebox ecosystem, which could be MUCH be
 After years of development, LMS, a central part of Squeezebox based solution, has become a big monolithic Web application.
 To be fair, it works nicely (thanks to community); however, it has an essential drawback (one may consider it as a design flaw) – everything has to be managed by LMS. Music collection (local / remote), streaming services, alarms, etc. have to be integrated within LMS through plugins or similar.  
 This is where SlimStreamer comes in: it decouples Squeezebox streaming capability from the rest of the functionality around managing music ([Single responsibility principle](https://en.wikipedia.org/wiki/Single_responsibility_principle)).
-Any application that outputs audio to a default ALSA device can be used as music source for streaming.
+Any application that outputs audio to a default ALSA device can be used as a music source for streaming.
 In fact, audio streaming is done transparently by SlimStreamer and [SlimPlexor](https://github.com/gimesketvirtadieni/slimplexor) (an ALSA plugin) behind the scene.
 Moreover, SlimStreamer captures PCM stream in a bit-perfect way (without resampling to a predefined sample rate), which allows streaming audio in best possible quality!
 
@@ -20,11 +20,53 @@ Moreover, SlimStreamer captures PCM stream in a bit-perfect way (without resampl
    **#6** SlimStreamer streams PCM data to connected Squeezebox devices through HTTP protocol
 
 # Hmm, I want to give it a try. Where do I start?
+
+The first step is to setup [SlimPlexor](https://github.com/gimesketvirtadieni/slimplexor) plugin properly.  
+Once SlimPlexor works as required, proceed with the steps below.
+
+
+## Required prerequisites
+
+SlimStreamer is written in C++17 so it requires an adequate C++ compiler (the commands below also installs ALSA headers required for using ALSA API):
+
+```
+sudo get update
+sudo apt-get install build-essential g++ libasound2-dev
+```
+
+To validate if C++ compiler supports C++17, use this command:
+
+```
+andrej@sandbox:~$ g++ --version                                                                                                                                                
+g++ (Ubuntu 7-20170407-0ubuntu2) 7.0.1 20170407 (experimental) [trunk revision 246759]                                                                                                                            
+Copyright (C) 2017 Free Software Foundation, Inc.                                                                                                                                                                 
+This is free software; see the source for copying conditions.  There is NO                                                                                                                                        
+warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+```
+
+If you got version 7.x (or above) installed, it will do for compiling SlimStreamer
+
+
+## Compiling SlimStreamer
+
+Building SlimPlexor is as easy as that (assuming all prerequisites are installed):
+
+```
+git clone https://github.com/gimesketvirtadieni/slimstreamer.git
+cd slimstreamer
+git submodule update --init --recursive
+cd make
+make
+```
+
+
+# Development Status
+
 This project is still ‘work in progress’:  
-  * Capture-and-deliver PCM data to SlimStreamer in a bit-perfect is done
+  * Capture-and-deliver PCM data to SlimStreamer in a bit-perfect way is done
   * TCP server (running on 3483 port) required for serving SlimProto commands is implemented (although only few commands are supported for now)
-  * SlimProto handshake works (Squeezebox players should be able to connect, although tested only with squeezelite)
-  * TCP server (running on 9000 port) required for streaming PCM data works
+  * SlimProto players are able to connect to SlimStreamer (although tested only with squeezelite)
+  * TCP server (running on 9000 port), required for streaming PCM data, works
   * HTTP streaming functionality works
   * Streaming functionality supports multiple samling rates
   * Streams synchronization is still missing
