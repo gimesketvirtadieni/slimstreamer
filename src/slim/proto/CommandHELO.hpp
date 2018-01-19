@@ -12,7 +12,10 @@
 
 #pragma once
 
+#include <cstddef>  // std::size_t
 #include <cstdint>  // std::u..._t types
+#include <sstream>  // std::stringstream
+#include <string>
 
 #include "slim/proto/Command.hpp"
 
@@ -47,16 +50,30 @@ namespace slim
 		class CommandHELO : public Command<HELO>
 		{
 			public:
-				CommandHELO()
+				CommandHELO(unsigned char* buffer, std::size_t size)
 				{
+					std::string h{"HELO"};
+					std::string s{(char*)buffer, h.size()};
+					if (h.compare(s))
+					{
+						throw slim::Exception("Missing 'HELO' label in the header");
+					}
+
+					if (size < sizeof(HELOData))
+					{
+						throw slim::Exception("Message is too small");
+					}
+
 					// TODO: work in progress
 					memset(&helo, 0, sizeof(HELO));
-					memcpy(&helo.data.opcode, "helo", sizeof(helo.data.opcode));
+					memcpy(&helo.data, buffer, sizeof(HELOData));
 
 					// preparing command size in indianless way
-					auto size = sizeof(helo.data);
-					helo.size[0] = 255 & (size >> 8);
-					helo.size[1] = 255 & size;
+					auto dataSize = sizeof(helo.data);
+					helo.size[0] = 255 & (dataSize >> 8);
+					helo.size[1] = 255 & dataSize;
+
+					LOG(DEBUG) << "MAC=" << (unsigned int)helo.data.mac[0] << ":" << (unsigned int)helo.data.mac[1] << ":" << (unsigned int)helo.data.mac[2] << ":" << (unsigned int)helo.data.mac[3] << ":" << (unsigned int)helo.data.mac[4] << ":" << (unsigned int)helo.data.mac[5];
 				}
 
 				// using Rule Of Zero
@@ -65,6 +82,11 @@ namespace slim
 				CommandHELO& operator=(const CommandHELO&) = delete;
 				CommandHELO(CommandHELO&& rhs) = default;
 				CommandHELO& operator=(CommandHELO&& rhs) = default;
+
+				static CommandHELO deserialize(unsigned char* buffer, std::size_t size)
+				{
+					return CommandHELO(buffer, size);
+				}
 
 				virtual HELO* getBuffer() override
 				{

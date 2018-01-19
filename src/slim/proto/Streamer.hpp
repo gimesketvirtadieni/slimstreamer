@@ -15,6 +15,7 @@
 #include <algorithm>
 #include <chrono>
 #include <conwrap/ProcessorProxy.hpp>
+#include <cstddef>  // std::size_t
 #include <functional>
 #include <memory>
 #include <optional>
@@ -24,7 +25,9 @@
 #include <unordered_map>
 #include <vector>
 
+#include "slim/Exception.hpp"
 #include "slim/log/log.hpp"
+#include "slim/proto/CommandHELO.hpp"
 #include "slim/proto/CommandSession.hpp"
 #include "slim/proto/StreamingSession.hpp"
 
@@ -231,11 +234,9 @@ namespace slim
 							// if there a SlimProto connection found that originated this HTTP request
 							if (commandSessionPtr)
 							{
-								// TODO: work in progress
+								// creating streaming session object
 								auto sessionPtr{std::make_unique<StreamingSession<ConnectionType>>(connection, clientID, 2, samplingRate, 32)};
 								sessionPtr->onRequest(buffer, receivedSize);
-
-								// saving streaming session
 								addSession(streamingSessions, connection, std::move(sessionPtr));
 							}
 							else
@@ -279,20 +280,21 @@ namespace slim
 						session.onRequest(buffer, receivedSize);
 					}))
 					{
-						// TODO: refactor to a different class
-						std::string helo{"HELO"};
-						std::string s{(char*)buffer, helo.size()};
-						if (!helo.compare(s))
+						// deserializing HELO command
+						try
 						{
+							auto command{CommandHELO::deserialize(buffer, receivedSize)};
+
 							LOG(INFO) << "HELO command received";
 
-							auto sessionPtr{std::make_unique<CommandSession<ConnectionType>>(connection)};
+							// creating command session object
+							auto sessionPtr{std::make_unique<CommandSession<ConnectionType>>(connection /*TODO: , command.getClientID()*/)};
 							sessionPtr->onRequest(buffer, receivedSize);
 							addSession(commandSessions, connection, std::move(sessionPtr));
 						}
-						else
+						catch (const slim::Exception& error)
 						{
-							LOG(INFO) << "Incorrect handshake message received";
+							LOG(ERROR) << "Incorrect HELO command received: " << error.what();
 							connection.stop();
 						}
 					}
