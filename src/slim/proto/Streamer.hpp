@@ -41,6 +41,7 @@ namespace slim
 		{
 			template<typename SessionType>
 			using SessionsMap = std::unordered_map<ConnectionType*, std::unique_ptr<SessionType>>;
+			using TimePoint   = std::chrono::time_point<std::chrono::steady_clock>;
 
 			public:
 				Streamer()
@@ -377,18 +378,21 @@ namespace slim
 				}
 
 				template<typename SessionType>
-				inline void removeSession(SessionsMap<SessionType>& sessions, ConnectionType& connection)
+				inline auto removeSession(SessionsMap<SessionType>& sessions, ConnectionType& connection)
 				{
 					LOG(DEBUG) << LABELS{"slim"} << "Removing session (sessions=" << sessions.size() << ")...";
 
+					auto sessionPtr{std::unique_ptr<SessionType>{}};
 					auto found{sessions.find(&connection)};
 
 					if (found != sessions.end())
 					{
-						auto* s{(*found).second.get()};
+						sessionPtr = std::move((*found).second);
 						sessions.erase(found);
-						LOG(DEBUG) << LABELS{"slim"} << "Session was removed (id=" << s << ", sessions=" << sessions.size() << ")";
+						LOG(DEBUG) << LABELS{"slim"} << "Session was removed (id=" << sessionPtr.get() << ", sessions=" << sessions.size() << ")";
 					}
+
+					return std::move(sessionPtr);
 				}
 
 			private:
@@ -398,9 +402,7 @@ namespace slim
 				conwrap::ProcessorProxy<ContainerBase>*       processorProxyPtr{nullptr};
 				volatile bool                                 timerRunning{true};
 				std::thread                                   timerThread;
-
-				using TimePoint = std::chrono::time_point<std::chrono::steady_clock>;
-				std::optional<TimePoint> deferStarted{std::nullopt};
+				std::optional<TimePoint>                      deferStarted{std::nullopt};
 		};
 	}
 }
