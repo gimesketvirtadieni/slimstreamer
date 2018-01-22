@@ -59,9 +59,9 @@ namespace slim
 								processorProxyPtr->process([&]
 								{
 									// sending ping command to measure round-trip latency
-									for (auto& sessionEntry : commandSessions)
+									for (auto& entry : commandSessions)
 									{
-										sessionEntry.second->ping();
+										entry.second->ping();
 									}
 								});
 							}
@@ -86,20 +86,25 @@ namespace slim
 
 				inline bool onChunk(Chunk& chunk, unsigned int sr)
 				{
-					auto done{true};
-
 					if (sr && samplingRate != sr)
 					{
 						// resetting current sampling rate to zero so futher routine can handle it
 						samplingRate = 0;
 
 						// stopping all streaming sessions which will make them reconnect using a new sampling rate
-						for (auto& sessionEntry : streamingSessions)
+						for (auto& entry : streamingSessions)
 						{
-							sessionEntry.first->stop();
+							entry.first->stop();
+						}
+
+						// creating a vector with all command sessions that require a relevant HTTP session
+						for (auto& entry : commandSessions)
+						{
+							unmatchedSessions.push_back(entry.second.get());
 						}
 					}
 
+					auto done{true};
 					if (sr && !samplingRate)
 					{
 						// deferring chunk transmition and setting a new sampling rate
@@ -107,26 +112,25 @@ namespace slim
 						samplingRate = sr;
 
 						// sending command to start streaming
-						for (auto& sessionEntry : commandSessions)
+						for (auto& entry : commandSessions)
 						{
 							// TODO: use MAC provided in HELO message
 							std::stringstream ss;
-					        ss << static_cast<const void*>(sessionEntry.second.get());
+					        ss << static_cast<const void*>(entry.second.get());
 
-					        sessionEntry.second->send(CommandSTRM{CommandSelection::Start, samplingRate, ss.str()});
+					        entry.second->send(CommandSTRM{CommandSelection::Start, samplingRate, ss.str()});
 						}
 					}
 
 					if (sr && samplingRate == sr && done)
 					{
-						// TODO: these validation should be optimized by using internal status
-						auto finish{hasToFinish()};
+						auto s{unmatchedSessions.size()};
 
-						// if there is time for streaming validations
-						if (!finish)
+						// if there are command sessions without relevant HTTP session
+						if (s > 0)
 						{
-							// if amount of HTTP session is not equal to SlimProto sessions
-							if (streamingSessions.size() != commandSessions.size())
+							// if there is time for deferring chunk processing
+							if (!hasToFinish())
 							{
 								LOG(DEBUG) << "Deferring chunk transmition due to missing HTTP sessions";
 								done = false;
@@ -137,49 +141,26 @@ namespace slim
 							}
 							else
 							{
-								// making sure all HTTP sessions have reconnected so they can use a new sampling rate
-								for (auto& sessionEntry : streamingSessions)
-								{
-									if (samplingRate != sessionEntry.second->getSamplingRate())
-									{
-										LOG(DEBUG) << "Deferring chunk transmition due to HTTP sessions reconnect";
-										done = false;
-
-										// TODO: implement cruise control; for now sleep is good enough
-										// this sleep prevents from busy spinning until all HTTP sessions reconnect
-										std::this_thread::sleep_for(std::chrono::milliseconds{20});
-										break;
-									}
-								}
+								LOG(DEBUG) << "Could not defer chunk processing due to reached threashold";
 							}
-						}
-						else
-						{
-							LOG(DEBUG) << "Could not defer chunk processing due to reached threashold";
 						}
 
 						// if there is no need to defer chunk processing
 						if (done)
 						{
-							// TODO: this approach is not good enough; HTTP sessions should be linked with SlimProto session
-							auto totalClients{commandSessions.size()};
-							auto counter{totalClients};
-
 							// resetting period during which chunk processing can be deferred
 							deferStarted.reset();
 
-							for (auto& sessionEntry : streamingSessions)
+							// sending chunk to all HTTP sessions
+							for (auto& entry : streamingSessions)
 							{
-								if (samplingRate == sessionEntry.second->getSamplingRate())
-								{
-									sessionEntry.second->onChunk(chunk, samplingRate);
-									counter--;
-								}
+								entry.second->onChunk(chunk, samplingRate);
 							}
 
-							if (counter)
+							// if there are command sessions without relevant HTTP session
+							if (s > 0)
 							{
-								LOG(WARNING) << "Current chunk transmition was skipped for " << counter << " client(s)";
+								LOG(WARNING) << "Current chunk transmition was skipped for " << s << " client(s)";
 							}
 						}
 					}
@@ -191,7 +172,24 @@ namespace slim
 				{
 					LOG(INFO) << "HTTP close callback";
 
-					removeSession(streamingSessions, connection);
+					auto streamingSessionPtr{removeSession(streamingSessions, connection)};
+					auto clientID{streamingSessionPtr->getClientID()};
+					auto commandSession{findCommandSession(clientID)};
+
+					// if there a relevant SlimProto connection found
+					if (commandSession.has_value())
+					{
+						auto found{std::find_if(unmatchedSessions.begin(), unmatchedSessions.end(), [&](auto& entry) -> bool
+						{
+							return entry == commandSession.value();
+						})};
+
+						// adding command session pointer if it is missing in vector
+						if (found == unmatchedSessions.end())
+						{
+							unmatchedSessions.push_back({commandSession.value()});
+						}
+					}
 				}
 
 				void onHTTPData(ConnectionType& connection, unsigned char* buffer, std::size_t receivedSize)
@@ -211,34 +209,29 @@ namespace slim
 						if (!get.compare(s))
 						{
 							// TODO: use std::optional
-							auto  clientID{StreamingSession<ConnectionType>::parseClientID({(char*)buffer, receivedSize})};
-							auto* commandSessionPtr{(CommandSession<ConnectionType>*)nullptr};
+							auto                            clientID{StreamingSession<ConnectionType>::parseClientID({(char*)buffer, receivedSize})};
+							CommandSession<ConnectionType>* commandSessionPtr{nullptr};
+
 							if (clientID.length() > 0)
 							{
 								LOG(INFO) << "Client ID was parsed from HTTP request (clientID=" << clientID << ")";
 
-								// TODO: use hashmap id
-								std::find_if(commandSessions.begin(), commandSessions.end(), [&](auto& sessionEntry)
-								{
-									auto found{false};
-
-									if (sessionEntry.second->getClientID() == clientID)
-									{
-										found             = true;
-										commandSessionPtr = sessionEntry.second.get();
-									}
-
-									return found;
-								});
+								commandSessionPtr = findCommandSession(clientID).value_or(nullptr);
 							}
 
 							// if there a SlimProto connection found that originated this HTTP request
 							if (commandSessionPtr)
 							{
 								// creating streaming session object
-								auto sessionPtr{std::make_unique<StreamingSession<ConnectionType>>(connection, clientID, 2, samplingRate, 32)};
-								sessionPtr->onRequest(buffer, receivedSize);
-								addSession(streamingSessions, connection, std::move(sessionPtr));
+								auto streamingSessionPtr{std::make_unique<StreamingSession<ConnectionType>>(connection, clientID, 2, samplingRate, 32)};
+								streamingSessionPtr->onRequest(buffer, receivedSize);
+								addSession(streamingSessions, connection, std::move(streamingSessionPtr));
+
+								// removing command session from unmatched sessions vector
+								unmatchedSessions.erase(std::remove_if(unmatchedSessions.begin(), unmatchedSessions.end(), [&](auto& entry) -> bool
+								{
+									return entry == commandSessionPtr;
+								}), unmatchedSessions.end());
 							}
 							else
 							{
@@ -269,7 +262,13 @@ namespace slim
 				{
 					LOG(INFO) << "SlimProto close callback";
 
-					removeSession(commandSessions, connection);
+					auto commandSessionPtr{removeSession(commandSessions, connection)};
+
+					// removing command session from unmatched sessions vector
+					unmatchedSessions.erase(std::remove_if(unmatchedSessions.begin(), unmatchedSessions.end(), [&](auto& entry) -> bool
+					{
+						return entry == commandSessionPtr.get();
+					}), unmatchedSessions.end());
 				}
 
 				void onSlimProtoData(ConnectionType& connection, unsigned char* buffer, std::size_t receivedSize)
@@ -291,6 +290,8 @@ namespace slim
 							// creating command session object
 							auto sessionPtr{std::make_unique<CommandSession<ConnectionType>>(connection /*TODO: , command.getClientID()*/)};
 							sessionPtr->onRequest(buffer, receivedSize);
+
+							// saving command session in the map
 							addSession(commandSessions, connection, std::move(sessionPtr));
 						}
 						catch (const slim::Exception& error)
@@ -327,8 +328,8 @@ namespace slim
 				{
 					LOG(DEBUG) << LABELS{"slim"} << "Adding new session (sessions=" << sessions.size() << ")...";
 
-					auto* s{(SessionType*)nullptr};
-					auto  found{sessions.find(&connection)};
+					auto         found{sessions.find(&connection)};
+					SessionType* s{nullptr};
 
 					if (found == sessions.end())
 					{
@@ -358,6 +359,29 @@ namespace slim
 					}
 
 					return (found != sessions.end());
+				}
+
+				auto findCommandSession(std::string clientID)
+				{
+					auto result{std::optional<CommandSession<ConnectionType>*>{std::nullopt}};
+					auto found{std::find_if(commandSessions.begin(), commandSessions.end(), [&](auto& entry) -> bool
+					{
+						auto found{false};
+
+						if (entry.second->getClientID() == clientID)
+						{
+							found = true;
+						}
+
+						return found;
+					})};
+
+					if (found != commandSessions.end())
+					{
+						result.emplace((*found).second.get());
+					}
+
+					return result;
 				}
 
 				inline bool hasToFinish()
@@ -398,6 +422,7 @@ namespace slim
 			private:
 				SessionsMap<CommandSession<ConnectionType>>   commandSessions;
 				SessionsMap<StreamingSession<ConnectionType>> streamingSessions;
+				std::vector<CommandSession<ConnectionType>*>  unmatchedSessions;
 				unsigned int                                  samplingRate{0};
 				conwrap::ProcessorProxy<ContainerBase>*       processorProxyPtr{nullptr};
 				volatile bool                                 timerRunning{true};
