@@ -49,15 +49,87 @@ If you got version 7.x (or above) installed, it will do for compiling SlimStream
 
 ## Compiling SlimStreamer
 
-Building SlimPlexor is as easy as that (assuming all prerequisites are installed):
+Building SlimPlexor is done in three steps:
+
+1. Obtaining source code
 
 ```
 git clone https://github.com/gimesketvirtadieni/slimstreamer.git
 cd slimstreamer
 git submodule update --init --recursive
+```
+
+It will download all the source code needed for compiling SlimSTreamer.
+
+
+2. Compiling dependencies
+
+SlimStreamer uses number of dependencies however most of them are provided in header files, so they do not need to be compiled separately.
+The only dependency that need to be compiled separately is a logger library.
+To compile the logger library, one should do like following:
+
+```
+cd dependencies
+cd g3log
+ls
+```
+
+The output should look similar to:
+
+```
+andrej@sandbox:~/slimstreamer/dependencies/g3log$ ls
+3rdParty      build        CleanAll.cmake  CPackLists.txt  GenerateMacroDefinitionsFile.cmake  Options.cmake    scripts  sublime.formatting  test_performance
+API.markdown  Build.cmake  CMakeLists.txt  example         LICENSE                             README.markdown  src      test_main           test_unit
+```
+
+Now the actual compilation steps for the logger library:
+
+```
+mkdir build
+cd build
+cmake -DCMAKE_BUILD_TYPE=Release -DUSE_DYNAMIC_LOGGING_LEVELS=ON ..
+make
+ls
+```
+
+The output should look similar to:
+
+```
+andrej@sandbox:~/slimstreamer/dependencies/g3log/build$ ls
+CMakeCache.txt  cmake_install.cmake  CPackSourceConfig.cmake  g3log-FATAL-contract  libg3logger.a   Makefile
+CMakeFiles      CPackConfig.cmake    g3log-FATAL-choice       g3log-FATAL-sigsegv   libg3logger.so
+```
+
+One more important step:
+
+```
+rm libg3logger.so
+```
+
+It is required to remove dynamic library file to make sure linker bundles everything into one executable file, avoiding any dependencies to dynamic libraries.
+
+
+3. Compiling SlimStreamer itself
+
+```
+cd ../../..
 cd make
 make
+ls
 ```
+
+If compilation succeeded then the output should look like following:
+
+```
+andrej@sandbox:~/slimstreamer/make$ ls
+Makefile  SlimStreamer
+```
+
+
+## Running SlimStreamer
+
+Compilation process produces one binary executable file - SlimStreamer.
+Just run it and point your Squeezebox players to use it instead of LMS ;) 
 
 
 # Development Status
@@ -68,7 +140,7 @@ This project is still ‘work in progress’:
   * SlimProto players are able to connect to SlimStreamer (although tested only with squeezelite)
   * TCP server (running on 9000 port), required for streaming PCM data, works
   * HTTP streaming functionality works
-  * Streaming functionality supports multiple samling rates
+  * Streaming functionality supports multiple sampling rates
   * Streams synchronization is still missing
   * Streaming data should be encoded in lossless way (to prevent from sending 'raw' PCM data over the network)
   * There are many 'shortcuts' left in the codebase so in many ways it is still requires maturing
