@@ -14,8 +14,7 @@ SYMBOLS              += -DASIO_STANDALONE
 EXECUTABLE            = SlimStreamer
 
 CXX                   = g++
-#  -g3 -fpermissive 
-CXX_OPTIONS          += -std=c++1z -c -O3 -fmessage-length=0 -Wall -Wnon-virtual-dtor -Woverloaded-virtual
+CXX_OPTIONS          += -std=c++1z -c -O3 -g0 -fmessage-length=0 -Wall -Wnon-virtual-dtor -Woverloaded-virtual
 CXX_FLAGS            += $(SYMBOLS) $(HEADERS) $(CXX_OPTIONS)
 
 LD_DIRECTORIES       += -L$(BASE_DIRECTORY)/dependencies/g3log/build
