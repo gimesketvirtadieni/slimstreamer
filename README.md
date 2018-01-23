@@ -49,7 +49,7 @@ If you got version 7.x (or above) installed, it will do for compiling SlimStream
 
 ## Compiling SlimStreamer
 
-Building SlimPlexor is done in three steps:
+Building SlimStreamer is done in three steps:
 
 1. Obtaining source code
 
@@ -59,14 +59,14 @@ cd slimstreamer
 git submodule update --init --recursive
 ```
 
-It will download all the source code needed for compiling SlimSTreamer.
+It will download all the source code needed for compiling SlimStreamer.
 
 
 2. Compiling dependencies
 
 SlimStreamer uses number of dependencies however most of them are provided in header files, so they do not need to be compiled separately.
-The only dependency that need to be compiled separately is a logger library.
-To compile the logger library, one should do like following:
+The only dependency that needs to be compiled separately is a logger library.
+To compile the logger library, one should do like following (from a 'slimstreamer' directory):
 
 ```
 cd dependencies
@@ -106,7 +106,7 @@ One more important step:
 rm libg3logger.so
 ```
 
-It is required to remove dynamic library file to make sure linker bundles everything into one executable file, avoiding any dependencies to dynamic libraries.
+It is required to remove dynamic library file (libg3logger.so) to make sure linker bundles everything into one executable file, avoiding any dependencies to dynamic libraries.
 
 
 3. Compiling SlimStreamer itself
@@ -129,22 +129,35 @@ Makefile  SlimStreamer
 ## Running SlimStreamer
 
 Compilation process produces one binary executable file - SlimStreamer.
-Just run it and point your Squeezebox players to use it instead of LMS ;) 
+Just run it and point your Squeezebox players to use it instead of LMS.
+If you are using squeezelite, a command may look like following (should be run on a host with an attached DAC; a server running SlimStreamer does not required a 'physical' DAC attached):
+
+```
+andrej@sandbox:~$ /usr/bin/squeezelite -n playername -o outputdevice -d all=debug -s slimstreamerhost:3484
+[01:50:16.200439] stream_init:290 init stream
+[01:50:16.200635] stream_init:291 streambuf size: 2097152
+[01:50:16.202250] output_init_alsa:817 init output
+[01:50:16.202339] output_init_alsa:846 requested alsa_buffer: 40 alsa_period: 4 format: any mmap: 1
+[01:50:16.202396] output_init_common:346 outputbuf size: 3528000
+[01:50:16.202466] output_init_common:370 idle timeout: 0
+[01:50:16.206681] output_init_common:410 supported rates: 384000 352800 192000 176400 96000 88200 48000 24000 22500 16000 12000 8000 
+...
+```
+
+Injoy streaming ;)
 
 
 # Development Status
 
-This project is still ‘work in progress’:  
+SlimStreamer works and can be used for alpha testing, however the development is still ongoing:  
   * Capture-and-deliver PCM data to SlimStreamer in a bit-perfect way is done
-  * TCP server (running on 3483 port) required for serving SlimProto commands is implemented (although only few commands are supported for now)
+  * TCP server (running on 3484 port) required for serving SlimProto commands is implemented (although only few commands are supported for now)
   * SlimProto players are able to connect to SlimStreamer (although tested only with squeezelite)
-  * TCP server (running on 9000 port), required for streaming PCM data, works
+  * TCP server (running on 9001 port), required for streaming PCM data, works
   * HTTP streaming functionality works
   * Streaming functionality supports multiple sampling rates
   * Streams synchronization is still missing
   * Streaming data should be encoded in lossless way (to prevent from sending 'raw' PCM data over the network)
   * There are many 'shortcuts' left in the codebase so in many ways it is still requires maturing
-
-The project is almost ready for alpha testing, working on building instructions, stay tuned ;)
 
 Any feedback and comments are much appreciated!
