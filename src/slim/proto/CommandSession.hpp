@@ -14,7 +14,6 @@
 
 #include <chrono>
 #include <cstddef>  // std::size_t
-#include <sstream>  // std::stringstream
 #include <string>
 
 #include "slim/log/log.hpp"
@@ -31,16 +30,14 @@ namespace slim
 		template<typename ConnectionType>
 		class CommandSession
 		{
+			using TimePoint = std::chrono::time_point<std::chrono::steady_clock>;
+
 			public:
-				CommandSession(ConnectionType& c)
+				CommandSession(ConnectionType& c, std::string id)
 				: connection(c)
+				, clientID{id}
 				{
 					LOG(INFO) << "SlimProto session created";
-
-					// TODO: get from parameter
-					std::stringstream ss;
-			        ss << static_cast<const void*>(this);
-			        clientID = ss.str();
 
 			        send(CommandSTRM{CommandSelection::Stop});
 					send(CommandSETD{DeviceID::RequestName});
@@ -70,7 +67,6 @@ namespace slim
 
 				inline void ping()
 				{
-					// TODO: introduce buffer wrapper so it can be passed to a stream; then in can be moved to a Command class
 					auto  command{CommandSTRM{CommandSelection::Time}};
 					auto  buffer{command.getBuffer()};
 					auto  size{command.getSize()};
@@ -80,22 +76,37 @@ namespace slim
 					{
 						auto asioBuffer{asio::buffer(buffer, size)};
 
-						// saving ping time as close as possible before sending data out
-						lastPingTime = std::chrono::steady_clock::now();
+						// saving previous time; will be restored in case of an error
+						auto tmp{lastPingAt};
+
+						// saving ping time as close as possible to the moment of sending data out
+						lastPingAt = std::chrono::steady_clock::now();
 
 						// sending first part
 						auto sent{nativeSocket.send(asioBuffer)};
 
-						// sending remainder (this almost never happens)
-						while (sent < size)
+						// sending remainder (it almost never happens)
+						while (sent > 0 && sent < size)
 						{
-							sent += nativeSocket.send(asio::buffer(&buffer[sent], size - sent));
+							auto s{nativeSocket.send(asio::buffer(&buffer[sent], size - sent))};
+							if (s > 0)
+							{
+								s += sent;
+							}
+							sent = s;
 						}
+
+						// restoring the last ping time value in case of an error
+						lastPingAt = tmp;
 					}
 				}
 
-			// TODO: refactor usage
-			//protected:
+				void stream(unsigned int samplingRate)
+				{
+			        send(CommandSTRM{CommandSelection::Start, samplingRate, getClientID()});
+				}
+
+			protected:
 				template<typename CommandType>
 				inline void send(CommandType command)
 				{
@@ -107,10 +118,9 @@ namespace slim
 				}
 
 			private:
-				ConnectionType&                                    connection;
-				std::string                                        clientID;
-				// TODO: initialization ???
-				std::chrono::time_point<std::chrono::steady_clock> lastPingTime;
+				ConnectionType&          connection;
+				std::string              clientID;
+				std::optional<TimePoint> lastPingAt{std::nullopt};
 		};
 	}
 }
