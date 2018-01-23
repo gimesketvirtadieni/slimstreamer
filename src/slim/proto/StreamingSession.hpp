@@ -14,6 +14,7 @@
 
 #include <functional>
 #include <iostream>
+#include <optional>
 #include <string>
 
 #include "slim/log/log.hpp"
@@ -96,8 +97,8 @@ namespace slim
 
 				static auto parseClientID(std::string header)
 				{
-					std::string result{};
-					std::string separator{"="};
+					auto result{std::optional<std::string>{std::nullopt}};
+					auto separator{std::string{"="}};
 
 					auto index = header.find(separator);
 					if ( index != std::string::npos)
