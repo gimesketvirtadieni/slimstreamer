@@ -16,7 +16,6 @@
 #include <chrono>
 #include <conwrap/ProcessorProxy.hpp>
 #include <cstddef>  // std::size_t
-#include <functional>
 #include <memory>
 #include <optional>
 #include <sstream>  // std::stringstream
@@ -114,11 +113,7 @@ namespace slim
 						// sending command to start streaming
 						for (auto& entry : commandSessions)
 						{
-							// TODO: use MAC provided in HELO message
-							std::stringstream ss;
-					        ss << static_cast<const void*>(entry.second.get());
-
-					        entry.second->send(CommandSTRM{CommandSelection::Start, samplingRate, ss.str()});
+					        entry.second->stream(samplingRate);
 						}
 					}
 
@@ -149,7 +144,7 @@ namespace slim
 						if (done)
 						{
 							// resetting period during which chunk processing can be deferred
-							deferStarted.reset();
+							deferStartedAt.reset();
 
 							// sending chunk to all HTTP sessions
 							for (auto& entry : streamingSessions)
@@ -203,42 +198,46 @@ namespace slim
 					{
 						LOG(INFO) << "HTTP request received";
 
-						// TODO: refactor to a different class
-						std::string get{"GET"};
-						std::string s{(char*)buffer, get.size()};
-						if (!get.compare(s))
+						try
 						{
-							// TODO: use std::optional
-							auto                            clientID{StreamingSession<ConnectionType>::parseClientID({(char*)buffer, receivedSize})};
-							CommandSession<ConnectionType>* commandSessionPtr{nullptr};
-
-							if (clientID.length() > 0)
+							// TODO: make more strick validation
+							std::string get{"GET"};
+							std::string s{(char*)buffer, get.size()};
+							if (get.compare(s))
 							{
-								LOG(INFO) << "Client ID was parsed from HTTP request (clientID=" << clientID << ")";
-
-								commandSessionPtr = findCommandSession(clientID).value_or(nullptr);
+								throw slim::Exception("Wrong method provided");
 							}
+
+							auto clientID{StreamingSession<ConnectionType>::parseClientID({(char*)buffer, receivedSize})};
+							if (!clientID.has_value())
+							{
+								throw slim::Exception("Missing client ID in HTTP request");
+							}
+
+							LOG(INFO) << "Client ID was parsed from HTTP request (clientID=" << clientID.value() << ")";
 
 							// if there a SlimProto connection found that originated this HTTP request
-							if (commandSessionPtr)
+							auto commandSessionPtr{findCommandSession(clientID.value()).value_or(nullptr)};
+							if (!commandSessionPtr)
 							{
-								// creating streaming session object
-								auto streamingSessionPtr{std::make_unique<StreamingSession<ConnectionType>>(connection, clientID, 2, samplingRate, 32)};
-								streamingSessionPtr->onRequest(buffer, receivedSize);
-								addSession(streamingSessions, connection, std::move(streamingSessionPtr));
+								throw slim::Exception("Could not correlate provided client ID with a valid SlimProto session");
+							}
 
-								// removing command session from unmatched sessions vector
-								unmatchedSessions.erase(std::remove_if(unmatchedSessions.begin(), unmatchedSessions.end(), [&](auto& entry) -> bool
-								{
-									return entry == commandSessionPtr;
-								}), unmatchedSessions.end());
-							}
-							else
+							// creating streaming session object
+							auto streamingSessionPtr{std::make_unique<StreamingSession<ConnectionType>>(connection, clientID.value(), 2, samplingRate, 32)};
+							streamingSessionPtr->onRequest(buffer, receivedSize);
+							addSession(streamingSessions, connection, std::move(streamingSessionPtr));
+
+							// removing command session from unmatched sessions vector
+							unmatchedSessions.erase(std::remove_if(unmatchedSessions.begin(), unmatchedSessions.end(), [&](auto& entry) -> bool
 							{
-								// closing HTTP connection due to incorrect reference to SlimProto session
-								LOG(ERROR) << "Could not correlate HTTP request with a valid SlimProto session";
-								connection.stop();
-							}
+								return entry == commandSessionPtr;
+							}), unmatchedSessions.end());
+						}
+						catch (const slim::Exception& error)
+						{
+							LOG(ERROR) << "Incorrect HTTP request received: " << error.what();
+							connection.stop();
 						}
 					}
 				}
@@ -287,8 +286,12 @@ namespace slim
 
 							LOG(INFO) << "HELO command received";
 
-							// creating command session object
-							auto sessionPtr{std::make_unique<CommandSession<ConnectionType>>(connection /*TODO: , command.getClientID()*/)};
+							// not using MAC as a client ID to allow possibility running multiple players on one host
+							std::stringstream ss;
+					        ss << (nextID++);
+
+					        // creating command session object
+							auto sessionPtr{std::make_unique<CommandSession<ConnectionType>>(connection, ss.str())};
 							sessionPtr->onRequest(buffer, receivedSize);
 
 							// saving command session in the map
@@ -388,14 +391,14 @@ namespace slim
 				{
 					auto finish{false};
 
-					if (deferStarted.has_value())
+					if (deferStartedAt.has_value())
 					{
-						auto diff{std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - deferStarted.value()).count()};
+						auto diff{std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - deferStartedAt.value()).count()};
 						finish = (diff > 100);
 					}
 					else
 					{
-						deferStarted = std::chrono::steady_clock::now();
+						deferStartedAt = std::chrono::steady_clock::now();
 					}
 
 					return finish;
@@ -424,10 +427,11 @@ namespace slim
 				SessionsMap<StreamingSession<ConnectionType>> streamingSessions;
 				std::vector<CommandSession<ConnectionType>*>  unmatchedSessions;
 				unsigned int                                  samplingRate{0};
+				unsigned long                                 nextID{1};
 				conwrap::ProcessorProxy<ContainerBase>*       processorProxyPtr{nullptr};
 				volatile bool                                 timerRunning{true};
 				std::thread                                   timerThread;
-				std::optional<TimePoint>                      deferStarted{std::nullopt};
+				std::optional<TimePoint>                      deferStartedAt{std::nullopt};
 		};
 	}
 }
