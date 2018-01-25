@@ -26,7 +26,6 @@
 
 #include "slim/Exception.hpp"
 #include "slim/log/log.hpp"
-#include "slim/proto/CommandHELO.hpp"
 #include "slim/proto/CommandSession.hpp"
 #include "slim/proto/StreamingSession.hpp"
 
@@ -260,36 +259,31 @@ namespace slim
 					}), unmatchedSessions.end());
 				}
 
-				void onSlimProtoData(ConnectionType& connection, unsigned char* buffer, std::size_t receivedSize)
+				void onSlimProtoData(ConnectionType& connection, unsigned char* buffer, std::size_t size)
 				{
-					if (!applyToSession(commandSessions, connection, [&](CommandSession<ConnectionType>& session)
+					try
 					{
-						session.onRequest(buffer, receivedSize);
-					}))
-					{
-						// TODO: move to CommandSession due to command buffering per session
-						// deserializing HELO command
-						try
+						if (!applyToSession(commandSessions, connection, [&](CommandSession<ConnectionType>& session)
 						{
-							CommandHELO commandHELO{buffer, receivedSize};
-
-							LOG(INFO) << "HELO command received";
-
-							// not using MAC as a client ID to allow possibility running multiple players on one host
+							session.onRequest(buffer, size);
+						}))
+						{
+							// using regular counter for session ID's instead of MAC's; it allows running multiple players on one host
 							std::stringstream ss;
-					        ss << (nextID++);
+							ss << (nextID++);
 
-					        // creating command session object
-							auto sessionPtr{std::make_unique<CommandSession<ConnectionType>>(connection, ss.str(), commandHELO)};
+							// creating command session object
+							auto sessionPtr{std::make_unique<CommandSession<ConnectionType>>(connection, ss.str())};
+							sessionPtr->onRequest(buffer, size);
 
 							// saving command session in the map
 							addSession(commandSessions, connection, std::move(sessionPtr));
 						}
-						catch (const slim::Exception& error)
-						{
-							LOG(ERROR) << "Incorrect HELO command received: " << error.what();
-							connection.stop();
-						}
+					}
+					catch (const slim::Exception& error)
+					{
+						LOG(ERROR) << "Error while processing SlimProto command: " << error.what();
+						connection.stop();
 					}
 				}
 

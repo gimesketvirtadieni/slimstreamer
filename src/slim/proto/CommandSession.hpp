@@ -14,8 +14,10 @@
 
 #include <chrono>
 #include <cstddef>  // std::size_t
+#include <optional>
 #include <string>
 
+#include "slim/Exception.hpp"
 #include "slim/log/log.hpp"
 #include "slim/proto/CommandAUDE.hpp"
 #include "slim/proto/CommandAUDG.hpp"
@@ -32,26 +34,25 @@ namespace slim
 		template<typename ConnectionType>
 		class CommandSession
 		{
-			using TimePoint = std::chrono::time_point<std::chrono::steady_clock>;
+			using HandlersMap = std::unordered_map<std::string, std::function<void(unsigned char*, std::size_t)>>;
+			using TimePoint   = std::chrono::time_point<std::chrono::steady_clock>;
 
 			public:
-				CommandSession(ConnectionType& c, std::string id, CommandHELO h)
+				CommandSession(ConnectionType& c, std::string id)
 				: connection(c)
 				, clientID{id}
-				, commandHELO{h}
+				, handlersMap
 				{
-					LOG(INFO) << "SlimProto session created";
-
-			        send(CommandSTRM{CommandSelection::Stop});
-					send(CommandSETD{DeviceID::RequestName});
-					send(CommandSETD{DeviceID::Squeezebox3});
-					send(CommandAUDE{true, true});
-					send(CommandAUDG{});
+					{"HELO", [&](auto* buffer, auto size) {onHELO(buffer, size);}},
+					{"STAT", [&](auto* buffer, auto size) {onSTAT(buffer, size);}},
+				}
+				{
+					LOG(DEBUG) << LABELS{"proto"} << "SlimProto session object was created (id=" << this << ")";
 				}
 
 				~CommandSession()
 				{
-					LOG(INFO) << "SlimProto session deleted";
+					LOG(DEBUG) << LABELS{"proto"} << "SlimProto session object was deleted (id=" << this << ")";
 				}
 
 				CommandSession(const CommandSession&) = delete;             // non-copyable
@@ -66,23 +67,32 @@ namespace slim
 
 				inline void onRequest(unsigned char* buffer, std::size_t size)
 				{
+					LOG(DEBUG) << "SlimProto onRequest size=" << size;
+
 					// TODO: buffering for commands
 					if (size > 4)
 					{
-						// TODO: introduce hash map
 						std::string s{(char*)buffer, 4};
-						if (!s.compare("STAT"))
+						auto found{handlersMap.find(s)};
+
+						if (found != handlersMap.end())
 						{
-							LOG(DEBUG) << "STAT received";
+							(*found).second(buffer, size);
+
+							// making sure session HELO is the first command provided by a client
+							if (!commandHELO.has_value())
+							{
+								throw slim::Exception("Did not receive HELO command");
+							}
 						}
 						else
 						{
 							LOG(DEBUG) << "Unsupported SlimProto command received (header='" << s << "')";
 
-							for (unsigned int i = 0; i < size; i++)
-							{
-								LOG(DEBUG) << (unsigned int)buffer[i] << " " << buffer[i];
-							}
+							//for (unsigned int i = 0; i < size; i++)
+							//{
+							//	LOG(DEBUG) << (unsigned int)buffer[i] << " " << buffer[i];
+							//}
 						}
 					}
 				}
@@ -129,6 +139,25 @@ namespace slim
 				}
 
 			protected:
+				inline void onHELO(unsigned char* buffer, std::size_t size)
+				{
+					LOG(INFO) << "HELO command received";
+
+					// deserializing HELO command
+					commandHELO = CommandHELO{buffer, size};
+
+					send(CommandSTRM{CommandSelection::Stop});
+					send(CommandSETD{DeviceID::RequestName});
+					send(CommandSETD{DeviceID::Squeezebox3});
+					send(CommandAUDE{true, true});
+					send(CommandAUDG{});
+				}
+
+				inline void onSTAT(unsigned char* buffer, std::size_t size)
+				{
+					LOG(DEBUG) << "STAT command received";
+				}
+
 				template<typename CommandType>
 				inline void send(CommandType command)
 				{
@@ -140,10 +169,11 @@ namespace slim
 				}
 
 			private:
-				ConnectionType&          connection;
-				std::string              clientID;
-				CommandHELO              commandHELO;
-				std::optional<TimePoint> lastPingAt{std::nullopt};
+				ConnectionType&            connection;
+				std::string                clientID;
+				HandlersMap                handlersMap;
+				std::optional<TimePoint>   lastPingAt{std::nullopt};
+				std::optional<CommandHELO> commandHELO{std::nullopt};
 		};
 	}
 }

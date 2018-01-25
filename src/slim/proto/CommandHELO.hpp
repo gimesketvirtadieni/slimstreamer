@@ -16,6 +16,7 @@
 #include <cstdint>  // std::u..._t types
 #include <string>
 
+#include "slim/Exception.hpp"
 #include "slim/proto/Command.hpp"
 
 

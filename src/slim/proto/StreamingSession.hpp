@@ -42,7 +42,7 @@ namespace slim
 				, samplingRate{sr}
 				, waveStream{std::make_unique<std::ostream>(&outputStreamCallback), channels, samplingRate, bitePerSample}
 				{
-					LOG(INFO) << "HTTP session created";
+					LOG(DEBUG) << LABELS{"proto"} << "HTTP session object was created (id=" << this << ")";
 
 					// sending HTTP response with the headers
 					waveStream.write("HTTP/1.1 200 OK\r\n");
@@ -54,7 +54,7 @@ namespace slim
 
 				~StreamingSession()
 				{
-					LOG(INFO) << "HTTP session deleted";
+					LOG(DEBUG) << LABELS{"proto"} << "HTTP session object was deleted (id=" << this << ")";
 				}
 
 				StreamingSession(const StreamingSession&) = delete;             // non-copyable
