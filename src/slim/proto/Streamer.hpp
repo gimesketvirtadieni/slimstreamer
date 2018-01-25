@@ -262,13 +262,12 @@ namespace slim
 
 				void onSlimProtoData(ConnectionType& connection, unsigned char* buffer, std::size_t receivedSize)
 				{
-					LOG(INFO) << "SlimProto data callback receivedSize=" << receivedSize;
-
 					if (!applyToSession(commandSessions, connection, [&](CommandSession<ConnectionType>& session)
 					{
 						session.onRequest(buffer, receivedSize);
 					}))
 					{
+						// TODO: move to CommandSession due to command buffering per session
 						// deserializing HELO command
 						try
 						{

@@ -21,6 +21,7 @@
 #include "slim/proto/CommandAUDG.hpp"
 #include "slim/proto/CommandHELO.hpp"
 #include "slim/proto/CommandSETD.hpp"
+#include "slim/proto/CommandSTAT.hpp"
 #include "slim/proto/CommandSTRM.hpp"
 
 
@@ -65,11 +66,24 @@ namespace slim
 
 				inline void onRequest(unsigned char* buffer, std::size_t size)
 				{
-					LOG(DEBUG) << "SlimProto onRequest";
-
-					for (unsigned int i = 0; i < size; i++)
+					// TODO: buffering for commands
+					if (size > 4)
 					{
-						LOG(DEBUG) << (unsigned int)buffer[i] << " " << buffer[i];
+						// TODO: introduce hash map
+						std::string s{(char*)buffer, 4};
+						if (!s.compare("STAT"))
+						{
+							LOG(DEBUG) << "STAT received";
+						}
+						else
+						{
+							LOG(DEBUG) << "Unsupported SlimProto command received (header='" << s << "')";
+
+							for (unsigned int i = 0; i < size; i++)
+							{
+								LOG(DEBUG) << (unsigned int)buffer[i] << " " << buffer[i];
+							}
+						}
 					}
 				}
 
