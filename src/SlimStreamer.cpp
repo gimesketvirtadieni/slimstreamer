@@ -62,57 +62,37 @@ void signalHandler(int sig)
 
 auto createCommandCallbacks(Streamer& streamer)
 {
-	return std::move(Callbacks
-	{
-		[&](auto& connection)
-		{
-			streamer.onSlimProtoStart(connection);
-		},
-		[&](auto& connection)
+	return std::move(Callbacks{}
+		.setOpenCallback([&](auto& connection)
 		{
 			streamer.onSlimProtoOpen(connection);
-		},
-		[&](auto& connection, auto buffer, auto receivedSize)
+		})
+		.setDataCallback([&](auto& connection, unsigned char* buffer, const std::size_t size)
 		{
-			streamer.onSlimProtoData(connection, buffer, receivedSize);
-		},
-		[&](auto& connection)
+			streamer.onSlimProtoData(connection, buffer, size);
+		})
+		.setCloseCallback([&](auto& connection)
 		{
 			streamer.onSlimProtoClose(connection);
-		},
-		[&](auto& connection)
-		{
-			streamer.onSlimProtoStop(connection);
-		}
-	});
+		}));
 }
 
 
 auto createStreamingCallbacks(Streamer& streamer)
 {
-	return std::move(Callbacks
-	{
-		[&](auto& connection)
-		{
-			streamer.onHTTPStart(connection);
-		},
-		[&](auto& connection)
+	return std::move(Callbacks{}
+		.setOpenCallback([&](auto& connection)
 		{
 			streamer.onHTTPOpen(connection);
-		},
-		[&](auto& connection, auto buffer, auto receivedSize)
+		})
+		.setDataCallback([&](auto& connection, unsigned char* buffer, const std::size_t size)
 		{
-			streamer.onHTTPData(connection, buffer, receivedSize);
-		},
-		[&](auto& connection)
+			streamer.onHTTPData(connection, buffer, size);
+		})
+		.setCloseCallback([&](auto& connection)
 		{
 			streamer.onHTTPClose(connection);
-		},
-		[&](auto& connection)
-		{
-			streamer.onHTTPStop(connection);
-		}
-	});
+		}));
 }
 
 

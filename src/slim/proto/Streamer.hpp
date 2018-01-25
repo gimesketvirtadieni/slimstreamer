@@ -171,7 +171,7 @@ namespace slim
 					auto clientID{streamingSessionPtr->getClientID()};
 					auto commandSession{findCommandSession(clientID)};
 
-					// if there a relevant SlimProto connection found
+					// if there is a relevant SlimProto connection found
 					if (commandSession.has_value())
 					{
 						auto found{std::find_if(unmatchedSessions.begin(), unmatchedSessions.end(), [&](auto& entry) -> bool
@@ -247,16 +247,6 @@ namespace slim
 					LOG(INFO) << "HTTP open callback";
 				}
 
-				void onHTTPStart(ConnectionType& connection)
-				{
-					LOG(INFO) << "HTTP start callback";
-				}
-
-				void onHTTPStop(ConnectionType& connection)
-				{
-					LOG(INFO) << "HTTP stop callback";
-				}
-
 				void onSlimProtoClose(ConnectionType& connection)
 				{
 					LOG(INFO) << "SlimProto close callback";
@@ -308,16 +298,6 @@ namespace slim
 				void onSlimProtoOpen(ConnectionType& connection)
 				{
 					LOG(INFO) << "SlimProto open callback";
-				}
-
-				void onSlimProtoStart(ConnectionType& connection)
-				{
-					LOG(INFO) << "SlimProto start callback";
-				}
-
-				void onSlimProtoStop(ConnectionType& connection)
-				{
-					LOG(INFO) << "SlimProto stop callback";
 				}
 
 				void setProcessorProxy(conwrap::ProcessorProxy<ContainerBase>* p)

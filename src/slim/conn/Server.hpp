@@ -38,60 +38,56 @@ namespace slim
 				, maxConnections{m}
 				, callbacks
 				{
-					std::move(c.getStartCallback()),
-					[&, openCallback = std::move(c.getOpenCallback())](auto& connection)
-					{
-						if (openCallback)
+					std::move(Callbacks<ContainerType>{}
+						.setStartCallback(std::move(c.getStartCallback()))
+						.setOpenCallback(std::move([&, openCallback = std::move(c.getOpenCallback())](auto& connection)
 						{
 							openCallback(connection);
-						}
 
-						// registering a new connection if capacity allows so new requests can be accepted
-						if (maxConnections > std::count_if(connections.begin(), connections.end(), [&](auto& connectionPtr)
-						{
-							return connectionPtr->isOpen();
-						}))
-						{
-							addConnection();
-						}
-						else
-						{
-							LOG(DEBUG) << LABELS{"slim"} << "Limit of active connections was reached (id=" << this << ", connections=" << connections.size() << " max=" << maxConnections << ")";
-							stopAcceptor();
-						}
-					},
-					std::move(c.getDataCallback()),
-					std::move(c.getCloseCallback()),
-					[&, stopCallback = std::move(c.getStopCallback())](auto& connection)
-					{
-						if (stopCallback)
-						{
-							stopCallback(connection);
-						}
-
-						// connection cannot be removed at this moment as this method is called by the connection which is being removed
-						processorProxyPtr->process([&]
-						{
-							removeConnection(connection);
-
-							// starting acceptor if required and adding new connection to accept client requests
-							if (started && !acceptorPtr)
+							// registering a new connection if capacity allows so new requests can be accepted
+							if (maxConnections > std::count_if(connections.begin(), connections.end(), [&](auto& connectionPtr)
 							{
-								startAcceptor();
+								return connectionPtr->isOpen();
+							}))
+							{
 								addConnection();
 							}
-						});
-					}
+							else
+							{
+								LOG(WARNING) << LABELS{"conn"} << "Limit of active connections was reached (id=" << this << ", connections=" << connections.size() << " max=" << maxConnections << ")";
+								stopAcceptor();
+							}
+						}))
+						.setDataCallback(std::move(c.getDataCallback()))
+						.setCloseCallback(std::move(c.getCloseCallback()))
+						.setStopCallback(std::move([&, stopCallback = std::move(c.getStopCallback())](auto& connection)
+						{
+							stopCallback(connection);
+
+							// connection cannot be removed at this moment as this method is called by the connection which is being removed
+							processorProxyPtr->process([&]
+							{
+								removeConnection(connection);
+
+								// starting acceptor if required and adding new connection to accept client requests
+								if (started && !acceptorPtr)
+								{
+									startAcceptor();
+									addConnection();
+								}
+							});
+						})))
 				}
 				, started{false}
 				{
-					LOG(INFO) << "server created";
+					LOG(DEBUG) << LABELS{"conn"} << "TCP server object was created (id=" << this << ")";
 				}
 
 				~Server()
 				{
-					LOG(INFO) << "server deleted";
+					LOG(DEBUG) << LABELS{"conn"} << "TCP server object was deleted (id=" << this << ")";
 				}
+
 				Server(const Server&) = delete;             // non-copyable
 				Server& operator=(const Server&) = delete;  // non-assignable
 				Server(Server&& rhs) = delete;              // non-movable
@@ -104,19 +100,19 @@ namespace slim
 
 				void start()
 				{
-					LOG(INFO) << LABELS{"slim"} << "Starting new server (id=" << this << ", port=" << port << ", max connections=" << maxConnections << ")...";
+					LOG(INFO) << LABELS{"conn"} << "Starting TCP new server (id=" << this << ", port=" << port << ", max connections=" << maxConnections << ")...";
 
 					// start accepting new requests
 					startAcceptor();
 					addConnection();
 
 					started = true;
-					LOG(INFO) << LABELS{"slim"} << "Server was started (id=" << this << ")";
+					LOG(INFO) << LABELS{"conn"} << "TCP server was started (id=" << this << ")";
 				}
 
 				void stop()
 				{
-					LOG(INFO) << LABELS{"slim"} << "Stopping server...";
+					LOG(INFO) << LABELS{"conn"} << "Stopping TCP server...";
 					started = false;
 
 					// stop accepting any new connections
@@ -128,14 +124,12 @@ namespace slim
 						connectionPtr->stop();
 					}
 
-					LOG(INFO) << LABELS{"slim"} << "Server was stopped (id=" << this << ")";
+					LOG(INFO) << LABELS{"conn"} << "TCP server was stopped (id=" << this << ", port=" << port << ", max connections=" << maxConnections << ")";
 				}
 
 			protected:
 				auto& addConnection()
 				{
-					LOG(DEBUG) << LABELS{"slim"} << "Adding new connection (connections=" << connections.size() << ")...";
-
 					// creating new connection
 					auto connectionPtr{std::make_unique<Connection<ContainerType>>(processorProxyPtr, callbacks)};
 
@@ -148,22 +142,20 @@ namespace slim
 					// adding connection to the connection vector
 					connections.push_back(std::move(connectionPtr));
 
-					LOG(DEBUG) << LABELS{"slim"} << "New connection was added (id=" << c << ", connections=" << connections.size() << ")";
+					LOG(INFO) << LABELS{"conn"} << "New connection was added (id=" << c << ", connections=" << connections.size() << ")";
 
 					return *c;
 				}
 
 				void removeConnection(Connection<ContainerType>& connection)
 				{
-					LOG(DEBUG) << LABELS{"slim"} << "Removing connection (id=" << &connection << ", connections=" << connections.size() << ")...";
-
 					// removing connection from the vector
 					connections.erase(std::remove_if(connections.begin(), connections.end(), [&](auto& connectionPtr) -> bool
 					{
 						return connectionPtr.get() == &connection;
 					}), connections.end());
 
-					LOG(DEBUG) << LABELS{"slim"} << "Connection was removed (connections=" << connections.size() << ")";
+					LOG(INFO) << LABELS{"conn"} << "Connection was removed (connections=" << connections.size() << ")";
 				}
 
 				void startAcceptor()
@@ -171,8 +163,6 @@ namespace slim
 					// creating an acceptor if required
 					if (!acceptorPtr)
 					{
-						LOG(DEBUG) << LABELS{"slim"} << "Starting acceptor...";
-
 						acceptorPtr = std::make_unique<asio::ip::tcp::acceptor>(
 							*processorProxyPtr->getDispatcher(),
 							asio::ip::tcp::endpoint(
@@ -181,7 +171,7 @@ namespace slim
 							)
 						);
 
-						LOG(DEBUG) << LABELS{"slim"} << "Acceptor was started (id=" << acceptorPtr.get() << ")";
+						LOG(INFO) << LABELS{"conn"} << "Acceptor was started (id=" << acceptorPtr.get() << ", port=" << port << ")";
 					}
 				}
 
@@ -189,15 +179,13 @@ namespace slim
 				{
 					// disposing acceptor to prevent from new incomming requests
 					if (acceptorPtr) {
-						LOG(DEBUG) << LABELS{"slim"} << "Stopping acceptor (id=" << acceptorPtr.get() << ")...";
-
 						acceptorPtr->cancel();
 						acceptorPtr->close();
 
 						// acceptor is not captured by handlers so it is safe to delete it
 						acceptorPtr.reset();
 
-						LOG(DEBUG) << LABELS{"slim"} << "Acceptor was stopped (id=" << acceptorPtr.get() << ")";
+						LOG(INFO) << LABELS{"conn"} << "Acceptor was stopped (id=" << acceptorPtr.get() << ", port=" << port << ")";
 					}
 				}
 

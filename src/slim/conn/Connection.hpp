@@ -42,11 +42,16 @@ namespace slim
 					return send(buffer, size);
 				}}
 				, socketStream{&socketStreamCallback}
-				, opened{false} {}
+				, opened{false}
+				{
+					LOG(DEBUG) << LABELS{"conn"} << "Connection object was created (id=" << this << ")";
+				}
 
 				~Connection()
 				{
 					stop();
+
+					LOG(DEBUG) << LABELS{"conn"} << "Connection object was deleted (id=" << this << ")";
 				}
 
 				Connection(const Connection&) = delete;             // non-copyable
@@ -83,11 +88,7 @@ namespace slim
 
 				void start(asio::ip::tcp::acceptor& acceptor)
 				{
-					// invoking open callback before any connectivy action
-					if (callbacks.getStartCallback())
-					{
-						callbacks.getStartCallback()(*this);
-					}
+					onStart();
 
 					// TODO: validate result???
 					acceptor.async_accept(
@@ -120,10 +121,10 @@ namespace slim
 			protected:
 				void onClose(const std::error_code error)
 				{
-					LOG(DEBUG) << LABELS{"slim"} << "Closing connection (id=" << this << ", error='" << error.message() << "')...";
+					LOG(DEBUG) << LABELS{"conn"} << "Closing connection (id=" << this << ", error='" << error.message() << "')...";
 
 					// invoking close callback before connection is desposed and setting opened status
-					if (opened && callbacks.getCloseCallback())
+					if (opened)
 					{
 						callbacks.getCloseCallback()(*this);
 					}
@@ -132,7 +133,7 @@ namespace slim
 					// stopping this connection after it's been closed
 					onStop();
 
-					LOG(DEBUG) << LABELS{"slim"} << "Connection was closed (id=" << this << ")";
+					LOG(DEBUG) << LABELS{"conn"} << "Connection was closed (id=" << this << ")";
 				}
 
 				void onData(const std::error_code error, const std::size_t receivedSize)
@@ -145,7 +146,7 @@ namespace slim
 					else
 					{
 						// calling onData callback that does all the usefull work
-						if (receivedSize > 0 && callbacks.getDataCallback())
+						if (receivedSize > 0)
 						{
 							callbacks.getDataCallback()(*this, buffer, receivedSize);
 						}
@@ -176,36 +177,44 @@ namespace slim
 					}
 					else
 					{
-						LOG(DEBUG) << LABELS{"slim"} << "Opening connection (id=" << this << ")...";
+						LOG(DEBUG) << LABELS{"conn"} << "Opening connection (id=" << this << ")...";
 
 						// invoking open callback and setting opened status
 						if (!opened)
 						{
 							opened = true;
-							if (callbacks.getOpenCallback())
-							{
-								callbacks.getOpenCallback()(*this);
-							}
+							callbacks.getOpenCallback()(*this);
 						}
 
 						// start receiving data
 						onData(error, 0);
 
-						LOG(DEBUG) << LABELS{"slim"} << "Connection was opened (id=" << this << ")";
+						LOG(DEBUG) << LABELS{"conn"} << "Connection was opened (id=" << this << ")";
 					}
+				}
+
+				void onStart()
+				{
+					LOG(DEBUG) << LABELS{"conn"} << "Starting connection (id=" << this << ")...";
+
+					// invoking open callback before any connectivy action
+					callbacks.getStartCallback()(*this);
+
+					LOG(DEBUG) << LABELS{"conn"} << "Connection was started (id=" << this << ")";
 				}
 
 				void onStop()
 				{
+					LOG(DEBUG) << LABELS{"conn"} << "Stopping connection (id=" << this << ")...";
+
 					// connection cannot be removed at this moment as this method is called withing this connection
 					processorProxyPtr->process([&]
 					{
 						// invoking stop callback
-						if (callbacks.getStopCallback())
-						{
-							callbacks.getStopCallback()(*this);
-						}
+						callbacks.getStopCallback()(*this);
 					});
+
+					LOG(DEBUG) << LABELS{"conn"} << "Connection was stopped (id=" << this << ")";
 				}
 
 			private:
