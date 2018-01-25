@@ -19,6 +19,7 @@
 #include "slim/log/log.hpp"
 #include "slim/proto/CommandAUDE.hpp"
 #include "slim/proto/CommandAUDG.hpp"
+#include "slim/proto/CommandHELO.hpp"
 #include "slim/proto/CommandSETD.hpp"
 #include "slim/proto/CommandSTRM.hpp"
 
@@ -33,9 +34,10 @@ namespace slim
 			using TimePoint = std::chrono::time_point<std::chrono::steady_clock>;
 
 			public:
-				CommandSession(ConnectionType& c, std::string id)
+				CommandSession(ConnectionType& c, std::string id, CommandHELO h)
 				: connection(c)
 				, clientID{id}
+				, commandHELO{h}
 				{
 					LOG(INFO) << "SlimProto session created";
 
@@ -61,8 +63,14 @@ namespace slim
 					return clientID;
 				}
 
-				inline void onRequest(unsigned char* buffer, std::size_t receivedSize)
+				inline void onRequest(unsigned char* buffer, std::size_t size)
 				{
+					LOG(DEBUG) << "SlimProto onRequest";
+
+					for (unsigned int i = 0; i < size; i++)
+					{
+						LOG(DEBUG) << (unsigned int)buffer[i] << " " << buffer[i];
+					}
 				}
 
 				inline void ping()
@@ -120,6 +128,7 @@ namespace slim
 			private:
 				ConnectionType&          connection;
 				std::string              clientID;
+				CommandHELO              commandHELO;
 				std::optional<TimePoint> lastPingAt{std::nullopt};
 		};
 	}

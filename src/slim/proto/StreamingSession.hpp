@@ -85,13 +85,13 @@ namespace slim
 					return samplingRate;
 				}
 
-				void onRequest(unsigned char* buffer, std::size_t receivedSize)
+				void onRequest(unsigned char* buffer, std::size_t size)
 				{
-					LOG(DEBUG) << "HTTP onData";
+					LOG(DEBUG) << "HTTP onRequest";
 
-					//for (unsigned int ii = 0; ii < receivedSize; ii++)
+					//for (unsigned int i = 0; i < size; i++)
 					//{
-					//	LOG(DEBUG) << buffer[ii];
+					//	LOG(DEBUG) << buffer[i];
 					//}
 				}
 

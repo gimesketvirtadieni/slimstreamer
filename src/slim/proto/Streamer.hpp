@@ -272,7 +272,7 @@ namespace slim
 						// deserializing HELO command
 						try
 						{
-							auto command{CommandHELO::deserialize(buffer, receivedSize)};
+							CommandHELO commandHELO{buffer, receivedSize};
 
 							LOG(INFO) << "HELO command received";
 
@@ -281,8 +281,7 @@ namespace slim
 					        ss << (nextID++);
 
 					        // creating command session object
-							auto sessionPtr{std::make_unique<CommandSession<ConnectionType>>(connection, ss.str())};
-							sessionPtr->onRequest(buffer, receivedSize);
+							auto sessionPtr{std::make_unique<CommandSession<ConnectionType>>(connection, ss.str(), commandHELO)};
 
 							// saving command session in the map
 							addSession(commandSessions, connection, std::move(sessionPtr));
