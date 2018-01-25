@@ -62,7 +62,7 @@ namespace slim
 				// using Rule Of Zero
 				virtual ~CommandHELO() = default;
 				CommandHELO(const CommandHELO&) = default;
-				CommandHELO& operator=(const CommandHELO&) = delete;
+				CommandHELO& operator=(const CommandHELO&) = default;
 				CommandHELO(CommandHELO&& rhs) = default;
 				CommandHELO& operator=(CommandHELO&& rhs) = default;
 
