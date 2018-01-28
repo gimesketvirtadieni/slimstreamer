@@ -18,6 +18,7 @@
 
 #include "slim/Exception.hpp"
 #include "slim/proto/Command.hpp"
+#include "slim/util/Buffer.hpp"
 
 
 namespace slim
@@ -45,6 +46,7 @@ namespace slim
 			public:
 				CommandHELO(unsigned char* buffer, std::size_t size)
 				{
+					// validating there is HELO label in place
 					std::string h{"HELO"};
 					std::string s{(char*)buffer, h.size()};
 					if (h.compare(s))
@@ -52,12 +54,15 @@ namespace slim
 						throw slim::Exception("Missing 'HELO' label in the header");
 					}
 
-					// copying buffer content
+					// validating provided data is sufficient and serializing HELO command
 					if (size < sizeof(HELO))
 					{
 						throw slim::Exception("Message is too small");
 					}
 					memcpy(&helo, buffer, sizeof(HELO));
+
+					// TODO: work in progress
+					helo.length = ntohl(helo.length);
 				}
 
 				// using Rule Of Zero
@@ -74,11 +79,27 @@ namespace slim
 
 				virtual std::size_t getSize() override
 				{
-					return sizeof(HELO);
+					// TODO: work in progress
+					return helo.length + sizeof(helo.opcode) + sizeof(helo.length);
+				}
+
+				inline static auto enoughData(unsigned char* buffer, std::size_t size)
+				{
+					auto        result{false};
+					std::size_t offset{4};
+
+					if (size >= offset + sizeof(std::uint32_t))
+					{
+						std::uint32_t length{ntohl(*(std::uint32_t*)(buffer + offset))};
+						result = (length <= size);
+					}
+
+					return result;
 				}
 
 			private:
-				HELO helo;
+				HELO         helo;
+				util::Buffer capabilities;
 		};
 	}
 }

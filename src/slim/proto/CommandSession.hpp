@@ -25,6 +25,8 @@
 #include "slim/proto/CommandSETD.hpp"
 #include "slim/proto/CommandSTAT.hpp"
 #include "slim/proto/CommandSTRM.hpp"
+#include "slim/util/Buffer.hpp"
+#include "slim/util/ScopeGuard.hpp"
 
 
 namespace slim
@@ -34,7 +36,7 @@ namespace slim
 		template<typename ConnectionType>
 		class CommandSession
 		{
-			using HandlersMap = std::unordered_map<std::string, std::function<void(unsigned char*, std::size_t)>>;
+			using HandlersMap = std::unordered_map<std::string, std::function<std::size_t(unsigned char*, std::size_t)>>;
 			using TimePoint   = std::chrono::time_point<std::chrono::steady_clock>;
 
 			public:
@@ -43,8 +45,8 @@ namespace slim
 				, clientID{id}
 				, handlersMap
 				{
-					{"HELO", [&](auto* buffer, auto size) {onHELO(buffer, size);}},
-					{"STAT", [&](auto* buffer, auto size) {onSTAT(buffer, size);}},
+					{"HELO", [&](auto* buffer, auto size) {return onHELO(buffer, size);}},
+					{"STAT", [&](auto* buffer, auto size) {return onSTAT(buffer, size);}},
 				}
 				{
 					LOG(DEBUG) << LABELS{"proto"} << "SlimProto session object was created (id=" << this << ")";
@@ -69,21 +71,31 @@ namespace slim
 				{
 					LOG(DEBUG) << "SlimProto onRequest size=" << size;
 
-					// TODO: buffering for commands
-					if (size > 4)
+					// adding data to the buffer
+					commandBuffer.append(buffer, size);
+
+					// removing processed data from the buffer in exception safe way
+					std::size_t processedSize{commandBuffer.size()};
+					auto guard = util::makeScopeGuard([&]()
 					{
-						std::string s{(char*)buffer, 4};
+						commandBuffer.shrinkLeft(processedSize);
+					});
+
+					std::size_t keySize{4};
+					if (processedSize > keySize)
+					{
+						std::string s{(char*)commandBuffer.data(), keySize};
 						auto found{handlersMap.find(s)};
 
 						if (found != handlersMap.end())
 						{
-							(*found).second(buffer, size);
-
 							// making sure session HELO is the first command provided by a client
-							if (!commandHELO.has_value())
+							if (!commandHELO.has_value() && (*found).first.compare("HELO"))
 							{
 								throw slim::Exception("Did not receive HELO command");
 							}
+
+							processedSize = (*found).second(commandBuffer.data(), commandBuffer.size());
 						}
 						else
 						{
@@ -94,6 +106,11 @@ namespace slim
 							//	LOG(DEBUG) << (unsigned int)buffer[i] << " " << buffer[i];
 							//}
 						}
+					}
+					else
+					{
+						// it will keep buffer unchanged
+						processedSize = 0;
 					}
 				}
 
@@ -139,23 +156,34 @@ namespace slim
 				}
 
 			protected:
-				inline void onHELO(unsigned char* buffer, std::size_t size)
+				inline auto onHELO(unsigned char* buffer, std::size_t size)
 				{
+					std::size_t result{0};
+
 					LOG(INFO) << "HELO command received";
 
-					// deserializing HELO command
-					commandHELO = CommandHELO{buffer, size};
+					// if there is enough data to process HELO message
+					if (CommandHELO::enoughData(buffer, size))
+					{
+						// deserializing HELO command
+						commandHELO = CommandHELO{buffer, size};
+						result      = commandHELO.value().getSize();
 
-					send(CommandSTRM{CommandSelection::Stop});
-					send(CommandSETD{DeviceID::RequestName});
-					send(CommandSETD{DeviceID::Squeezebox3});
-					send(CommandAUDE{true, true});
-					send(CommandAUDG{});
+						send(CommandSTRM{CommandSelection::Stop});
+						send(CommandSETD{DeviceID::RequestName});
+						send(CommandSETD{DeviceID::Squeezebox3});
+						send(CommandAUDE{true, true});
+						send(CommandAUDG{});
+					}
+
+					return result;
 				}
 
-				inline void onSTAT(unsigned char* buffer, std::size_t size)
+				inline auto onSTAT(unsigned char* buffer, std::size_t size)
 				{
 					LOG(DEBUG) << "STAT command received";
+
+					return size;
 				}
 
 				template<typename CommandType>
@@ -172,8 +200,9 @@ namespace slim
 				ConnectionType&            connection;
 				std::string                clientID;
 				HandlersMap                handlersMap;
-				std::optional<TimePoint>   lastPingAt{std::nullopt};
+				util::Buffer               commandBuffer{std:size_t{0}, std:size_t{2048}};
 				std::optional<CommandHELO> commandHELO{std::nullopt};
+				std::optional<TimePoint>   lastPingAt{std::nullopt};
 		};
 	}
 }

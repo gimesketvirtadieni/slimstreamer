@@ -36,7 +36,7 @@ namespace slim
 				Buffer& operator= (const Buffer&);
 
 				void swap (Buffer&);
-				char* detach ();
+				unsigned char* detach ();
 
 				void assign (const void* data, size_type size);
 				void assign (void* data, size_type size, size_type capacity, bool assume_ownership);
@@ -51,19 +51,32 @@ namespace slim
 				bool empty () const;
 				void clear ();
 
-				char* data ();
-				const char* data () const;
+				inline void shrinkLeft(size_type pos)
+				{
+					if (pos >= size_)
+					{
+						clear();
+					}
+					else if (pos > 0)
+					{
+						size_ -= pos;
+						std::memcpy(data_, data_ + pos, size_);
+					}
+				}
 
-				char& operator[] (size_type);
-				char operator[] (size_type) const;
-				char& at (size_type);
-				char at (size_type) const;
+				unsigned char* data ();
+				const unsigned char* data () const;
 
-				size_type find (char, size_type pos = 0) const;
-				size_type rfind (char, size_type pos = npos) const;
+				unsigned char& operator[] (size_type);
+				unsigned char operator[] (size_type) const;
+				unsigned char& at (size_type);
+				unsigned char at (size_type) const;
+
+				size_type find (unsigned char, size_type pos = 0) const;
+				size_type rfind (unsigned char, size_type pos = npos) const;
 
 			private:
-				char* data_;
+				unsigned char* data_;
 				size_type size_;
 				size_type capacity_;
 				bool free_;
@@ -84,7 +97,7 @@ namespace slim
 		inline Buffer::Buffer (size_type s)
 			: free_ (true)
 		{
-		  data_ = (s != 0 ? new char[s] : 0);
+		  data_ = (s != 0 ? new unsigned char[s] : 0);
 		  size_ = capacity_ = s;
 		}
 
@@ -94,7 +107,7 @@ namespace slim
 		  if (s > c)
 			throw std::invalid_argument ("size greater than capacity");
 
-		  data_ = (c != 0 ? new char[c] : 0);
+		  data_ = (c != 0 ? new unsigned char[c] : 0);
 		  size_ = s;
 		  capacity_ = c;
 		}
@@ -104,7 +117,7 @@ namespace slim
 		{
 		  if (s != 0)
 		  {
-			data_ = new char[s];
+			data_ = new unsigned char[s];
 			std::memcpy (data_, d, s);
 		  }
 		  else
@@ -121,7 +134,7 @@ namespace slim
 
 		  if (c != 0)
 		  {
-			data_ = new char[c];
+			data_ = new unsigned char[c];
 
 			if (s != 0)
 			  std::memcpy (data_, d, s);
@@ -134,7 +147,7 @@ namespace slim
 		}
 
 		inline Buffer::Buffer (void* d, size_type s, size_type c, bool own)
-			: data_ (static_cast<char*> (d)), size_ (s), capacity_ (c), free_ (own)
+			: data_ (static_cast<unsigned char*> (d)), size_ (s), capacity_ (c), free_ (own)
 		{
 		  if (s > c)
 			throw std::invalid_argument ("size greater than capacity");
@@ -145,7 +158,7 @@ namespace slim
 		{
 		  if (x.capacity_ != 0)
 		  {
-			data_ = new char[x.capacity_];
+			data_ = new unsigned char[x.capacity_];
 
 			if (x.size_ != 0)
 			  std::memcpy (data_, x.data_, x.size_);
@@ -166,7 +179,7 @@ namespace slim
 			  if (free_)
 				delete[] data_;
 
-			  data_ = new char[x.capacity_];
+			  data_ = new unsigned char[x.capacity_];
 			  capacity_ = x.capacity_;
 			  free_ = true;
 			}
@@ -182,7 +195,7 @@ namespace slim
 
 		inline void Buffer::swap (Buffer& x)
 		{
-		  char* d (x.data_);
+		  unsigned char* d (x.data_);
 		  size_type s (x.size_);
 		  size_type c (x.capacity_);
 		  bool f (x.free_);
@@ -198,9 +211,9 @@ namespace slim
 		  free_ = f;
 		}
 
-		inline char* Buffer::detach ()
+		inline unsigned char* Buffer::detach ()
 		{
-		  char* r (data_);
+		  unsigned char* r (data_);
 
 		  data_ = 0;
 		  size_ = 0;
@@ -216,7 +229,7 @@ namespace slim
 			if (free_)
 			  delete[] data_;
 
-			data_ = new char[s];
+			data_ = new unsigned char[s];
 			capacity_ = s;
 			free_ = true;
 		  }
@@ -232,7 +245,7 @@ namespace slim
 		  if (free_)
 			delete[] data_;
 
-		  data_ = static_cast<char*> (d);
+		  data_ = static_cast<unsigned char*> (d);
 		  size_ = s;
 		  capacity_ = c;
 		  free_ = own;
@@ -291,7 +304,7 @@ namespace slim
 		  if (capacity_ >= c)
 			return false;
 
-		  char* d (new char[c]);
+		  unsigned char* d (new unsigned char[c]);
 
 		  if (size_ != 0)
 			std::memcpy (d, data_, size_);
@@ -316,27 +329,27 @@ namespace slim
 		  size_ = 0;
 		}
 
-		inline char* Buffer::data ()
+		inline unsigned char* Buffer::data ()
 		{
 		  return data_;
 		}
 
-		inline const char* Buffer::data () const
+		inline const unsigned char* Buffer::data () const
 		{
 		  return data_;
 		}
 
-		inline char& Buffer::operator[] (size_type i)
+		inline unsigned char& Buffer::operator[] (size_type i)
 		{
 		  return data_[i];
 		}
 
-		inline char Buffer::operator[] (size_type i) const
+		inline unsigned char Buffer::operator[] (size_type i) const
 		{
 		  return data_[i];
 		}
 
-		inline char& Buffer::at (size_type i)
+		inline unsigned char& Buffer::at (size_type i)
 		{
 		  if (i >= size_)
 			throw std::out_of_range ("index out of range");
@@ -344,7 +357,7 @@ namespace slim
 		  return data_[i];
 		}
 
-		inline char Buffer::at (size_type i) const
+		inline unsigned char Buffer::at (size_type i) const
 		{
 		  if (i >= size_)
 			throw std::out_of_range ("index out of range");
@@ -352,16 +365,16 @@ namespace slim
 		  return data_[i];
 		}
 
-		inline Buffer::size_type Buffer::find (char v, size_type pos) const
+		inline Buffer::size_type Buffer::find (unsigned char v, size_type pos) const
 		{
 		  if (size_ == 0 || pos >= size_)
 			return npos;
 
-		  char* p (static_cast<char*> (std::memchr (data_ + pos, v, size_ - pos)));
+		  unsigned char* p (static_cast<unsigned char*> (std::memchr (data_ + pos, v, size_ - pos)));
 		  return p != 0 ? static_cast<size_type> (p - data_) : npos;
 		}
 
-		inline Buffer::size_type Buffer::rfind (char v, size_type pos) const
+		inline Buffer::size_type Buffer::rfind (unsigned char v, size_type pos) const
 		{
 		  // memrchr() is not standard.
 		  //
