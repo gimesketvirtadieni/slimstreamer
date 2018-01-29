@@ -44,7 +44,21 @@ This is free software; see the source for copying conditions.  There is NO
 warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 ```
 
-If you got version 7.x (or above) installed, it will do for compiling SlimStreamer
+If you got version 7.x (or above) installed, it will do for compiling SlimStreamer.
+However GCC version 7.x is not yet shipped by default for most Linux distribution.
+In other words you will see some lower version of the compiler, which leads to a question how you should upgrade it to version 7.x (which supports C++17).
+Here you go:
+
+```
+sudo add-apt-repository ppa:ubuntu-toolchain-r/test
+sudo apt-get update
+sudo apt-get install gcc-snapshot
+sudo apt-get update
+sudo apt-get install gcc-7 g++-7
+sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-7 60 --slave /usr/bin/g++ g++ /usr/bin/g++-7
+```
+
+After upgrading GCC to the latest version, you should get a similar output as above, while typing g++ --version command.
 
 
 ## Compiling SlimStreamer
