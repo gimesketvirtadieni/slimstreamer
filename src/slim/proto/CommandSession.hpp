@@ -45,7 +45,9 @@ namespace slim
 				, clientID{id}
 				, handlersMap
 				{
+					{"DSCO", [&](auto* buffer, auto size) {return onDSCO(buffer, size);}},
 					{"HELO", [&](auto* buffer, auto size) {return onHELO(buffer, size);}},
+					{"RESP", [&](auto* buffer, auto size) {return onRESP(buffer, size);}},
 					{"STAT", [&](auto* buffer, auto size) {return onSTAT(buffer, size);}},
 				}
 				{
@@ -156,15 +158,22 @@ namespace slim
 				}
 
 			protected:
+				inline auto onDSCO(unsigned char* buffer, std::size_t size)
+				{
+					LOG(DEBUG) << "DSCO command received";
+
+					return size;
+				}
+
 				inline auto onHELO(unsigned char* buffer, std::size_t size)
 				{
 					std::size_t result{0};
 
-					LOG(INFO) << "HELO command received";
-
 					// if there is enough data to process HELO message
-					if (CommandHELO::enoughData(buffer, size))
+					if (CommandHELO::isEnoughData(buffer, size))
 					{
+						LOG(INFO) << "HELO command received";
+
 						// deserializing HELO command
 						commandHELO = CommandHELO{buffer, size};
 						result      = commandHELO.value().getSize();
@@ -179,11 +188,30 @@ namespace slim
 					return result;
 				}
 
-				inline auto onSTAT(unsigned char* buffer, std::size_t size)
+				inline auto onRESP(unsigned char* buffer, std::size_t size)
 				{
-					LOG(DEBUG) << "STAT command received";
+					LOG(DEBUG) << "RESP command received";
 
 					return size;
+				}
+
+				inline auto onSTAT(unsigned char* buffer, std::size_t size)
+				{
+					std::size_t result{0};
+
+					// if there is enough data to process HELO message
+					if (CommandSTAT::isEnoughData(buffer, size))
+					{
+						LOG(DEBUG) << "STAT command received";
+
+						// deserializing STAT command
+						auto commandSTAT{CommandSTAT{buffer, size}};
+						result = commandSTAT.getSize();
+
+						LOG(DEBUG) << "STAT event=" << commandSTAT.getEvent();
+					}
+
+					return result;
 				}
 
 				template<typename CommandType>

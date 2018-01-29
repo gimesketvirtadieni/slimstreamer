@@ -27,7 +27,7 @@ namespace slim
 		{
 			char          opcode[4];
 			std::uint32_t length;
-			std::uint32_t event;
+			char          event[4];
 			std::uint8_t  numberCRLF;
 			std::uint8_t  initializedMAS;
 			std::uint8_t  modeMAS;
@@ -83,6 +83,26 @@ namespace slim
 				virtual std::size_t getSize() override
 				{
 					return sizeof(STAT);
+				}
+
+				inline auto getEvent()
+				{
+					return std::string{stat.event, sizeof(stat.event)};
+				}
+
+				inline static auto isEnoughData(unsigned char* buffer, std::size_t size)
+				{
+					auto        result{false};
+					std::size_t offset{4};
+
+					// TODO: consider max length size
+					if (size >= offset + sizeof(std::uint32_t))
+					{
+						std::uint32_t length{ntohl(*(std::uint32_t*)(buffer + offset))};
+						result = (size >= (length + sizeof(STAT::opcode) + sizeof(STAT::length)));
+					}
+
+					return result;
 				}
 
 			private:

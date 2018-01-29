@@ -14,11 +14,11 @@
 
 #include <cstddef>  // std::size_t
 #include <cstdint>  // std::u..._t types
+#include <cstring>  // std::strlen
 #include <string>
 
 #include "slim/Exception.hpp"
 #include "slim/proto/Command.hpp"
-#include "slim/util/Buffer.hpp"
 
 
 namespace slim
@@ -54,15 +54,30 @@ namespace slim
 						throw slim::Exception("Missing 'HELO' label in the header");
 					}
 
-					// validating provided data is sufficient and serializing HELO command
-					if (size < sizeof(HELO))
+					// validating provided data is sufficient for the fixed part of HELO command
+					if (size < sizeof(helo))
 					{
-						throw slim::Exception("Message is too small");
+						throw slim::Exception("Message is too small for the fixed part of HELO command");
 					}
-					memcpy(&helo, buffer, sizeof(HELO));
 
-					// TODO: work in progress
+					// serializing fixed part of HELO command
+					memcpy(&helo, buffer, sizeof(helo));
+
+					// validating length attribute from HELO command (last -1 accounts for tailing zero)
 					helo.length = ntohl(helo.length);
+					if (helo.length > sizeof(helo) + sizeof(capabilities) - sizeof(helo.opcode) - sizeof(helo.length) - 1)
+					{
+						throw slim::Exception("Length provided in HELO command is too big");
+					}
+
+					// making sure there is enough data provided for the dynamic part of HELO command
+					if (!isEnoughData(buffer, size))
+					{
+						throw slim::Exception("Message is too small for HELO command");
+					}
+
+					// serializing dynamic part of HELO command
+					memcpy(capabilities, buffer + sizeof(helo), helo.length + sizeof(helo.opcode) + sizeof(helo.length) - sizeof(helo));
 				}
 
 				// using Rule Of Zero
@@ -79,27 +94,27 @@ namespace slim
 
 				virtual std::size_t getSize() override
 				{
-					// TODO: work in progress
-					return helo.length + sizeof(helo.opcode) + sizeof(helo.length);
+					return sizeof(helo) + std::strlen(capabilities);
 				}
 
-				inline static auto enoughData(unsigned char* buffer, std::size_t size)
+				inline static bool isEnoughData(unsigned char* buffer, std::size_t size)
 				{
 					auto        result{false};
 					std::size_t offset{4};
 
+					// TODO: consider max length size
 					if (size >= offset + sizeof(std::uint32_t))
 					{
 						std::uint32_t length{ntohl(*(std::uint32_t*)(buffer + offset))};
-						result = (length <= size);
+						result = (size >= (length + sizeof(HELO::opcode) + sizeof(HELO::length)));
 					}
 
 					return result;
 				}
 
 			private:
-				HELO         helo;
-				util::Buffer capabilities;
+				HELO helo;
+				char capabilities[2048]{0};
 		};
 	}
 }
