@@ -27,14 +27,14 @@ Once SlimPlexor works as required, proceed with the steps below.
 
 ## Required prerequisites
 
-SlimStreamer is written in C++17 so it requires an adequate C++ compiler (the commands below also installs ALSA headers required for using ALSA API):
+SlimStreamer is written in C++17 so it requires an adequate compiler (the commands below also installs ALSA headers required for using ALSA API):
 
 ```
 sudo apt-get update
 sudo apt-get install build-essential g++ libasound2-dev
 ```
 
-To validate if C++ compiler supports C++17, use this command:
+To validate if installed compiler supports C++17, use this command:
 
 ```
 andrej@sandbox:~$ g++ --version                                                                                                                                                
@@ -45,7 +45,7 @@ warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 ```
 
 If you got version 7.x (or above) installed, it will do for compiling SlimStreamer.
-However GCC version 7.x is not yet shipped by default for most Linux distribution.
+However GCC version 7.x is not yet shipped by default for most Linux distributions.
 In other words you will see some lower version of the compiler, which leads to a question how you should upgrade it to version 7.x (which supports C++17).
 Here you go:
 
