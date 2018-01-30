@@ -84,7 +84,7 @@ namespace slim
 
 				inline bool onChunk(Chunk& chunk, unsigned int sr)
 				{
-					if (sr && samplingRate != sr)
+					if (sr && samplingRate && samplingRate != sr)
 					{
 						// resetting current sampling rate to zero so futher routine can handle it
 						samplingRate = 0;
@@ -96,70 +96,73 @@ namespace slim
 						}
 
 						// creating a vector with all command sessions that require a relevant HTTP session
+						unmatchedSessions.clear();
 						for (auto& entry : commandSessions)
 						{
 							unmatchedSessions.push_back(entry.second.get());
 						}
 					}
 
-					auto done{true};
 					if (sr && !samplingRate)
 					{
-						// deferring chunk transmition and setting a new sampling rate
-						done         = false;
-						samplingRate = sr;
+						// deferring chunk transmition for at least for one quantum
+						streaming = false;
 
-						// sending command to start streaming
+						LOG(INFO) << "Initialize streaming";
+
+						// assigning new sampling rate and start streaming
+						samplingRate = sr;
 						for (auto& entry : commandSessions)
 						{
 					        entry.second->stream(samplingRate);
 						}
 					}
 
-					if (sr && samplingRate == sr && done)
+					auto unmatchedTotal{unmatchedSessions.size()};
+					if (sr && samplingRate == sr && !streaming)
 					{
-						auto s{unmatchedSessions.size()};
+						auto threasholdReached{hasToFinish()};
 
-						// if there are command sessions without relevant HTTP session
-						if (s > 0)
+						if (threasholdReached || !unmatchedTotal)
 						{
-							// if there is time for deferring chunk processing
-							if (!hasToFinish())
+							if (threasholdReached)
 							{
-								LOG(DEBUG) << "Deferring chunk transmition due to missing HTTP sessions";
-								done = false;
-
-								// TODO: implement cruise control; for now sleep is good enough
-								// this sleep prevents from busy spinning until all HTTP sessions reconnect
-								std::this_thread::sleep_for(std::chrono::milliseconds{20});
+								LOG(WARNING) << "Could not defer chunk processing due to reached threashold";
 							}
-							else
-							{
-								LOG(DEBUG) << "Could not defer chunk processing due to reached threashold";
-							}
-						}
+							LOG(INFO) << "Start streaming";
 
-						// if there is no need to defer chunk processing
-						if (done)
-						{
+							streaming = true;
+
 							// resetting period during which chunk processing can be deferred
 							deferStartedAt.reset();
+						}
+						else
+						{
+							LOG(DEBUG) << "Deferring chunk transmition due to missing HTTP sessions";
 
-							// sending chunk to all HTTP sessions
-							for (auto& entry : streamingSessions)
-							{
-								entry.second->onChunk(chunk, samplingRate);
-							}
-
-							// if there are command sessions without relevant HTTP session
-							if (s > 0)
-							{
-								LOG(WARNING) << "Current chunk transmition was skipped for " << s << " client(s)";
-							}
+							// TODO: implement cruise control; for now sleep is good enough
+							// TODO: cruise control requires introducing a new pipeline status - pause
+							// this sleep prevents from busy spinning until all HTTP sessions reconnect
+							std::this_thread::sleep_for(std::chrono::milliseconds{20});
 						}
 					}
 
-					return done;
+					if (sr && samplingRate == sr && streaming)
+					{
+						// sending chunk to all HTTP sessions
+						for (auto& entry : streamingSessions)
+						{
+							entry.second->onChunk(chunk, samplingRate);
+						}
+
+						// if there are command sessions without relevant HTTP session
+						if (unmatchedTotal > 0)
+						{
+							LOG(WARNING) << "Current chunk transmition was skipped for " << unmatchedTotal << " client(s)";
+						}
+					}
+
+					return streaming;
 				}
 
 				void onHTTPClose(ConnectionType& connection)
@@ -183,6 +186,8 @@ namespace slim
 						{
 							unmatchedSessions.push_back({commandSession.value()});
 						}
+
+						commandSession.value()->onStreamingSessionClose();
 					}
 				}
 
@@ -366,7 +371,9 @@ namespace slim
 					if (deferStartedAt.has_value())
 					{
 						auto diff{std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - deferStartedAt.value()).count()};
-						finish = (diff > 100);
+
+						// TODO: should be configurable
+						finish = (diff > 200);
 					}
 					else
 					{
@@ -398,6 +405,7 @@ namespace slim
 				SessionsMap<CommandSession<ConnectionType>>   commandSessions;
 				SessionsMap<StreamingSession<ConnectionType>> streamingSessions;
 				std::vector<CommandSession<ConnectionType>*>  unmatchedSessions;
+				bool                                          streaming{false};
 				unsigned int                                  samplingRate{0};
 				unsigned long                                 nextID{1};
 				conwrap::ProcessorProxy<ContainerBase>*       processorProxyPtr{nullptr};

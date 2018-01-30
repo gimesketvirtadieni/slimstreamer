@@ -69,16 +69,26 @@ namespace slim
 					return clientID;
 				}
 
+				inline auto isConnectedReceived()
+				{
+					return connectedReceived;
+				}
+
+				inline auto isResponseReceived()
+				{
+					return responseReceived;
+				}
+
 				inline void onRequest(unsigned char* buffer, std::size_t size)
 				{
-					LOG(DEBUG) << "SlimProto onRequest size=" << size;
+					//LOG(DEBUG) << "SlimProto onRequest size=" << size;
 
 					// adding data to the buffer
 					commandBuffer.append(buffer, size);
 
 					// removing processed data from the buffer in exception safe way
 					std::size_t processedSize{commandBuffer.size()};
-					auto guard = util::makeScopeGuard([&]()
+					auto guard = util::makeScopeGuard([&]
 					{
 						commandBuffer.shrinkLeft(processedSize);
 					});
@@ -114,6 +124,12 @@ namespace slim
 						// it will keep buffer unchanged
 						processedSize = 0;
 					}
+				}
+
+				inline void onStreamingSessionClose()
+				{
+					connectedReceived = false;
+					responseReceived  = false;
 				}
 
 				inline void ping()
@@ -192,6 +208,8 @@ namespace slim
 				{
 					LOG(DEBUG) << "RESP command received";
 
+					responseReceived = true;
+
 					return size;
 				}
 
@@ -202,13 +220,21 @@ namespace slim
 					// if there is enough data to process HELO message
 					if (CommandSTAT::isEnoughData(buffer, size))
 					{
-						LOG(DEBUG) << "STAT command received";
-
 						// deserializing STAT command
 						auto commandSTAT{CommandSTAT{buffer, size}};
 						result = commandSTAT.getSize();
 
-						LOG(DEBUG) << "STAT event=" << commandSTAT.getEvent();
+						// TODO: work in progress
+						auto event{commandSTAT.getEvent()};
+						if (!event.compare("STMc"))
+						{
+							LOG(DEBUG) << "STMc command received";
+							connectedReceived = true;
+						}
+						else
+						{
+							LOG(DEBUG) << "STAT command received";
+						}
 					}
 
 					return result;
@@ -228,6 +254,8 @@ namespace slim
 				ConnectionType&            connection;
 				std::string                clientID;
 				HandlersMap                handlersMap;
+				bool                       connectedReceived{false};
+				bool                       responseReceived{false};
 				util::Buffer               commandBuffer{std:size_t{0}, std:size_t{2048}};
 				std::optional<CommandHELO> commandHELO{std::nullopt};
 				std::optional<TimePoint>   lastPingAt{std::nullopt};
