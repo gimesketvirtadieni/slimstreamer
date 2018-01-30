@@ -44,11 +44,14 @@ namespace slim
 						{
 							openCallback(connection);
 
-							// registering a new connection if capacity allows so new requests can be accepted
-							if (maxConnections > std::count_if(connections.begin(), connections.end(), [&](auto& connectionPtr)
+							// for whatever / unknown reason std::count_if returns signed!!! result, hence a type cast is required
+							auto foundTotal{std::count_if(connections.begin(), connections.end(), [&](auto& connectionPtr)
 							{
 								return connectionPtr->isOpen();
-							}))
+							})};
+
+							// registering a new connection if capacity allows so new requests can be accepted
+							if (foundTotal <= 0 || static_cast<unsigned int>(foundTotal) < maxConnections)
 							{
 								addConnection();
 							}
