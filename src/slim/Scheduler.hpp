@@ -41,57 +41,88 @@ namespace slim
 			void setProcessorProxy(conwrap::ProcessorProxy<ContainerBase>* p)
 			{
 				processorProxyPtr = p;
-
-				// propogating processor to all pipelines
-				for (auto& pipeline : pipelines)
-				{
-					pipeline.setProcessorProxy(processorProxyPtr);
-				}
 			}
 
 			void start()
 			{
 				for (auto& pipeline : pipelines)
 				{
-					auto producerTask = [&]
+					// starting producer thread
+					std::thread producerThread
 					{
-						LOG(DEBUG) << "Starting PCM data capture thread (id=" << this << ")";
-
-						try
+						[&]
 						{
-							pipeline.start();
-						}
-						catch (const slim::Exception& error)
-						{
-							LOG(ERROR) << error;
-						}
+							LOG(DEBUG) << "Starting PCM data capture thread (id=" << this << ")";
 
-						LOG(DEBUG) << "Stopping PCM data capture thread (id=" << this << ")";
+							try
+							{
+								pipeline.start();
+							}
+							catch (const slim::Exception& error)
+							{
+								LOG(ERROR) << error;
+							}
+
+							LOG(DEBUG) << "Stopping PCM data capture thread (id=" << this << ")";
+						}
 					};
 
-					// starting producer and making sure it is up and running before creating a consumer
-					std::thread producerThread{producerTask};
+					// making sure it is up and running before creating a consumer
 					while(producerThread.joinable() && !pipeline.isProducing())
 					{
 						std::this_thread::sleep_for(std::chrono::milliseconds{10});
 					}
 
 					// adding producer thread for Real-Time processing
-					threads.emplace_back(std::move(producerThread));
+					threads.push_back(std::move(producerThread));
 				}
 
-				// creating one single thread for consuming PCM data for all pipelines
-				threads.emplace_back(std::thread
+				// starting a single consumer thread for processing PCM data for all pipelines
+				std::thread consumerThread
 				{
 					[&]
 					{
 						LOG(DEBUG) << "Starting streamer thread (id=" << this << ")";
 
-						stream();
+						for(auto producing{true}, available{true}; producing;)
+						{
+							producing = false;
+							available = false;
+
+							for (auto& pipeline : pipelines)
+							{
+								auto p{pipeline.isProducing()};
+								auto a{pipeline.isAvailable()};
+
+								// if there is PCM available then submitting a task to the processor
+								if (p && a)
+								{
+									processorProxyPtr->process([&]
+									{
+										// TODO: calculate maxChunks per processing quantum
+										pipeline.onProcess(5);
+									});
+								}
+
+								// using pipeline status to determine whether to sleep or to exit
+								producing |= p;
+								available |= a;
+							}
+
+							// if no PCM data is available in any of the pipelines then pause processing
+							if (!available)
+							{
+								// TODO: cruise control should be implemented
+								std::this_thread::sleep_for(std::chrono::milliseconds{20});
+							}
+						}
 
 						LOG(DEBUG) << "Stopping streamer thread (id=" << this << ")";
 					}
-				});
+				};
+
+				// saving consumer thread in the same pool
+				threads.push_back(std::move(consumerThread));
 			}
 
 			void stop(bool gracefully = true)
@@ -115,38 +146,6 @@ namespace slim
 					if (thread.joinable())
 					{
 						thread.join();
-					}
-				}
-			}
-
-		protected:
-			inline void stream()
-			{
-				for(auto producing{true}, available{true}; producing;)
-				{
-					producing = false;
-					available = false;
-
-					for (auto& pipeline : pipelines)
-					{
-						// if there is PCM data ready to be read
-						if ((producing = pipeline.isProducing()) && (available = pipeline.isAvailable()))
-						{
-							// submitting a task to the process which would process X chunks at most
-							processorProxyPtr->process([&]
-							{
-								// TODO: calculate maxChunks per processing quantum
-								// TODO: consider exit reason for scheduling tasks
-								pipeline.processChunks(5);
-							});
-						}
-					}
-
-					// if no PCM data is available in any of the pipelines then pause processing
-					if (!available)
-					{
-						// TODO: cruise control should be implemented
-						std::this_thread::sleep_for(std::chrono::milliseconds{20});
 					}
 				}
 			}

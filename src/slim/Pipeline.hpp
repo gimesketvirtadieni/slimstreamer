@@ -45,8 +45,7 @@ namespace slim
 				return source.isProducing();
 			}
 
-			// TODO: should return exit reason (max was reached|suplier signalled with done|no more available chunks)
-			inline void processChunks(unsigned int maxChunks)
+			inline void onProcess(unsigned int maxChunks)
 			{
 				// no need to return defer status to the scheduler as deferring chunks is handled by a pipeline, source and destination
 				auto done{true};
@@ -59,11 +58,6 @@ namespace slim
 						return destination.consume(chunk);
 					});
 				}
-			}
-
-			void setProcessorProxy(conwrap::ProcessorProxy<ContainerBase>* p)
-			{
-				processorProxyPtr = p;
 			}
 
 			inline void start()
@@ -80,8 +74,7 @@ namespace slim
 			}
 
 		private:
-			Source                                  source;
-			Destination                             destination;
-			conwrap::ProcessorProxy<ContainerBase>* processorProxyPtr{nullptr};
+			Source      source;
+			Destination destination;
 	};
 }
