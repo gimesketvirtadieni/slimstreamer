@@ -41,6 +41,12 @@ namespace slim
 			void setProcessorProxy(conwrap::ProcessorProxy<ContainerBase>* p)
 			{
 				processorProxyPtr = p;
+
+				// propogating processor to all pipelines
+				for (auto& pipeline : pipelines)
+				{
+					pipeline.setProcessorProxy(processorProxyPtr);
+				}
 			}
 
 			void start()
@@ -148,6 +154,6 @@ namespace slim
 		private:
 			std::vector<Pipeline<Source, Destination>> pipelines;
 			std::vector<std::thread>                   threads;
-			conwrap::ProcessorProxy<ContainerBase>*    processorProxyPtr;
+			conwrap::ProcessorProxy<ContainerBase>*    processorProxyPtr{nullptr};
 	};
 }

@@ -12,7 +12,10 @@
 
 #pragma once
 
+#include <conwrap/ProcessorProxy.hpp>
+
 #include "slim/Chunk.hpp"
+#include "slim/ContainerBase.hpp"
 
 
 namespace slim
@@ -58,6 +61,11 @@ namespace slim
 				}
 			}
 
+			void setProcessorProxy(conwrap::ProcessorProxy<ContainerBase>* p)
+			{
+				processorProxyPtr = p;
+			}
+
 			inline void start()
 			{
 				source.start([]
@@ -72,7 +80,8 @@ namespace slim
 			}
 
 		private:
-		   Source      source;
-		   Destination destination;
+			Source                                  source;
+			Destination                             destination;
+			conwrap::ProcessorProxy<ContainerBase>* processorProxyPtr{nullptr};
 	};
 }
