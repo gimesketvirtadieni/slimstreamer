@@ -12,6 +12,7 @@
 
 #pragma once
 
+#include <chrono>
 #include <conwrap/ProcessorProxy.hpp>
 
 #include "slim/Chunk.hpp"
@@ -23,6 +24,8 @@ namespace slim
 	template<typename Source, typename Destination>
 	class Pipeline
 	{
+		using TimePoint = std::chrono::time_point<std::chrono::steady_clock>;
+
 		public:
 			Pipeline(Source s, Destination d)
 			: source{std::move(s)}
@@ -37,7 +40,24 @@ namespace slim
 
 			inline bool isAvailable()
 			{
-				return source.isAvailable();
+				auto result{source.isAvailable()};
+
+				if (pauseRequestAt.has_value())
+				{
+					auto diff{std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - pauseRequestAt.value()).count()};
+
+					if (diff > pauseMillisec)
+					{
+						pauseRequestAt = std::nullopt;
+						pauseMillisec  = 0;
+					}
+					else
+					{
+						result = false;
+					}
+				}
+
+				return result;
 			}
 
 			inline bool isProducing()
@@ -48,15 +68,21 @@ namespace slim
 			inline void onProcess(unsigned int maxChunks)
 			{
 				// no need to return defer status to the scheduler as deferring chunks is handled by a pipeline, source and destination
-				auto done{true};
+				auto processed{true};
 
 				// processing chunks as long as destination is not deferring them AND max chunks per task is not reached AND there are chunks available
-				for (unsigned int count{0}; done && count < maxChunks && source.isAvailable(); count++)
+				for (unsigned int count{0}; processed && count < maxChunks && isAvailable(); count++)
 				{
-					done = source.supply([&](Chunk& chunk)
+					processed = source.supply([&](Chunk& chunk)
 					{
 						return destination.consume(chunk);
 					});
+				}
+
+				// if it was not possible to process a chunk then pausing this pipeline
+				if (!processed)
+				{
+					pause(100);
 				}
 			}
 
@@ -73,8 +99,18 @@ namespace slim
 				source.stop(gracefully);
 			}
 
+		protected:
+			inline void pause(unsigned int millisec)
+			{
+				pauseRequestAt = std::chrono::steady_clock::now();
+				// TODO: use logic pauseRequestAt + millisec
+				pauseMillisec = millisec;
+			}
+
 		private:
 			Source      source;
 			Destination destination;
+			std::optional<TimePoint> pauseRequestAt{std::nullopt};
+			unsigned int             pauseMillisec;
 	};
 }

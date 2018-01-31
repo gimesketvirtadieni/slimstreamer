@@ -38,7 +38,7 @@ namespace slim
 
 				inline bool consume(Chunk& chunk)
 				{
-					// return false in case chunk needs to be deffered
+					// returns true in case chunk was processed; otherwise processing needs to defer
 					return streamer.onChunk(chunk, samplingRate);
 				}
 
