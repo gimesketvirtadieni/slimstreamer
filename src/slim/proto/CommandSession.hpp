@@ -25,6 +25,7 @@
 #include "slim/proto/CommandSETD.hpp"
 #include "slim/proto/CommandSTAT.hpp"
 #include "slim/proto/CommandSTRM.hpp"
+#include "slim/proto/StreamingSession.hpp"
 #include "slim/util/Buffer.hpp"
 #include "slim/util/ScopeGuard.hpp"
 
@@ -67,6 +68,11 @@ namespace slim
 				inline auto getClientID()
 				{
 					return clientID;
+				}
+
+				inline auto getStreamingSession()
+				{
+					return streamingSessionPtr;
 				}
 
 				inline auto isConnectedReceived()
@@ -126,12 +132,6 @@ namespace slim
 					}
 				}
 
-				inline void onStreamingSessionClose()
-				{
-					connectedReceived = false;
-					responseReceived  = false;
-				}
-
 				inline void ping()
 				{
 					auto  command{CommandSTRM{CommandSelection::Time}};
@@ -165,6 +165,20 @@ namespace slim
 
 						// restoring the last ping time value in case of an error
 						lastPingAt = tmp;
+					}
+				}
+
+				inline void setStreamingSession(StreamingSession<ConnectionType>* s)
+				{
+					if (s)
+					{
+						streamingSessionPtr = s;
+					}
+					else
+					{
+						streamingSessionPtr = nullptr;
+						connectedReceived   = false;
+						responseReceived    = false;
 					}
 				}
 
@@ -233,7 +247,7 @@ namespace slim
 						}
 						else
 						{
-							LOG(DEBUG) << "STAT command received";
+							LOG(DEBUG) << event << " command received";
 						}
 					}
 
@@ -251,14 +265,15 @@ namespace slim
 				}
 
 			private:
-				ConnectionType&            connection;
-				std::string                clientID;
-				HandlersMap                handlersMap;
-				bool                       connectedReceived{false};
-				bool                       responseReceived{false};
-				util::Buffer               commandBuffer{std:size_t{0}, std:size_t{2048}};
-				std::optional<CommandHELO> commandHELO{std::nullopt};
-				std::optional<TimePoint>   lastPingAt{std::nullopt};
+				ConnectionType&                   connection;
+				std::string                       clientID;
+				HandlersMap                       handlersMap;
+				StreamingSession<ConnectionType>* streamingSessionPtr{nullptr};
+				bool                              connectedReceived{false};
+				bool                              responseReceived{false};
+				util::Buffer                      commandBuffer{std:size_t{0}, std:size_t{2048}};
+				std::optional<CommandHELO>        commandHELO{std::nullopt};
+				std::optional<TimePoint>          lastPingAt{std::nullopt};
 		};
 	}
 }

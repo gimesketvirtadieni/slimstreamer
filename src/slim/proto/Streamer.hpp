@@ -94,13 +94,6 @@ namespace slim
 						{
 							entry.first->stop();
 						}
-
-						// creating a vector with all command sessions that require a relevant HTTP session
-						unmatchedSessions.clear();
-						for (auto& entry : commandSessions)
-						{
-							unmatchedSessions.push_back(entry.second.get());
-						}
 					}
 
 					if (sr && !samplingRate)
@@ -118,12 +111,15 @@ namespace slim
 						}
 					}
 
-					auto unmatchedTotal{unmatchedSessions.size()};
 					if (sr && samplingRate == sr && !streaming)
 					{
 						auto threasholdReached{hasToFinish()};
+						auto missingSessionsTotal{std::count_if(commandSessions.begin(), commandSessions.end(), [&](auto& entry)
+						{
+							return (!entry.second->getStreamingSession());
+						})};
 
-						if (threasholdReached || !unmatchedTotal)
+						if (threasholdReached || !missingSessionsTotal)
 						{
 							if (threasholdReached)
 							{
@@ -150,15 +146,21 @@ namespace slim
 					if (sr && samplingRate == sr && streaming)
 					{
 						// sending chunk to all HTTP sessions
-						for (auto& entry : streamingSessions)
+						auto counter{commandSessions.size()};
+						for (auto& entry : commandSessions)
 						{
-							entry.second->onChunk(chunk, samplingRate);
+							auto streamingSessionPtr{entry.second->getStreamingSession()};
+							if (streamingSessionPtr)
+							{
+								streamingSessionPtr->onChunk(chunk, samplingRate);
+								counter--;
+							}
 						}
 
 						// if there are command sessions without relevant HTTP session
-						if (unmatchedTotal > 0)
+						if (counter > 0)
 						{
-							LOG(WARNING) << "Current chunk transmition was skipped for " << unmatchedTotal << " client(s)";
+							LOG(WARNING) << "Current chunk transmition was skipped for " << counter << " client(s)";
 						}
 					}
 
@@ -176,18 +178,8 @@ namespace slim
 					// if there is a relevant SlimProto connection found
 					if (commandSession.has_value())
 					{
-						auto found{std::find_if(unmatchedSessions.begin(), unmatchedSessions.end(), [&](auto& entry) -> bool
-						{
-							return entry == commandSession.value();
-						})};
-
-						// adding command session pointer if it is missing in vector
-						if (found == unmatchedSessions.end())
-						{
-							unmatchedSessions.push_back({commandSession.value()});
-						}
-
-						commandSession.value()->onStreamingSessionClose();
+						// reseting HTTP session in its relevant SlimProto session
+						commandSession.value()->setStreamingSession(nullptr);
 					}
 				}
 
@@ -228,15 +220,11 @@ namespace slim
 							}
 
 							// creating streaming session object
-							auto streamingSessionPtr{std::make_unique<StreamingSession<ConnectionType>>(connection, clientID.value(), 2, samplingRate, 32)};
-							streamingSessionPtr->onRequest(buffer, receivedSize);
-							addSession(streamingSessions, connection, std::move(streamingSessionPtr));
+							auto  streamingSessionPtr{std::make_unique<StreamingSession<ConnectionType>>(connection, clientID.value(), 2, samplingRate, 32)};
+							auto& streamingSession{addSession(streamingSessions, connection, std::move(streamingSessionPtr))};
 
-							// removing command session from unmatched sessions vector
-							unmatchedSessions.erase(std::remove_if(unmatchedSessions.begin(), unmatchedSessions.end(), [&](auto& entry) -> bool
-							{
-								return entry == commandSessionPtr;
-							}), unmatchedSessions.end());
+							commandSessionPtr->setStreamingSession(&streamingSession);
+							streamingSession.onRequest(buffer, receivedSize);
 						}
 						catch (const slim::Exception& error)
 						{
@@ -255,13 +243,7 @@ namespace slim
 				{
 					LOG(INFO) << "SlimProto close callback";
 
-					auto commandSessionPtr{removeSession(commandSessions, connection)};
-
-					// removing command session from unmatched sessions vector
-					unmatchedSessions.erase(std::remove_if(unmatchedSessions.begin(), unmatchedSessions.end(), [&](auto& entry) -> bool
-					{
-						return entry == commandSessionPtr.get();
-					}), unmatchedSessions.end());
+					removeSession(commandSessions, connection);
 				}
 
 				void onSlimProtoData(ConnectionType& connection, unsigned char* buffer, std::size_t size)
@@ -404,7 +386,6 @@ namespace slim
 			private:
 				SessionsMap<CommandSession<ConnectionType>>   commandSessions;
 				SessionsMap<StreamingSession<ConnectionType>> streamingSessions;
-				std::vector<CommandSession<ConnectionType>*>  unmatchedSessions;
 				bool                                          streaming{false};
 				unsigned int                                  samplingRate{0};
 				unsigned long                                 nextID{1};
