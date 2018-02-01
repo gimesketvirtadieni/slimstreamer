@@ -113,12 +113,8 @@ namespace slim
 
 					if (sr && samplingRate == sr && !streaming)
 					{
-						// evaluating whether timeout has expired and amount of unprepared SlimProto session
+						// evaluating whether timeout has expired and amount of missing HTTP sessions
 						auto threasholdReached{hasToFinish()};
-						auto unreadySessionsTotal{std::count_if(commandSessions.begin(), commandSessions.end(), [&](auto& entry)
-						{
-							return !entry.second->isConnectedReceived();
-						})};
 						auto missingSessionsTotal{std::count_if(commandSessions.begin(), commandSessions.end(), [&](auto& entry)
 						{
 							auto streamingSessionPtr{entry.second->getStreamingSession()};
@@ -126,9 +122,9 @@ namespace slim
 							return !(streamingSessionPtr && samplingRate == streamingSessionPtr->getSamplingRate());
 						})};
 
-						if (threasholdReached || (!missingSessionsTotal && !unreadySessionsTotal))
+						if (threasholdReached || !missingSessionsTotal)
 						{
-							if (missingSessionsTotal || unreadySessionsTotal)
+							if (missingSessionsTotal)
 							{
 								LOG(WARNING) << "Could not defer chunk processing due to reached threashold";
 							}
@@ -141,11 +137,7 @@ namespace slim
 						}
 						else
 						{
-							if (unreadySessionsTotal)
-							{
-								LOG(DEBUG) << "Deferring chunk transmition due to unready SlimProto sessions";
-							}
-							else if (missingSessionsTotal)
+							if (missingSessionsTotal)
 							{
 								LOG(DEBUG) << "Deferring chunk transmition due to missing HTTP sessions";
 							}
