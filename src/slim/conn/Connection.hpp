@@ -121,8 +121,6 @@ namespace slim
 			protected:
 				void onClose(const std::error_code error)
 				{
-					LOG(DEBUG) << LABELS{"conn"} << "Closing connection (id=" << this << ", error='" << error.message() << "')...";
-
 					// invoking close callback before connection is desposed and setting opened status
 					if (opened)
 					{
@@ -133,7 +131,7 @@ namespace slim
 					// stopping this connection after it's been closed
 					onStop();
 
-					LOG(DEBUG) << LABELS{"conn"} << "Connection was closed (id=" << this << ")";
+					LOG(DEBUG) << LABELS{"conn"} << "Connection was closed (id=" << this << ", error='" << error.message() << "')";
 				}
 
 				void onData(const std::error_code error, const std::size_t receivedSize)
@@ -177,8 +175,6 @@ namespace slim
 					}
 					else
 					{
-						LOG(DEBUG) << LABELS{"conn"} << "Opening connection (id=" << this << ")...";
-
 						// invoking open callback and setting opened status
 						if (!opened)
 						{
@@ -195,8 +191,6 @@ namespace slim
 
 				void onStart()
 				{
-					LOG(DEBUG) << LABELS{"conn"} << "Starting connection (id=" << this << ")...";
-
 					// invoking open callback before any connectivy action
 					callbacks.getStartCallback()(*this);
 
@@ -205,8 +199,6 @@ namespace slim
 
 				void onStop()
 				{
-					LOG(DEBUG) << LABELS{"conn"} << "Stopping connection (id=" << this << ")...";
-
 					// connection cannot be removed at this moment as this method is called withing this connection
 					processorProxyPtr->process([&]
 					{

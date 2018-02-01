@@ -238,7 +238,7 @@ namespace slim
 						auto commandSTAT{CommandSTAT{buffer, size}};
 						result = commandSTAT.getSize();
 
-						// TODO: work in progress
+						// TODO: handle other STAT events
 						auto event{commandSTAT.getEvent()};
 						if (!event.compare("STMc"))
 						{

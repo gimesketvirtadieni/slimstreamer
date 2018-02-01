@@ -190,14 +190,12 @@ namespace slim
 
 				void onHTTPData(ConnectionType& connection, unsigned char* buffer, std::size_t receivedSize)
 				{
-					LOG(INFO) << "HTTP data callback receivedSize=" << receivedSize;
-
 					if (!applyToSession(streamingSessions, connection, [&](StreamingSession<ConnectionType>& session)
 					{
 						session.onRequest(buffer, receivedSize);
 					}))
 					{
-						LOG(INFO) << "HTTP request received";
+						LOG(INFO) << "New HTTP session request received";
 
 						try
 						{
@@ -233,7 +231,7 @@ namespace slim
 						}
 						catch (const slim::Exception& error)
 						{
-							LOG(ERROR) << "Incorrect HTTP request received: " << error.what();
+							LOG(ERROR) << "Incorrect HTTP session request: " << error.what();
 							connection.stop();
 						}
 					}
@@ -241,13 +239,10 @@ namespace slim
 
 				void onHTTPOpen(ConnectionType& connection)
 				{
-					LOG(INFO) << "HTTP open callback";
 				}
 
 				void onSlimProtoClose(ConnectionType& connection)
 				{
-					LOG(INFO) << "SlimProto close callback";
-
 					removeSession(commandSessions, connection);
 				}
 
@@ -287,7 +282,6 @@ namespace slim
 
 				void onSlimProtoOpen(ConnectionType& connection)
 				{
-					LOG(INFO) << "SlimProto open callback";
 				}
 
 				void setProcessorProxy(conwrap::ProcessorProxy<ContainerBase>* p)
@@ -299,8 +293,6 @@ namespace slim
 				template<typename SessionType>
 				inline auto& addSession(SessionsMap<SessionType>& sessions, ConnectionType& connection, std::unique_ptr<SessionType> sessionPtr)
 				{
-					LOG(DEBUG) << LABELS{"slim"} << "Adding new session (sessions=" << sessions.size() << ")...";
-
 					auto         found{sessions.find(&connection)};
 					SessionType* s{nullptr};
 
@@ -379,8 +371,6 @@ namespace slim
 				template<typename SessionType>
 				inline auto removeSession(SessionsMap<SessionType>& sessions, ConnectionType& connection)
 				{
-					LOG(DEBUG) << LABELS{"slim"} << "Removing session (sessions=" << sessions.size() << ")...";
-
 					auto sessionPtr{std::unique_ptr<SessionType>{}};
 					auto found{sessions.find(&connection)};
 
