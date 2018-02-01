@@ -49,9 +49,9 @@ namespace slim
 
 					for(unsigned int counter{0}; timerRunning; counter++, std::this_thread::sleep_for(std::chrono::milliseconds{200}))
 			        {
+						// TODO: make configurable
 						if (counter > 24)
 						{
-							// TODO: use std::optional
 							if (processorProxyPtr)
 							{
 								processorProxyPtr->process([&]
@@ -113,15 +113,22 @@ namespace slim
 
 					if (sr && samplingRate == sr && !streaming)
 					{
+						// evaluating whether timeout has expired and amount of unprepared SlimProto session
 						auto threasholdReached{hasToFinish()};
+						auto unreadySessionsTotal{std::count_if(commandSessions.begin(), commandSessions.end(), [&](auto& entry)
+						{
+							return !entry.second->isConnectedReceived();
+						})};
 						auto missingSessionsTotal{std::count_if(commandSessions.begin(), commandSessions.end(), [&](auto& entry)
 						{
-							return (!entry.second->getStreamingSession());
+							auto streamingSessionPtr{entry.second->getStreamingSession()};
+
+							return !(streamingSessionPtr && samplingRate == streamingSessionPtr->getSamplingRate());
 						})};
 
-						if (threasholdReached || !missingSessionsTotal)
+						if (threasholdReached || (!missingSessionsTotal && !unreadySessionsTotal))
 						{
-							if (threasholdReached)
+							if (missingSessionsTotal || unreadySessionsTotal)
 							{
 								LOG(WARNING) << "Could not defer chunk processing due to reached threashold";
 							}
@@ -134,10 +141,16 @@ namespace slim
 						}
 						else
 						{
-							LOG(DEBUG) << "Deferring chunk transmition due to missing HTTP sessions";
+							if (unreadySessionsTotal)
+							{
+								LOG(DEBUG) << "Deferring chunk transmition due to unready SlimProto sessions";
+							}
+							else if (missingSessionsTotal)
+							{
+								LOG(DEBUG) << "Deferring chunk transmition due to missing HTTP sessions";
+							}
 
 							// TODO: implement cruise control; for now sleep is good enough
-							// TODO: cruise control requires introducing a new pipeline status - pause
 							// this sleep prevents from busy spinning until all HTTP sessions reconnect
 							std::this_thread::sleep_for(std::chrono::milliseconds{20});
 						}
@@ -263,6 +276,12 @@ namespace slim
 							auto sessionPtr{std::make_unique<CommandSession<ConnectionType>>(connection, ss.str())};
 							sessionPtr->onRequest(buffer, size);
 
+							// enable streaming for this session if required
+							if (streaming)
+							{
+								sessionPtr->stream(samplingRate);
+							}
+
 							// saving command session in the map
 							addSession(commandSessions, connection, std::move(sessionPtr));
 						}
@@ -355,7 +374,7 @@ namespace slim
 						auto diff{std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - deferStartedAt.value()).count()};
 
 						// TODO: should be configurable
-						finish = (diff > 200);
+						finish = (diff > 500);
 					}
 					else
 					{

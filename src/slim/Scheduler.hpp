@@ -99,8 +99,7 @@ namespace slim
 								{
 									processorProxyPtr->process([&]
 									{
-										// TODO: calculate maxChunks per processing quantum
-										pipeline.onProcess(5);
+										pipeline.onProcess();
 									});
 								}
 

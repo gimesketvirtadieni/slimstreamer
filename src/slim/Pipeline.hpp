@@ -38,51 +38,56 @@ namespace slim
 			Pipeline(Pipeline&& rhs) = default;
 			Pipeline& operator=(Pipeline&& rhs) = default;
 
-			inline bool isAvailable()
+			inline auto isAvailable()
 			{
-				auto result{source.isAvailable()};
+				bool result;
 
-				if (pauseRequestAt.has_value())
+				if (pauseUntil.has_value() && pauseUntil.value() > std::chrono::steady_clock::now())
 				{
-					auto diff{std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - pauseRequestAt.value()).count()};
-
-					if (diff > pauseMillisec)
-					{
-						pauseRequestAt = std::nullopt;
-						pauseMillisec  = 0;
-					}
-					else
-					{
-						result = false;
-					}
+					result = false;
+				}
+				else
+				{
+					result = source.isAvailable();
+					pauseUntil.reset();
 				}
 
 				return result;
 			}
 
-			inline bool isProducing()
+			inline auto isProducing()
 			{
 				return source.isProducing();
 			}
 
-			inline void onProcess(unsigned int maxChunks)
+			inline void onProcess()
 			{
-				// no need to return defer status to the scheduler as deferring chunks is handled by a pipeline, source and destination
-				auto processed{true};
-
-				// processing chunks as long as destination is not deferring them AND max chunks per task is not reached AND there are chunks available
-				for (unsigned int count{0}; processed && count < maxChunks && isAvailable(); count++)
+				// making sure pipeline is not paused
+				if (!pauseUntil.has_value() || pauseUntil.value() < std::chrono::steady_clock::now())
 				{
-					processed = source.supply([&](Chunk& chunk)
+					pauseUntil.reset();
+
+					// TODO: calculate maxChunks per processing quantum
+					unsigned int maxChunks{5};
+
+					// no need to return defer status to the scheduler as deferring chunks is handled by a pipeline, source and destination
+					auto processed{true};
+
+					// processing chunks as long as destination is not deferring them AND max chunks per task is not reached AND there are chunks available
+					for (unsigned int count{0}; processed && count < maxChunks && isAvailable(); count++)
 					{
-						return destination.consume(chunk);
-					});
-				}
+						processed = source.supply([&](Chunk& chunk)
+						{
+							return destination.consume(chunk);
+						});
+					}
 
-				// if it was not possible to process a chunk then pausing this pipeline
-				if (!processed)
-				{
-					pause(100);
+					// if it was not possible to process a chunk then pausing this pipeline
+					// TODO: calculate optimal pause timeout
+					if (!processed)
+					{
+						pause(50);
+					}
 				}
 			}
 
@@ -102,15 +107,12 @@ namespace slim
 		protected:
 			inline void pause(unsigned int millisec)
 			{
-				pauseRequestAt = std::chrono::steady_clock::now();
-				// TODO: use logic pauseRequestAt + millisec
-				pauseMillisec = millisec;
+				pauseUntil = std::chrono::steady_clock::now() + std::chrono::milliseconds{millisec};
 			}
 
 		private:
-			Source      source;
-			Destination destination;
-			std::optional<TimePoint> pauseRequestAt{std::nullopt};
-			unsigned int             pauseMillisec;
+			Source                   source;
+			Destination              destination;
+			std::optional<TimePoint> pauseUntil{std::nullopt};
 	};
 }
