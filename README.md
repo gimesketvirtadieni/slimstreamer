@@ -202,7 +202,8 @@ Compilation process produces one binary executable file - SlimStreamer.
 # Running SlimStreamer
 
 To stream music to Squeezebox players, they need to be "directed" to use SlimStreamer (instead of LMS).
-If you are using squeezelite, a command may look like following (should be run on a host with an attached DAC; a server running SlimStreamer does not required a 'physical' DAC attached):
+This should be done by providing hostname and port (3484) to all players so they can connect to SlimStreamer.
+If you are using squeezelite, a command (-s parameter defines a server to connect to) may look like following (should be run on a host with an attached DAC; a server running SlimStreamer does not required a 'physical' DAC attached):
 
 ```
 andrej@sandbox:~$ /usr/bin/squeezelite -n playername -o outputdevice -d all=debug -s slimstreamerhost:3484
