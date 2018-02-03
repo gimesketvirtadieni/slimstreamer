@@ -22,7 +22,63 @@ Moreover, SlimStreamer captures PCM stream in a bit-perfect way (without resampl
 # Hmm, I want to give it a try. Where do I start?
 
 The first step is to setup [SlimPlexor](https://github.com/gimesketvirtadieni/slimplexor) plugin properly.  
-Once SlimPlexor works as required, proceed with the steps below.
+Once SlimPlexor works as required, SlimStreamer should be obtained and setup.
+
+## Obtaining SlimStreamer binaries
+
+The easest way to obtain SlimStreamer is to download the binary file.  
+Please note that binary files are platform specific, so use below instructions only as example (you can check out all releases with binaries [here](https://github.com/gimesketvirtadieni/slimstreamer/releases))
+
+```
+wget https://github.com/gimesketvirtadieni/slimstreamer/releases/download/v0.1.0-alpha/SlimStreamer_v0.1.0_amd64.zip
+unzip SlimStreamer_v0.1.0_amd64.zip
+./SlimStreamer
+```
+
+
+If SlimPlexor and ALSA were setup properly, then the output should look something like that:
+
+```
+andrej@sandbox:~/$ ./SlimStreamer 
+2018/02/03 14:01:08.251632 DEBUG [140570593976832] (Streamer.hpp:75) {proto} - Streamer object was created (id=0x56076b857ba0)
+2018/02/03 14:01:08.251638 DEBUG [140570593976832] (Server.hpp:86) {conn} - TCP server object was created (id=0x56076b857e50)
+2018/02/03 14:01:08.251640 DEBUG [140570593976832] (Server.hpp:86) {conn} - TCP server object was created (id=0x56076b858260)
+2018/02/03 14:01:08.252210 DEBUG [140570552411904] (Streamer.hpp:49) {proto} - Timer thread started
+2018/02/03 14:01:08.318715 DEBUG [140570593976832] (Scheduler.hpp:33) {slim} - Scheduler object was created (id=0x56076dfc3980)
+2018/02/03 14:01:08.319132 INFO [140570255939328] (Server.hpp:106) {conn} - Starting TCP new server (id=0x56076b857e50, port=3484, max connections=2)...
+2018/02/03 14:01:08.319419 INFO [140570255939328] (Server.hpp:177) {conn} - Acceptor was started (id=0x7fd900000bd0, port=3484)
+2018/02/03 14:01:08.319519 DEBUG [140570255939328] (Connection.hpp:47) {conn} - Connection object was created (id=0x7fd900000c40)
+2018/02/03 14:01:08.319584 DEBUG [140570255939328] (Connection.hpp:197) {conn} - Connection was started (id=0x7fd900000c40)
+2018/02/03 14:01:08.319655 INFO [140570255939328] (Server.hpp:148) {conn} - New connection was added (id=0x7fd900000c40, connections=1)
+2018/02/03 14:01:08.319851 INFO [140570255939328] (Server.hpp:113) {conn} - TCP server was started (id=0x56076b857e50)
+2018/02/03 14:01:08.319902 INFO [140570255939328] (Server.hpp:106) {conn} - Starting TCP new server (id=0x56076b858260, port=9001, max connections=2)...
+2018/02/03 14:01:08.319947 INFO [140570255939328] (Server.hpp:177) {conn} - Acceptor was started (id=0x7fd9000008c0, port=9001)
+2018/02/03 14:01:08.319975 DEBUG [140570255939328] (Connection.hpp:47) {conn} - Connection object was created (id=0x7fd900001540)
+2018/02/03 14:01:08.320001 DEBUG [140570255939328] (Connection.hpp:197) {conn} - Connection was started (id=0x7fd900001540)
+2018/02/03 14:01:08.320043 INFO [140570255939328] (Server.hpp:148) {conn} - New connection was added (id=0x7fd900001540, connections=1)
+2018/02/03 14:01:08.320075 INFO [140570255939328] (Server.hpp:113) {conn} - TCP server was started (id=0x56076b858260)
+2018/02/03 14:01:08.320394 DEBUG [140570239153920] (Scheduler.hpp:61) {slim} - Starting PCM data capture thread (id=0x56076dfc3980)
+2018/02/03 14:01:08.338551 DEBUG [140570230761216] (Scheduler.hpp:61) {slim} - Starting PCM data capture thread (id=0x56076dfc3980)
+2018/02/03 14:01:08.342845 DEBUG [140570222368512] (Scheduler.hpp:61) {slim} - Starting PCM data capture thread (id=0x56076dfc3980)
+2018/02/03 14:01:08.356469 DEBUG [140570213975808] (Scheduler.hpp:61) {slim} - Starting PCM data capture thread (id=0x56076dfc3980)
+2018/02/03 14:01:08.364639 DEBUG [140570205583104] (Scheduler.hpp:61) {slim} - Starting PCM data capture thread (id=0x56076dfc3980)
+2018/02/03 14:01:08.375349 DEBUG [140570197190400] (Scheduler.hpp:61) {slim} - Starting PCM data capture thread (id=0x56076dfc3980)
+2018/02/03 14:01:08.389961 DEBUG [140569850410752] (Scheduler.hpp:61) {slim} - Starting PCM data capture thread (id=0x56076dfc3980)
+2018/02/03 14:01:08.398418 DEBUG [140569842018048] (Scheduler.hpp:61) {slim} - Starting PCM data capture thread (id=0x56076dfc3980)
+2018/02/03 14:01:08.408340 DEBUG [140569833625344] (Scheduler.hpp:61) {slim} - Starting PCM data capture thread (id=0x56076dfc3980)
+2018/02/03 14:01:08.422830 DEBUG [140569825232640] (Scheduler.hpp:61) {slim} - Starting PCM data capture thread (id=0x56076dfc3980)
+2018/02/03 14:01:08.431553 DEBUG [140569816839936] (Scheduler.hpp:61) {slim} - Starting PCM data capture thread (id=0x56076dfc3980)
+2018/02/03 14:01:08.441383 DEBUG [140569808447232] (Scheduler.hpp:61) {slim} - Starting PCM data capture thread (id=0x56076dfc3980)
+2018/02/03 14:01:08.455706 DEBUG [140569800054528] (Scheduler.hpp:61) {slim} - Starting PCM data capture thread (id=0x56076dfc3980)
+2018/02/03 14:01:08.464388 DEBUG [140569791661824] (Scheduler.hpp:91) {slim} - Starting streamer thread (id=0x56076dfc3980)
+...
+```
+
+
+# Alright, I think I can handle building SlimStreamer myself
+
+Although building SlimStreamer is a straightforward procedure, there are few caveats to be awear.
+The description below explains each step along with its purpose.
 
 
 ## Required prerequisites
@@ -140,10 +196,12 @@ Makefile  SlimStreamer
 ```
 
 
-## Running SlimStreamer
-
 Compilation process produces one binary executable file - SlimStreamer.
-Just run it and point your Squeezebox players to use it instead of LMS.
+
+
+# Running SlimStreamer
+
+To stream music to Squeezebox players, they need to be "directed" to use SlimStreamer (instead of LMS).
 If you are using squeezelite, a command may look like following (should be run on a host with an attached DAC; a server running SlimStreamer does not required a 'physical' DAC attached):
 
 ```
@@ -158,7 +216,7 @@ andrej@sandbox:~$ /usr/bin/squeezelite -n playername -o outputdevice -d all=debu
 ...
 ```
 
-Injoy streaming ;)
+That's it, injoy streaming ;)
 
 
 # Development Status
