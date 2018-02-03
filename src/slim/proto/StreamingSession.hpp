@@ -70,7 +70,7 @@ namespace slim
 					}
 					else
 					{
-						LOG(WARNING) << "Skipping chunk transmition due to different sampling rate used by a client";
+						LOG(WARNING) << LABELS{"proto"} << "Skipping chunk transmition due to different sampling rate used by a client";
 					}
 				}
 
@@ -86,7 +86,7 @@ namespace slim
 
 				void onRequest(unsigned char* buffer, std::size_t size)
 				{
-					// LOG(DEBUG) << "HTTP onRequest";
+					// LOG(DEBUG) << LABELS{"proto"} << "HTTP onRequest";
 
 					//for (unsigned int i = 0; i < size; i++)
 					//{

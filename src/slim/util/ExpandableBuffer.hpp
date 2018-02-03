@@ -9,6 +9,9 @@
 //
 //  Simple memory buffer abstraction. Version 1.0.0.
 //
+// https://codesynthesis.com/~boris/blog//2011/08/09/do-we-need-std-buffer/
+
+#pragma once
 
 #include <cstddef>   // std::size_t
 #include <cstring>   // std::memcpy, std::memcmp, std::memset, std::memchr
@@ -19,30 +22,39 @@ namespace slim
 {
 	namespace util
 	{
-		class Buffer
+		class ExpandableBuffer
 		{
 			public:
 				typedef std::size_t size_type;
 
-				static const size_type npos = static_cast<size_type> (-1);
+				static const size_type npos{static_cast<size_type>(-1)};
 
-				explicit Buffer(size_type size = 0);
-			   ~Buffer();
-				Buffer(size_type size, size_type capacity);
-				Buffer(const void* data, size_type size);
-				Buffer(const void* data, size_type size, size_type capacity);
-				Buffer(void* data, size_type size, size_type capacity, bool assume_ownership);
-				Buffer(const Buffer&);
-				Buffer& operator= (const Buffer&);
+				explicit ExpandableBuffer(size_type size = 0);
+				explicit ExpandableBuffer(size_type size, size_type capacity);
+				explicit ExpandableBuffer(const void* data, size_type size);
+				explicit ExpandableBuffer(const void* data, size_type size, size_type capacity);
+				explicit ExpandableBuffer(void* data, size_type size, size_type capacity, bool assume_ownership);
 
-				void swap (Buffer&);
-				unsigned char* detach ();
+			   ~ExpandableBuffer()
+				{
+					if (free_)
+					{
+						delete[] data_;
+					}
+				}
 
-				void assign (const void* data, size_type size);
-				void assign (void* data, size_type size, size_type capacity, bool assume_ownership);
-				void append (const Buffer&);
-				void append (const void* data, size_type size);
-				void fill (char value = 0);
+				// TODO: move semantic
+				ExpandableBuffer(const ExpandableBuffer&);
+				ExpandableBuffer& operator=(const ExpandableBuffer&);
+
+				void swap(ExpandableBuffer&);
+				unsigned char* detach();
+
+				void assign(const void* data, size_type size);
+				void assign(void* data, size_type size, size_type capacity, bool assume_ownership);
+				void append(const ExpandableBuffer&);
+				void append(const void* data, size_type size);
+				void fill(char value = 0);
 
 				size_type size () const;
 				bool size (size_type);
@@ -82,26 +94,20 @@ namespace slim
 				bool free_;
 		};
 
-		bool operator== (const Buffer&, const Buffer&);
-		bool operator!= (const Buffer&, const Buffer&);
+		bool operator== (const ExpandableBuffer&, const ExpandableBuffer&);
+		bool operator!= (const ExpandableBuffer&, const ExpandableBuffer&);
 
 		//
 		// Implementation.
 		//
-		inline Buffer::~Buffer ()
-		{
-		  if (free_)
-			delete[] data_;
-		}
-
-		inline Buffer::Buffer (size_type s)
+		inline ExpandableBuffer::ExpandableBuffer (size_type s)
 			: free_ (true)
 		{
 		  data_ = (s != 0 ? new unsigned char[s] : 0);
 		  size_ = capacity_ = s;
 		}
 
-		inline Buffer::Buffer (size_type s, size_type c)
+		inline ExpandableBuffer::ExpandableBuffer (size_type s, size_type c)
 			: free_ (true)
 		{
 		  if (s > c)
@@ -112,7 +118,7 @@ namespace slim
 		  capacity_ = c;
 		}
 
-		inline Buffer::Buffer (const void* d, size_type s)
+		inline ExpandableBuffer::ExpandableBuffer (const void* d, size_type s)
 			: free_ (true)
 		{
 		  if (s != 0)
@@ -126,7 +132,7 @@ namespace slim
 		  size_ = capacity_ = s;
 		}
 
-		inline Buffer::Buffer (const void* d, size_type s, size_type c)
+		inline ExpandableBuffer::ExpandableBuffer (const void* d, size_type s, size_type c)
 			: free_ (true)
 		{
 		  if (s > c)
@@ -146,14 +152,14 @@ namespace slim
 		  capacity_ = c;
 		}
 
-		inline Buffer::Buffer (void* d, size_type s, size_type c, bool own)
+		inline ExpandableBuffer::ExpandableBuffer (void* d, size_type s, size_type c, bool own)
 			: data_ (static_cast<unsigned char*> (d)), size_ (s), capacity_ (c), free_ (own)
 		{
 		  if (s > c)
 			throw std::invalid_argument ("size greater than capacity");
 		}
 
-		inline Buffer::Buffer (const Buffer& x)
+		inline ExpandableBuffer::ExpandableBuffer (const ExpandableBuffer& x)
 			: free_ (true)
 		{
 		  if (x.capacity_ != 0)
@@ -170,7 +176,7 @@ namespace slim
 		  capacity_ = x.capacity_;
 		}
 
-		inline Buffer& Buffer::operator= (const Buffer& x)
+		inline ExpandableBuffer& ExpandableBuffer::operator= (const ExpandableBuffer& x)
 		{
 		  if (&x != this)
 		  {
@@ -193,7 +199,7 @@ namespace slim
 		  return *this;
 		}
 
-		inline void Buffer::swap (Buffer& x)
+		inline void ExpandableBuffer::swap (ExpandableBuffer& x)
 		{
 		  unsigned char* d (x.data_);
 		  size_type s (x.size_);
@@ -211,7 +217,7 @@ namespace slim
 		  free_ = f;
 		}
 
-		inline unsigned char* Buffer::detach ()
+		inline unsigned char* ExpandableBuffer::detach ()
 		{
 		  unsigned char* r (data_);
 
@@ -222,7 +228,7 @@ namespace slim
 		  return r;
 		}
 
-		inline void Buffer::assign (const void* d, size_type s)
+		inline void ExpandableBuffer::assign (const void* d, size_type s)
 		{
 		  if (s > capacity_)
 		  {
@@ -240,7 +246,7 @@ namespace slim
 		  size_ = s;
 		}
 
-		inline void Buffer::assign (void* d, size_type s, size_type c, bool own)
+		inline void ExpandableBuffer::assign (void* d, size_type s, size_type c, bool own)
 		{
 		  if (free_)
 			delete[] data_;
@@ -251,12 +257,12 @@ namespace slim
 		  free_ = own;
 		}
 
-		inline void Buffer::append (const Buffer& b)
+		inline void ExpandableBuffer::append (const ExpandableBuffer& b)
 		{
 		  append (b.data (), b.size ());
 		}
 
-		inline void Buffer::append (const void* d, size_type s)
+		inline void ExpandableBuffer::append (const void* d, size_type s)
 		{
 		  if (s != 0)
 		  {
@@ -270,18 +276,18 @@ namespace slim
 		  }
 		}
 
-		inline void Buffer::fill (char v)
+		inline void ExpandableBuffer::fill (char v)
 		{
 		  if (size_ > 0)
 			std::memset (data_, v, size_);
 		}
 
-		inline Buffer::size_type Buffer::size () const
+		inline ExpandableBuffer::size_type ExpandableBuffer::size () const
 		{
 		  return size_;
 		}
 
-		inline bool Buffer::size (size_type s)
+		inline bool ExpandableBuffer::size (size_type s)
 		{
 		  bool r (false);
 
@@ -292,12 +298,12 @@ namespace slim
 		  return r;
 		}
 
-		inline Buffer::size_type Buffer::capacity () const
+		inline ExpandableBuffer::size_type ExpandableBuffer::capacity () const
 		{
 		  return capacity_;
 		}
 
-		inline bool Buffer::capacity (size_type c)
+		inline bool ExpandableBuffer::capacity (size_type c)
 		{
 		  // Ignore capacity decrease requests.
 		  //
@@ -319,37 +325,37 @@ namespace slim
 		  return true;
 		}
 
-		inline bool Buffer::empty () const
+		inline bool ExpandableBuffer::empty () const
 		{
 		  return size_ == 0;
 		}
 
-		inline void Buffer::clear ()
+		inline void ExpandableBuffer::clear ()
 		{
 		  size_ = 0;
 		}
 
-		inline unsigned char* Buffer::data ()
+		inline unsigned char* ExpandableBuffer::data ()
 		{
 		  return data_;
 		}
 
-		inline const unsigned char* Buffer::data () const
+		inline const unsigned char* ExpandableBuffer::data () const
 		{
 		  return data_;
 		}
 
-		inline unsigned char& Buffer::operator[] (size_type i)
+		inline unsigned char& ExpandableBuffer::operator[] (size_type i)
 		{
 		  return data_[i];
 		}
 
-		inline unsigned char Buffer::operator[] (size_type i) const
+		inline unsigned char ExpandableBuffer::operator[] (size_type i) const
 		{
 		  return data_[i];
 		}
 
-		inline unsigned char& Buffer::at (size_type i)
+		inline unsigned char& ExpandableBuffer::at (size_type i)
 		{
 		  if (i >= size_)
 			throw std::out_of_range ("index out of range");
@@ -357,7 +363,7 @@ namespace slim
 		  return data_[i];
 		}
 
-		inline unsigned char Buffer::at (size_type i) const
+		inline unsigned char ExpandableBuffer::at (size_type i) const
 		{
 		  if (i >= size_)
 			throw std::out_of_range ("index out of range");
@@ -365,7 +371,7 @@ namespace slim
 		  return data_[i];
 		}
 
-		inline Buffer::size_type Buffer::find (unsigned char v, size_type pos) const
+		inline ExpandableBuffer::size_type ExpandableBuffer::find (unsigned char v, size_type pos) const
 		{
 		  if (size_ == 0 || pos >= size_)
 			return npos;
@@ -374,7 +380,7 @@ namespace slim
 		  return p != 0 ? static_cast<size_type> (p - data_) : npos;
 		}
 
-		inline Buffer::size_type Buffer::rfind (unsigned char v, size_type pos) const
+		inline ExpandableBuffer::size_type ExpandableBuffer::rfind (unsigned char v, size_type pos) const
 		{
 		  // memrchr() is not standard.
 		  //
@@ -393,13 +399,13 @@ namespace slim
 		  return npos;
 		}
 
-		inline bool operator== (const Buffer& a, const Buffer& b)
+		inline bool operator== (const ExpandableBuffer& a, const ExpandableBuffer& b)
 		{
 		  return a.size () == b.size () &&
 			std::memcmp (a.data (), b.data (), a.size ()) == 0;
 		}
 
-		inline bool operator!= (const Buffer& a, const Buffer& b)
+		inline bool operator!= (const ExpandableBuffer& a, const ExpandableBuffer& b)
 		{
 		  return !(a == b);
 		}

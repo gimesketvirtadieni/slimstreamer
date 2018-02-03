@@ -29,10 +29,16 @@ namespace slim
 		public:
 			explicit Scheduler(std::vector<Pipeline<Source, Destination>> p)
 			: pipelines{std::move(p)}
-			, processorProxyPtr{nullptr} {}
+			{
+				LOG(DEBUG) << LABELS{"slim"} << "Scheduler object was created (id=" << this << ")";
+			}
 
 			// using Rule Of Zero
-			~Scheduler() = default;
+		   ~Scheduler()
+			{
+				LOG(DEBUG) << LABELS{"slim"} << "Scheduler object was deleted (id=" << this << ")";
+			}
+
 			Scheduler(const Scheduler&) = delete;             // non-copyable
 			Scheduler& operator=(const Scheduler&) = delete;  // non-assignable
 			Scheduler(Scheduler&& rhs) = default;
@@ -52,7 +58,7 @@ namespace slim
 					{
 						[&]
 						{
-							LOG(DEBUG) << "Starting PCM data capture thread (id=" << this << ")";
+							LOG(DEBUG) << LABELS{"slim"} << "Starting PCM data capture thread (id=" << this << ")";
 
 							try
 							{
@@ -60,10 +66,10 @@ namespace slim
 							}
 							catch (const slim::Exception& error)
 							{
-								LOG(ERROR) << error;
+								LOG(ERROR) << LABELS{"slim"} << "Error while starting a pipeline: " << error;
 							}
 
-							LOG(DEBUG) << "Stopping PCM data capture thread (id=" << this << ")";
+							LOG(DEBUG) << LABELS{"slim"} << "Stopping PCM data capture thread (id=" << this << ")";
 						}
 					};
 
@@ -82,7 +88,7 @@ namespace slim
 				{
 					[&]
 					{
-						LOG(DEBUG) << "Starting streamer thread (id=" << this << ")";
+						LOG(DEBUG) << LABELS{"slim"} << "Starting streamer thread (id=" << this << ")";
 
 						for(auto producing{true}, available{true}; producing;)
 						{
@@ -116,7 +122,7 @@ namespace slim
 							}
 						}
 
-						LOG(DEBUG) << "Stopping streamer thread (id=" << this << ")";
+						LOG(DEBUG) << LABELS{"slim"} << "Stopping streamer thread (id=" << this << ")";
 					}
 				};
 
@@ -135,7 +141,7 @@ namespace slim
 					}
 					catch (const slim::Exception& error)
 					{
-						LOG(ERROR) << error;
+						LOG(ERROR) << LABELS{"slim"} << "Error while stopping a pipeline: " << error;
 					}
 				}
 

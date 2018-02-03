@@ -12,6 +12,7 @@
 
 #pragma once
 
+#include <slim/util/ExpandableBuffer.hpp>
 #include <chrono>
 #include <cstddef>  // std::size_t
 #include <optional>
@@ -26,7 +27,7 @@
 #include "slim/proto/CommandSTAT.hpp"
 #include "slim/proto/CommandSTRM.hpp"
 #include "slim/proto/StreamingSession.hpp"
-#include "slim/util/Buffer.hpp"
+#include "slim/util/ExpandableBuffer.hpp"
 #include "slim/util/ScopeGuard.hpp"
 
 
@@ -42,7 +43,7 @@ namespace slim
 
 			public:
 				CommandSession(ConnectionType& c, std::string id)
-				: connection(c)
+				: connection{c}
 				, clientID{id}
 				, handlersMap
 				{
@@ -87,7 +88,7 @@ namespace slim
 
 				inline void onRequest(unsigned char* buffer, std::size_t size)
 				{
-					//LOG(DEBUG) << "SlimProto onRequest size=" << size;
+					//LOG(DEBUG) << LABELS{"proto"} << "SlimProto onRequest size=" << size;
 
 					// adding data to the buffer
 					commandBuffer.append(buffer, size);
@@ -117,7 +118,7 @@ namespace slim
 						}
 						else
 						{
-							LOG(DEBUG) << "Unsupported SlimProto command received (header='" << s << "')";
+							LOG(DEBUG) << LABELS{"proto"} << "Unsupported SlimProto command received (header='" << s << "')";
 
 							//for (unsigned int i = 0; i < size; i++)
 							//{
@@ -182,15 +183,15 @@ namespace slim
 					}
 				}
 
-				void stream(unsigned int samplingRate)
+				void stream(unsigned int port, unsigned int samplingRate)
 				{
-			        send(CommandSTRM{CommandSelection::Start, samplingRate, getClientID()});
+					send(CommandSTRM{CommandSelection::Start, port, samplingRate, getClientID()});
 				}
 
 			protected:
 				inline auto onDSCO(unsigned char* buffer, std::size_t size)
 				{
-					LOG(DEBUG) << "DSCO command received";
+					LOG(DEBUG) << LABELS{"proto"} << "DSCO command received";
 
 					return size;
 				}
@@ -202,7 +203,7 @@ namespace slim
 					// if there is enough data to process HELO message
 					if (CommandHELO::isEnoughData(buffer, size))
 					{
-						LOG(INFO) << "HELO command received";
+						LOG(INFO) << LABELS{"proto"} << "HELO command received";
 
 						// deserializing HELO command
 						commandHELO = CommandHELO{buffer, size};
@@ -220,7 +221,7 @@ namespace slim
 
 				inline auto onRESP(unsigned char* buffer, std::size_t size)
 				{
-					LOG(DEBUG) << "RESP command received";
+					LOG(DEBUG) << LABELS{"proto"} << "RESP command received";
 
 					responseReceived = true;
 
@@ -242,12 +243,12 @@ namespace slim
 						auto event{commandSTAT.getEvent()};
 						if (!event.compare("STMc"))
 						{
-							LOG(DEBUG) << "STMc command received";
+							LOG(DEBUG) << LABELS{"proto"} << "STMc command received";
 							connectedReceived = true;
 						}
 						else
 						{
-							LOG(DEBUG) << event << " command received";
+							LOG(DEBUG) << LABELS{"proto"} << event << " command received";
 						}
 					}
 
@@ -271,7 +272,7 @@ namespace slim
 				StreamingSession<ConnectionType>* streamingSessionPtr{nullptr};
 				bool                              connectedReceived{false};
 				bool                              responseReceived{false};
-				util::Buffer                      commandBuffer{std:size_t{0}, std:size_t{2048}};
+				util::ExpandableBuffer            commandBuffer{std:size_t{0}, std:size_t{2048}};
 				std::optional<CommandHELO>        commandHELO{std::nullopt};
 				std::optional<TimePoint>          lastPingAt{std::nullopt};
 		};

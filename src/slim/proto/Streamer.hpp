@@ -42,10 +42,11 @@ namespace slim
 			using TimePoint   = std::chrono::time_point<std::chrono::steady_clock>;
 
 			public:
-				Streamer()
-				: timerThread{[&]
+				Streamer(unsigned int sp)
+				: streamingPort{sp}
+				, timerThread{[&]
 				{
-					LOG(DEBUG) << "Timer thread started";
+					LOG(DEBUG) << LABELS{"proto"} << "Timer thread started";
 
 					for(unsigned int counter{0}; timerRunning; counter++, std::this_thread::sleep_for(std::chrono::milliseconds{200}))
 			        {
@@ -68,13 +69,18 @@ namespace slim
 						}
 			        }
 
-					LOG(DEBUG) << "Timer thread stopped";
-				}} {}
+					LOG(DEBUG) << LABELS{"proto"} << "Timer thread stopped";
+				}}
+				{
+					LOG(DEBUG) << LABELS{"proto"} << "Streamer object was created (id=" << this << ")";
+				}
 
 			   ~Streamer()
 				{
 					timerRunning = false;
 					timerThread.join();
+
+					LOG(DEBUG) << LABELS{"proto"} << "Streamer object was deleted (id=" << this << ")";
 				}
 
 				Streamer(const Streamer&) = delete;             // non-copyable
@@ -101,13 +107,13 @@ namespace slim
 						// deferring chunk transmition for at least for one quantum
 						streaming = false;
 
-						LOG(INFO) << "Initialize streaming";
+						LOG(INFO) << LABELS{"proto"} << "Initialize streaming";
 
 						// assigning new sampling rate and start streaming
 						samplingRate = sr;
 						for (auto& entry : commandSessions)
 						{
-					        entry.second->stream(samplingRate);
+							entry.second->stream(streamingPort, samplingRate);
 						}
 					}
 
@@ -126,9 +132,9 @@ namespace slim
 						{
 							if (missingSessionsTotal)
 							{
-								LOG(WARNING) << "Could not defer chunk processing due to reached threashold";
+								LOG(WARNING) << LABELS{"proto"} << "Could not defer chunk processing due to reached threashold";
 							}
-							LOG(INFO) << "Start streaming";
+							LOG(INFO) << LABELS{"proto"} << "Start streaming";
 
 							streaming = true;
 
@@ -139,7 +145,7 @@ namespace slim
 						{
 							if (missingSessionsTotal)
 							{
-								LOG(DEBUG) << "Deferring chunk transmition due to missing HTTP sessions";
+								LOG(DEBUG) << LABELS{"proto"} << "Deferring chunk transmition due to missing HTTP sessions";
 							}
 
 							// TODO: implement cruise control; for now sleep is good enough
@@ -165,7 +171,7 @@ namespace slim
 						// if there are command sessions without relevant HTTP session
 						if (counter > 0)
 						{
-							LOG(WARNING) << "Current chunk transmition was skipped for " << counter << " client(s)";
+							LOG(WARNING) << LABELS{"proto"} << "Current chunk transmition was skipped for " << counter << " client(s)";
 						}
 					}
 
@@ -174,7 +180,7 @@ namespace slim
 
 				void onHTTPClose(ConnectionType& connection)
 				{
-					LOG(INFO) << "HTTP close callback";
+					LOG(INFO) << LABELS{"proto"} << "HTTP close callback";
 
 					auto streamingSessionPtr{removeSession(streamingSessions, connection)};
 					auto clientID{streamingSessionPtr->getClientID()};
@@ -195,7 +201,7 @@ namespace slim
 						session.onRequest(buffer, receivedSize);
 					}))
 					{
-						LOG(INFO) << "New HTTP session request received";
+						LOG(INFO) << LABELS{"proto"} << "New HTTP session request received";
 
 						try
 						{
@@ -213,7 +219,7 @@ namespace slim
 								throw slim::Exception("Missing client ID in HTTP request");
 							}
 
-							LOG(INFO) << "Client ID was parsed from HTTP request (clientID=" << clientID.value() << ")";
+							LOG(INFO) << LABELS{"proto"} << "Client ID was parsed from HTTP request (clientID=" << clientID.value() << ")";
 
 							// if there a SlimProto connection found that originated this HTTP request
 							auto commandSessionPtr{findCommandSession(clientID.value()).value_or(nullptr)};
@@ -231,7 +237,7 @@ namespace slim
 						}
 						catch (const slim::Exception& error)
 						{
-							LOG(ERROR) << "Incorrect HTTP session request: " << error.what();
+							LOG(ERROR) << LABELS{"proto"} << "Incorrect HTTP session request: " << error.what();
 							connection.stop();
 						}
 					}
@@ -266,7 +272,7 @@ namespace slim
 							// enable streaming for this session if required
 							if (streaming)
 							{
-								sessionPtr->stream(samplingRate);
+								sessionPtr->stream(streamingPort, samplingRate);
 							}
 
 							// saving command session in the map
@@ -275,7 +281,7 @@ namespace slim
 					}
 					catch (const slim::Exception& error)
 					{
-						LOG(ERROR) << "Error while processing SlimProto command: " << error.what();
+						LOG(ERROR) << LABELS{"proto"} << "Error while processing SlimProto command: " << error.what();
 						connection.stop();
 					}
 				}
@@ -302,12 +308,12 @@ namespace slim
 
 						// saving session in a map; using pointer to a relevant connection as an ID
 						sessions[&connection] = std::move(sessionPtr);
-						LOG(DEBUG) << LABELS{"slim"} << "New session was added (id=" << s << ", sessions=" << sessions.size() << ")";
+						LOG(DEBUG) << LABELS{"proto"} << "New session was added (id=" << s << ", sessions=" << sessions.size() << ")";
 					}
 					else
 					{
 						s = (*found).second.get();
-						LOG(INFO) << "Session already exists";
+						LOG(INFO) << LABELS{"proto"} << "Session already exists";
 					}
 
 					return *s;
@@ -378,13 +384,14 @@ namespace slim
 					{
 						sessionPtr = std::move((*found).second);
 						sessions.erase(found);
-						LOG(DEBUG) << LABELS{"slim"} << "Session was removed (id=" << sessionPtr.get() << ", sessions=" << sessions.size() << ")";
+						LOG(DEBUG) << LABELS{"proto"} << "Session was removed (id=" << sessionPtr.get() << ", sessions=" << sessions.size() << ")";
 					}
 
 					return std::move(sessionPtr);
 				}
 
 			private:
+				unsigned int                                  streamingPort;
 				SessionsMap<CommandSession<ConnectionType>>   commandSessions;
 				SessionsMap<StreamingSession<ConnectionType>> streamingSessions;
 				bool                                          streaming{false};

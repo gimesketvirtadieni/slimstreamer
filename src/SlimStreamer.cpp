@@ -150,10 +150,14 @@ int main(int argc, char *argv[])
 
 	try
 	{
+		// TODO: parametrize ports
+		unsigned int commandsPort{3484};
+		unsigned int streamingPort{9001};
+
 		// Callbacks objects 'glue' SlimProto Streamer with TCP Command Servers
-		auto streamerPtr{std::make_unique<Streamer>()};
-		auto commandServerPtr{std::make_unique<Server>(3484, 2, createCommandCallbacks(*streamerPtr))};
-		auto streamingServerPtr{std::make_unique<Server>(9001, 2, createStreamingCallbacks(*streamerPtr))};
+		auto streamerPtr{std::make_unique<Streamer>(streamingPort)};
+		auto commandServerPtr{std::make_unique<Server>(commandsPort, 2, createCommandCallbacks(*streamerPtr))};
+		auto streamingServerPtr{std::make_unique<Server>(streamingPort, 2, createStreamingCallbacks(*streamerPtr))};
 
 		// creating Scheduler object
 		auto schedulerPtr{std::make_unique<Scheduler>(createPipelines(*streamerPtr))};
