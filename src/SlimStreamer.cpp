@@ -144,7 +144,10 @@ int main(int argc, char *argv[])
 	// adding custom sinks
     logWorkerPtr->addSink(std::make_unique<ConsoleSink>(), &ConsoleSink::print);
 
-    signal(SIGHUP, signalHandler);
+    // TODO: create VERSION define
+    LOG(INFO) << "Starting SlimStreamer (v0.1.0-alpha)...";
+
+	signal(SIGHUP, signalHandler);
 	signal(SIGTERM, signalHandler);
 	signal(SIGINT, signalHandler);
 
@@ -175,7 +178,9 @@ int main(int argc, char *argv[])
         processorAsio.process([](auto context)
         {
         	context.getResource()->start();
-        });
+        }).wait();
+
+        LOG(INFO) << "SlimStreamer was started";
 
         // waiting for Control^C
         while(running)
@@ -183,7 +188,9 @@ int main(int argc, char *argv[])
 			std::this_thread::sleep_for(std::chrono::milliseconds{200});
         }
 
-		// stop streaming
+    	LOG(INFO) << "Stopping SlimStreamer...";
+
+    	// stop streaming
         processorAsio.process([](auto context)
         {
         	context.getResource()->stop();
@@ -199,8 +206,10 @@ int main(int argc, char *argv[])
 	}
 	catch (...)
 	{
-		LOG(ERROR) << "Unknown exception";
+		LOG(ERROR) << "Unexpected exception";
 	}
+
+	LOG(INFO) << "SlimStreamer was stopped";
 
 	return 0;
 }

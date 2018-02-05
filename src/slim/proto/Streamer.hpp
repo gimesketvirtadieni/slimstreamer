@@ -46,7 +46,7 @@ namespace slim
 				: streamingPort{sp}
 				, timerThread{[&]
 				{
-					LOG(DEBUG) << LABELS{"proto"} << "Timer thread started";
+					LOG(DEBUG) << LABELS{"proto"} << "Timer thread was started (id=" << std::this_thread::get_id() << ")";
 
 					for(unsigned int counter{0}; timerRunning; counter++, std::this_thread::sleep_for(std::chrono::milliseconds{200}))
 			        {
@@ -69,7 +69,7 @@ namespace slim
 						}
 			        }
 
-					LOG(DEBUG) << LABELS{"proto"} << "Timer thread stopped";
+					LOG(DEBUG) << LABELS{"proto"} << "Timer thread was stopped (id=" << std::this_thread::get_id() << ")";
 				}}
 				{
 					LOG(DEBUG) << LABELS{"proto"} << "Streamer object was created (id=" << this << ")";

@@ -90,7 +90,7 @@ namespace slim
 
 					waveStream.write(chunk.getBuffer(), size);
 
-					LOG(DEBUG) << "Written " << (size / bytesPerFrame) << " frames";
+					LOG(DEBUG) << LABELS{"wave"} << "Written " << (size / bytesPerFrame) << " frames";
 
 					// deferring chunk is irrelevant for WAVE file destination
 					return true;

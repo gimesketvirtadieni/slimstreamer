@@ -58,7 +58,7 @@ namespace slim
 					{
 						[&]
 						{
-							LOG(DEBUG) << LABELS{"slim"} << "Starting PCM data capture thread (id=" << this << ")";
+							LOG(DEBUG) << LABELS{"slim"} << "PCM data capture thread was started (id=" << std::this_thread::get_id() << ")";
 
 							try
 							{
@@ -69,7 +69,7 @@ namespace slim
 								LOG(ERROR) << LABELS{"slim"} << "Error while starting a pipeline: " << error;
 							}
 
-							LOG(DEBUG) << LABELS{"slim"} << "Stopping PCM data capture thread (id=" << this << ")";
+							LOG(DEBUG) << LABELS{"slim"} << "PCM data capture thread was stopped (id=" << std::this_thread::get_id() << ")";
 						}
 					};
 
@@ -88,7 +88,10 @@ namespace slim
 				{
 					[&]
 					{
-						LOG(DEBUG) << LABELS{"slim"} << "Starting streamer thread (id=" << this << ")";
+						LOG(DEBUG) << LABELS{"slim"} << "Streamer thread was started (id=" << std::this_thread::get_id() << ")";
+
+						// required to make signal sheduler when consumer is fully ready
+						consumerStarted = true;
 
 						for(auto producing{true}, available{true}; producing;)
 						{
@@ -122,9 +125,15 @@ namespace slim
 							}
 						}
 
-						LOG(DEBUG) << LABELS{"slim"} << "Stopping streamer thread (id=" << this << ")";
+						LOG(DEBUG) << LABELS{"slim"} << "Streamer thread was stopped (id=" << std::this_thread::get_id() << ")";
 					}
 				};
+
+				// making sure it is up and running
+				while(consumerThread.joinable() && !consumerStarted)
+				{
+					std::this_thread::sleep_for(std::chrono::milliseconds{10});
+				}
 
 				// saving consumer thread in the same pool
 				threads.push_back(std::move(consumerThread));
@@ -158,6 +167,7 @@ namespace slim
 		private:
 			std::vector<Pipeline<Source, Destination>> pipelines;
 			std::vector<std::thread>                   threads;
+			volatile bool                              consumerStarted{false};
 			conwrap::ProcessorProxy<ContainerBase>*    processorProxyPtr{nullptr};
 	};
 }

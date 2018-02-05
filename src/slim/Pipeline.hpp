@@ -95,7 +95,7 @@ namespace slim
 			{
 				source.start([]
 				{
-					LOG(ERROR) << "Buffer overflow error: a chunk was skipped";
+					LOG(ERROR) << LABELS{"slim"} << "Buffer overflow error: a chunk was skipped";
 				});
 			}
 
