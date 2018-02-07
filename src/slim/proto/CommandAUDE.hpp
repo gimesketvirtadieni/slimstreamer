@@ -22,20 +22,21 @@ namespace slim
 {
 	namespace proto
 	{
+		#pragma pack(push, 1)
 		struct AUDEData
 		{
 			char         opcode[4];
 			std::uint8_t enableSPDIF;
 			std::uint8_t enableDAC;
-		// TODO: clarify if there is an universal way to avoid padding
-		} __attribute__((packed));
+		};
 
 
 		struct AUDE
 		{
 			char     size[2];
 			AUDEData data;
-		} __attribute__((packed));
+		};
+		#pragma pack(pop)
 
 
 		class CommandAUDE : public Command<AUDE>

@@ -23,6 +23,7 @@ namespace slim
 {
 	namespace proto
 	{
+		#pragma pack(push, 1)
 		struct STAT
 		{
 			char          opcode[4];
@@ -44,8 +45,8 @@ namespace slim
 			std::uint32_t elapsedMilliseconds;
 			std::uint32_t serverTimestamp;
 			std::uint16_t errorCode;
-		// TODO: clarify if there is an universal way to avoid padding
-		} __attribute__((packed));
+		};
+		#pragma pack(pop)
 
 
 		class CommandSTAT : public Command<STAT>

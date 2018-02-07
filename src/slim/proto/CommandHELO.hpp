@@ -25,6 +25,7 @@ namespace slim
 {
 	namespace proto
 	{
+		#pragma pack(push, 1)
 		struct HELO
 		{
 			char          opcode[4];
@@ -37,8 +38,8 @@ namespace slim
 			std::uint32_t bytesReceivedHigh;
 			std::uint32_t bytesReceivedLow;
 			char          language[2];
-		// TODO: clarify if there is an universal way to avoid padding
-		} __attribute__((packed));
+		};
+		#pragma pack(pop)
 
 
 		class CommandHELO : public Command<HELO>

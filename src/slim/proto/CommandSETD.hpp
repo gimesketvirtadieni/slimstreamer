@@ -22,19 +22,20 @@ namespace slim
 {
 	namespace proto
 	{
+		#pragma pack(push, 1)
 		struct SETDData
 		{
 			char         opcode[4];
 			std::uint8_t id;
-		// TODO: clarify if there is an universal way to avoid padding
-		} __attribute__((packed));
+		};
 
 
 		struct SETD
 		{
 			char     size[2];
 			SETDData data;
-		} __attribute__((packed));
+		};
+		#pragma pack(pop)
 
 
 		enum class DeviceID : std::uint8_t

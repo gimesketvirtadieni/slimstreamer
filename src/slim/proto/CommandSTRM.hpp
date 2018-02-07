@@ -22,6 +22,7 @@ namespace slim
 {
 	namespace proto
 	{
+		#pragma pack(push, 1)
 		struct STRMData
 		{
 			char          opcode[4];
@@ -42,17 +43,16 @@ namespace slim
 			std::uint32_t replayGain;
 			std::uint16_t serverPort;
 			std::uint32_t serverIP;
-
 			char          httpHeader[64];
-		// TODO: clarify if there is an universal way to avoid padding
-		} __attribute__((packed));
+		};
 
 
 		struct STRM
 		{
 			char     size[2];
 			STRMData data;
-		} __attribute__((packed));
+		};
+		#pragma pack(pop)
 
 
 		enum class CommandSelection : char
