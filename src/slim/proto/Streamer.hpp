@@ -107,7 +107,7 @@ namespace slim
 						// deferring chunk transmition for at least for one quantum
 						streaming = false;
 
-						LOG(INFO) << LABELS{"proto"} << "Initialize streaming";
+						LOG(INFO) << LABELS{"proto"} << "Initialize streaming (sessions=" << commandSessions.size() << ")";
 
 						// assigning new sampling rate and start streaming
 						samplingRate = sr;
@@ -180,17 +180,30 @@ namespace slim
 
 				void onHTTPClose(ConnectionType& connection)
 				{
-					LOG(INFO) << LABELS{"proto"} << "HTTP close callback";
+					LOG(INFO) << LABELS{"proto"} << "HTTP close callback (connection=" << &connection << ")";
 
 					auto streamingSessionPtr{removeSession(streamingSessions, connection)};
-					auto clientID{streamingSessionPtr->getClientID()};
-					auto commandSession{findCommandSession(clientID)};
-
-					// if there is a relevant SlimProto connection found
-					if (commandSession.has_value())
+					if (streamingSessionPtr)
 					{
-						// reseting HTTP session in its relevant SlimProto session
-						commandSession.value()->setStreamingSession(nullptr);
+						// if there is a relevant SlimProto connection found
+						auto clientID{streamingSessionPtr->getClientID()};
+						if (clientID.has_value())
+						{
+							auto commandSession{findCommandSession(clientID.value())};
+							if (commandSession.has_value())
+							{
+								// reseting HTTP session in its relevant SlimProto session
+								commandSession.value()->setStreamingSession(nullptr);
+							}
+							else
+							{
+								LOG(WARNING) << LABELS{"proto"} << "Could not find SlimProto session object by client ID (clientID=" << clientID.value() << ")";
+							}
+						}
+					}
+					else
+					{
+						LOG(WARNING) << LABELS{"proto"} << "Could not find HTTP session object";
 					}
 				}
 
@@ -201,39 +214,30 @@ namespace slim
 						session.onRequest(buffer, receivedSize);
 					}))
 					{
-						LOG(INFO) << LABELS{"proto"} << "New HTTP session request received";
+						LOG(INFO) << LABELS{"proto"} << "New HTTP session request received (connection=" << &connection << ")";
 
 						try
 						{
-							// TODO: make more strick validation
-							std::string get{"GET"};
-							std::string s{(char*)buffer, get.size()};
-							if (get.compare(s))
-							{
-								throw slim::Exception("Wrong method provided");
-							}
+							// creating streaming session object
+							auto  streamingSessionPtr{std::make_unique<StreamingSession<ConnectionType>>(connection, 2, samplingRate, 32)};
+							auto& streamingSession{addSession(streamingSessions, connection, std::move(streamingSessionPtr))};
 
-							auto clientID{StreamingSession<ConnectionType>::parseClientID({(char*)buffer, receivedSize})};
-							if (!clientID.has_value())
-							{
-								throw slim::Exception("Missing client ID in HTTP request");
-							}
-
-							LOG(INFO) << LABELS{"proto"} << "Client ID was parsed from HTTP request (clientID=" << clientID.value() << ")";
+							streamingSession.onRequest(buffer, receivedSize);
 
 							// if there a SlimProto connection found that originated this HTTP request
-							auto commandSessionPtr{findCommandSession(clientID.value()).value_or(nullptr)};
-							if (!commandSessionPtr)
+							auto clientID{streamingSession.getClientID()};
+							if (!clientID.has_value())
+							{
+								throw slim::Exception("Could not get client ID from HTTP session");
+							}
+
+							auto commandSessionPtr{findCommandSession(clientID.value())};
+							if (!commandSessionPtr.has_value())
 							{
 								throw slim::Exception("Could not correlate provided client ID with a valid SlimProto session");
 							}
 
-							// creating streaming session object
-							auto  streamingSessionPtr{std::make_unique<StreamingSession<ConnectionType>>(connection, clientID.value(), 2, samplingRate, 32)};
-							auto& streamingSession{addSession(streamingSessions, connection, std::move(streamingSessionPtr))};
-
-							commandSessionPtr->setStreamingSession(&streamingSession);
-							streamingSession.onRequest(buffer, receivedSize);
+							commandSessionPtr.value()->setStreamingSession(&streamingSession);
 						}
 						catch (const slim::Exception& error)
 						{
@@ -245,6 +249,7 @@ namespace slim
 
 				void onHTTPOpen(ConnectionType& connection)
 				{
+					LOG(INFO) << LABELS{"proto"} << "HTTP open callback (connection=" << &connection << ")";
 				}
 
 				void onSlimProtoClose(ConnectionType& connection)
@@ -263,7 +268,7 @@ namespace slim
 						{
 							// using regular counter for session ID's instead of MAC's; it allows running multiple players on one host
 							std::stringstream ss;
-							ss << (nextID++);
+							ss << (++nextID);
 
 							// creating command session object
 							auto sessionPtr{std::make_unique<CommandSession<ConnectionType>>(connection, ss.str())};
@@ -313,7 +318,7 @@ namespace slim
 					else
 					{
 						s = (*found).second.get();
-						LOG(INFO) << LABELS{"proto"} << "Session already exists";
+						LOG(WARNING) << LABELS{"proto"} << "Session already exists";
 					}
 
 					return *s;
@@ -377,8 +382,8 @@ namespace slim
 				template<typename SessionType>
 				inline auto removeSession(SessionsMap<SessionType>& sessions, ConnectionType& connection)
 				{
-					auto sessionPtr{std::unique_ptr<SessionType>{}};
-					auto found{sessions.find(&connection)};
+					std::unique_ptr<SessionType> sessionPtr{};
+					auto                         found{sessions.find(&connection)};
 
 					if (found != sessions.end())
 					{
@@ -396,7 +401,7 @@ namespace slim
 				SessionsMap<StreamingSession<ConnectionType>> streamingSessions;
 				bool                                          streaming{false};
 				unsigned int                                  samplingRate{0};
-				unsigned long                                 nextID{1};
+				unsigned long                                 nextID{0};
 				conwrap::ProcessorProxy<ContainerBase>*       processorProxyPtr{nullptr};
 				volatile bool                                 timerRunning{true};
 				std::thread                                   timerThread;

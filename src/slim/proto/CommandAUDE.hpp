@@ -33,8 +33,8 @@ namespace slim
 
 		struct AUDE
 		{
-			char     size[2];
-			AUDEData data;
+			std::uint16_t size;
+			AUDEData      data;
 		};
 		#pragma pack(pop)
 
@@ -51,9 +51,7 @@ namespace slim
 					aude.data.enableDAC   = (dac   ? 1 : 0);
 
 					// preparing command size in indianless way
-					auto size = sizeof(aude.data);
-					aude.size[0] = 255 & (size >> 8);
-					aude.size[1] = 255 & size;
+					aude.size = htons(sizeof(aude.data));
 				}
 
 				// using Rule Of Zero

@@ -50,6 +50,7 @@ namespace slim
 					{"DSCO", [&](auto* buffer, auto size) {return onDSCO(buffer, size);}},
 					{"HELO", [&](auto* buffer, auto size) {return onHELO(buffer, size);}},
 					{"RESP", [&](auto* buffer, auto size) {return onRESP(buffer, size);}},
+					{"SETD", [&](auto* buffer, auto size) {return onSETD(buffer, size);}},
 					{"STAT", [&](auto* buffer, auto size) {return onSTAT(buffer, size);}},
 				}
 				{
@@ -183,25 +184,43 @@ namespace slim
 					}
 				}
 
-				void stream(unsigned int port, unsigned int samplingRate)
+				void stream(unsigned int p, unsigned int r)
 				{
-					send(CommandSTRM{CommandSelection::Start, port, samplingRate, getClientID()});
+					// TODO: it's never set back to false
+					streaming     = true;
+					streamingPort = p;
+					samplingRate  = r;
+
+					// if handshake commands were sent
+					if (commandHELO.has_value())
+					{
+						send(CommandSTRM{CommandSelection::Start, streamingPort, samplingRate, clientID});
+					}
 				}
 
 			protected:
 				inline auto onDSCO(unsigned char* buffer, std::size_t size)
 				{
-					LOG(DEBUG) << LABELS{"proto"} << "DSCO command received";
+					std::size_t result{0};
 
-					return size;
+					// if there is enough data to process this message
+					if (Command<char>::isEnoughData(buffer, size))
+					{
+						LOG(DEBUG) << LABELS{"proto"} << "DSCO command received";
+
+						// TODO: processing is missing
+						result = size;
+					}
+
+					return result;
 				}
 
 				inline auto onHELO(unsigned char* buffer, std::size_t size)
 				{
 					std::size_t result{0};
 
-					// if there is enough data to process HELO message
-					if (CommandHELO::isEnoughData(buffer, size))
+					// if there is enough data to process this message
+					if (Command<char>::isEnoughData(buffer, size))
 					{
 						LOG(INFO) << LABELS{"proto"} << "HELO command received";
 
@@ -214,6 +233,11 @@ namespace slim
 						send(CommandSETD{DeviceID::Squeezebox3});
 						send(CommandAUDE{true, true});
 						send(CommandAUDG{});
+
+						if (streaming)
+						{
+							send(CommandSTRM{CommandSelection::Start, streamingPort, samplingRate, clientID});
+						}
 					}
 
 					return result;
@@ -221,19 +245,43 @@ namespace slim
 
 				inline auto onRESP(unsigned char* buffer, std::size_t size)
 				{
-					LOG(DEBUG) << LABELS{"proto"} << "RESP command received";
+					std::size_t result{0};
 
-					responseReceived = true;
+					// if there is enough data to process this message
+					if (Command<char>::isEnoughData(buffer, size))
+					{
+						LOG(DEBUG) << LABELS{"proto"} << "RESP command received";
 
-					return size;
+						// TODO: processing is missing
+						result           = size;
+						responseReceived = true;
+					}
+
+					return result;
+				}
+
+				inline auto onSETD(unsigned char* buffer, std::size_t size)
+				{
+					std::size_t result{0};
+
+					// if there is enough data to process this message
+					if (Command<char>::isEnoughData(buffer, size))
+					{
+						LOG(DEBUG) << LABELS{"proto"} << "SETD command received";
+
+						// TODO: processing is missing
+						result = size;
+					}
+
+					return result;
 				}
 
 				inline auto onSTAT(unsigned char* buffer, std::size_t size)
 				{
 					std::size_t result{0};
 
-					// if there is enough data to process HELO message
-					if (CommandSTAT::isEnoughData(buffer, size))
+					// if there is enough data to process this message
+					if (Command<char>::isEnoughData(buffer, size))
 					{
 						// deserializing STAT command
 						auto commandSTAT{CommandSTAT{buffer, size}};
@@ -259,9 +307,10 @@ namespace slim
 				inline void send(CommandType command)
 				{
 					// TODO: introduce buffer wrapper so it can be passed to a stream; then in can be moved to a Command class
-					for (std::size_t i = 0; i < command.getSize();)
+					auto buffer{command.getBuffer()};
+					for (std::size_t i{0}, size{command.getSize()}; i < size;)
 					{
-						i += connection.send(command.getBuffer() + i, command.getSize() - i);
+						i += connection.send(buffer + i, size - i);
 					}
 				}
 
@@ -269,6 +318,9 @@ namespace slim
 				ConnectionType&                   connection;
 				std::string                       clientID;
 				HandlersMap                       handlersMap;
+				bool                              streaming{false};
+				unsigned int                      streamingPort;
+				unsigned int                      samplingRate;
 				StreamingSession<ConnectionType>* streamingSessionPtr{nullptr};
 				bool                              connectedReceived{false};
 				bool                              responseReceived{false};

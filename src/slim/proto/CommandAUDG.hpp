@@ -44,8 +44,8 @@ namespace slim
 
 		struct AUDG
 		{
-			char     size[2];
-			AUDGData data;
+			std::uint16_t size;
+			AUDGData      data;
 		};
 		#pragma pack(pop)
 
@@ -68,9 +68,7 @@ namespace slim
 					audg.data.gainRight4 = 255;
 
 					// preparing command size in indianless way
-					auto size = sizeof(audg.data);
-					audg.size[0] = 255 & (size >> 8);
-					audg.size[1] = 255 & size;
+					audg.size = htons(sizeof(audg.data));
 				}
 
 				// using Rule Of Zero

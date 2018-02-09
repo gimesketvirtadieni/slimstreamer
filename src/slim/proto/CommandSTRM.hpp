@@ -49,8 +49,8 @@ namespace slim
 
 		struct STRM
 		{
-			char     size[2];
-			STRMData data;
+			std::uint16_t size;
+			STRMData      data;
 		};
 		#pragma pack(pop)
 
@@ -89,9 +89,7 @@ namespace slim
 					}
 
 					// preparing command size in indianless way
-					auto size = getDataSize();
-					strm.size[0] = 255 & (size >> 8);
-					strm.size[1] = 255 & size;
+					strm.size = htons(getDataSize());
 				}
 
 				// using Rule Of Zero

@@ -32,9 +32,8 @@ namespace slim
 			using OutputStreamCallback = util::OutputStreamCallback<std::function<std::streamsize(const char*, std::streamsize)>>;
 
 			public:
-				StreamingSession(ConnectionType& co, std::string cl, unsigned int channels, unsigned int sr, unsigned int bitePerSample)
+				StreamingSession(ConnectionType& co, unsigned int channels, unsigned int sr, unsigned int bitePerSample)
 				: connection{co}
-				, clientID{cl}
 				, outputStreamCallback{[&](auto* buffer, auto size) mutable
 				{
 					return connection.send(buffer, size);
@@ -52,7 +51,7 @@ namespace slim
 					waveStream.write("\r\n");
 				}
 
-				~StreamingSession()
+			   ~StreamingSession()
 				{
 					LOG(DEBUG) << LABELS{"proto"} << "HTTP session object was deleted (id=" << this << ")";
 				}
@@ -92,8 +91,25 @@ namespace slim
 					//{
 					//	LOG(DEBUG) << buffer[i];
 					//}
+
+					// TODO: make more strick validation
+					std::string get{"GET"};
+					std::string s{(char*)buffer, get.size()};
+					if (get.compare(s))
+					{
+						throw slim::Exception("Wrong method provided");
+					}
+
+					clientID = parseClientID({(char*)buffer, size});
+					if (!clientID.has_value())
+					{
+						throw slim::Exception("Missing client ID in HTTP request");
+					}
+
+					LOG(INFO) << LABELS{"proto"} << "Client ID was parsed from HTTP request (clientID=" << clientID.value() << ")";
 				}
 
+			protected:
 				static auto parseClientID(std::string header)
 				{
 					auto result{std::optional<std::string>{std::nullopt}};
@@ -109,11 +125,11 @@ namespace slim
 				}
 
 			private:
-				ConnectionType&      connection;
-				std::string          clientID;
-				OutputStreamCallback outputStreamCallback;
-				unsigned int         samplingRate;
-				wave::WAVEStream     waveStream;
+				ConnectionType&            connection;
+				std::optional<std::string> clientID;
+				OutputStreamCallback       outputStreamCallback;
+				unsigned int               samplingRate;
+				wave::WAVEStream           waveStream;
 		};
 	}
 }
