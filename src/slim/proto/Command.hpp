@@ -33,6 +33,21 @@ namespace slim
 				virtual CommandType* getBuffer() = 0;
 				virtual std::size_t  getSize()   = 0;
 
+				inline static auto isEnoughData(unsigned char* buffer, std::size_t size)
+				{
+					auto        result{false};
+					std::size_t offset{4};
+
+					// TODO: consider max length size
+					if (size >= offset + sizeof(std::uint32_t))
+					{
+						std::uint32_t length{ntohl(*(std::uint32_t*)(buffer + offset))};
+						result = (size >= (length + offset + sizeof(std::uint32_t)));
+					}
+
+					return result;
+				}
+
 			protected:
 				Command() = default;
 		};

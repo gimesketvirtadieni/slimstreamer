@@ -25,10 +25,11 @@ namespace slim
 {
 	namespace proto
 	{
+		#pragma pack(push, 1)
 		struct HELO
 		{
 			char          opcode[4];
-			std::uint32_t length;
+			std::uint32_t size;
 			std::uint8_t  deviceID;
 			std::uint8_t  revision;
 			std::uint8_t  mac[6];
@@ -37,8 +38,8 @@ namespace slim
 			std::uint32_t bytesReceivedHigh;
 			std::uint32_t bytesReceivedLow;
 			char          language[2];
-		// TODO: clarify if there is an universal way to avoid padding
-		} __attribute__((packed));
+		};
+		#pragma pack(pop)
 
 
 		class CommandHELO : public Command<HELO>
@@ -64,20 +65,20 @@ namespace slim
 					memcpy(&helo, buffer, sizeof(helo));
 
 					// validating length attribute from HELO command (last -1 accounts for tailing zero)
-					helo.length = ntohl(helo.length);
-					if (helo.length > sizeof(helo) + sizeof(capabilities) - sizeof(helo.opcode) - sizeof(helo.length) - 1)
+					helo.size = ntohl(helo.size);
+					if (helo.size > sizeof(helo) + sizeof(capabilities) - sizeof(helo.opcode) - sizeof(helo.size) - 1)
 					{
 						throw slim::Exception("Length provided in HELO command is too big");
 					}
 
 					// making sure there is enough data provided for the dynamic part of HELO command
-					if (!isEnoughData(buffer, size))
+					if (!Command::isEnoughData(buffer, size))
 					{
 						throw slim::Exception("Message is too small for HELO command");
 					}
 
 					// serializing dynamic part of HELO command
-					memcpy(capabilities, buffer + sizeof(helo), helo.length + sizeof(helo.opcode) + sizeof(helo.length) - sizeof(helo));
+					memcpy(capabilities, buffer + sizeof(helo), helo.size + sizeof(helo.opcode) + sizeof(helo.size) - sizeof(helo));
 				}
 
 				// using Rule Of Zero
@@ -95,21 +96,6 @@ namespace slim
 				virtual std::size_t getSize() override
 				{
 					return sizeof(helo) + std::strlen(capabilities);
-				}
-
-				inline static bool isEnoughData(unsigned char* buffer, std::size_t size)
-				{
-					auto        result{false};
-					std::size_t offset{4};
-
-					// TODO: consider max length size
-					if (size >= offset + sizeof(std::uint32_t))
-					{
-						std::uint32_t length{ntohl(*(std::uint32_t*)(buffer + offset))};
-						result = (size >= (length + sizeof(HELO::opcode) + sizeof(HELO::length)));
-					}
-
-					return result;
 				}
 
 			private:

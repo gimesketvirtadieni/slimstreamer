@@ -22,19 +22,20 @@ namespace slim
 {
 	namespace proto
 	{
+		#pragma pack(push, 1)
 		struct SETDData
 		{
 			char         opcode[4];
 			std::uint8_t id;
-		// TODO: clarify if there is an universal way to avoid padding
-		} __attribute__((packed));
+		};
 
 
 		struct SETD
 		{
-			char     size[2];
-			SETDData data;
-		} __attribute__((packed));
+			std::uint16_t size;
+			SETDData      data;
+		};
+		#pragma pack(pop)
 
 
 		enum class DeviceID : std::uint8_t
@@ -55,9 +56,7 @@ namespace slim
 					setd.data.id = static_cast<std::uint8_t>(deviceID);
 
 					// preparing command size in indianless way
-					auto size = sizeof(setd.data);
-					setd.size[0] = 255 & (size >> 8);
-					setd.size[1] = 255 & size;
+					setd.size = htons(sizeof(setd.data));
 				}
 
 				// using Rule Of Zero

@@ -22,6 +22,7 @@ namespace slim
 {
 	namespace proto
 	{
+		#pragma pack(push, 1)
 		struct AUDGData
 		{
 			char          opcode[4];
@@ -38,15 +39,15 @@ namespace slim
 			std::uint8_t  gainRight3;
 			std::uint8_t  gainRight4;
 			std::uint16_t sequenceID;  // not sure
-		// TODO: clarify if there is an universal way to avoid padding
-		} __attribute__((packed));
+		};
 
 
 		struct AUDG
 		{
-			char     size[2];
-			AUDGData data;
-		} __attribute__((packed));
+			std::uint16_t size;
+			AUDGData      data;
+		};
+		#pragma pack(pop)
 
 
 		class CommandAUDG : public Command<AUDG>
@@ -67,9 +68,7 @@ namespace slim
 					audg.data.gainRight4 = 255;
 
 					// preparing command size in indianless way
-					auto size = sizeof(audg.data);
-					audg.size[0] = 255 & (size >> 8);
-					audg.size[1] = 255 & size;
+					audg.size = htons(sizeof(audg.data));
 				}
 
 				// using Rule Of Zero

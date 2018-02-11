@@ -23,10 +23,11 @@ namespace slim
 {
 	namespace proto
 	{
+		#pragma pack(push, 1)
 		struct STAT
 		{
 			char          opcode[4];
-			std::uint32_t length;
+			std::uint32_t size;
 			char          event[4];
 			std::uint8_t  numberCRLF;
 			std::uint8_t  initializedMAS;
@@ -44,8 +45,8 @@ namespace slim
 			std::uint32_t elapsedMilliseconds;
 			std::uint32_t serverTimestamp;
 			std::uint16_t errorCode;
-		// TODO: clarify if there is an universal way to avoid padding
-		} __attribute__((packed));
+		};
+		#pragma pack(pop)
 
 
 		class CommandSTAT : public Command<STAT>
@@ -66,6 +67,13 @@ namespace slim
 						throw slim::Exception("Message is too small");
 					}
 					memcpy(&stat, buffer, sizeof(STAT));
+
+					// validating length attribute from STAT command
+					stat.size = ntohl(stat.size);
+					if (stat.size > sizeof(stat) - sizeof(stat.opcode) - sizeof(stat.size))
+					{
+						throw slim::Exception("Length provided in STAT command is too big");
+					}
 				}
 
 				// using Rule Of Zero
@@ -88,21 +96,6 @@ namespace slim
 				inline auto getEvent()
 				{
 					return std::string{stat.event, sizeof(stat.event)};
-				}
-
-				inline static auto isEnoughData(unsigned char* buffer, std::size_t size)
-				{
-					auto        result{false};
-					std::size_t offset{4};
-
-					// TODO: consider max length size
-					if (size >= offset + sizeof(std::uint32_t))
-					{
-						std::uint32_t length{ntohl(*(std::uint32_t*)(buffer + offset))};
-						result = (size >= (length + sizeof(STAT::opcode) + sizeof(STAT::length)));
-					}
-
-					return result;
 				}
 
 			private:
