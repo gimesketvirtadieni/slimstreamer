@@ -14,12 +14,12 @@ SYMBOLS              += -DASIO_STANDALONE
 EXECUTABLE            = SlimStreamer
 
 CXX                   = g++
-CXX_OPTIONS          += -std=c++1z -c -O3 -g0 -fmessage-length=0 -Wall -Wnon-virtual-dtor -Woverloaded-virtual
+CXX_OPTIONS          += -std=c++1z -c -O3 -g0 -fmessage-length=0 -pthread -Wall -Wnon-virtual-dtor -Woverloaded-virtual
 CXX_FLAGS            += $(SYMBOLS) $(HEADERS) $(CXX_OPTIONS)
 
 LD_DIRECTORIES       += -L$(BASE_DIRECTORY)/dependencies/g3log/build
-LD_LIBRARIES         += -lasound -lg3logger -lpthread
-LD_OPTIONS           += -s
+LD_LIBRARIES         += -lasound -latomic -lg3logger -lpthread -lrt
+LD_OPTIONS           += -s -static-libgcc -static-libstdc++
 LD_FLAGS             += $(LD_DIRECTORIES) $(LD_LIBRARIES) $(LD_OPTIONS)
 
 # Default target executed when no arguments are given to make
