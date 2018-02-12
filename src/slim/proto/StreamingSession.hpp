@@ -45,7 +45,10 @@ namespace slim
 
 					// sending HTTP response with the headers
 					waveStream.write("HTTP/1.1 200 OK\r\n");
-					waveStream.write("Server: SlimStreamer (0.0.1)\r\n");
+					waveStream.write("Server: SlimStreamer (");
+					// TODO: provide version to the constructor
+					waveStream.write(VERSION);
+					waveStream.write(")\r\n");
 					waveStream.write("Connection: close\r\n");
 					waveStream.write("Content-Type: audio/x-wave\r\n");
 					waveStream.write("\r\n");
