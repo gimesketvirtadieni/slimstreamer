@@ -145,7 +145,7 @@ int main(int argc, char *argv[])
     logWorkerPtr->addSink(std::make_unique<ConsoleSink>(), &ConsoleSink::print);
 
     // TODO: create VERSION define
-    LOG(INFO) << "Starting SlimStreamer (v0.1.0-alpha)...";
+    LOG(INFO) << "Starting SlimStreamer (" << VERSION << ")...";
 
 	signal(SIGHUP, signalHandler);
 	signal(SIGTERM, signalHandler);
