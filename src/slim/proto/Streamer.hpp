@@ -266,22 +266,7 @@ namespace slim
 							session.onRequest(buffer, size);
 						}))
 						{
-							// using regular counter for session ID's instead of MAC's; it allows running multiple players on one host
-							std::stringstream ss;
-							ss << (++nextID);
-
-							// creating command session object
-							auto sessionPtr{std::make_unique<CommandSession<ConnectionType>>(connection, ss.str())};
-							sessionPtr->onRequest(buffer, size);
-
-							// enable streaming for this session if required
-							if (streaming)
-							{
-								sessionPtr->stream(streamingPort, samplingRate);
-							}
-
-							// saving command session in the map
-							addSession(commandSessions, connection, std::move(sessionPtr));
+							throw slim::Exception("Could not find SlimProto session object");
 						}
 					}
 					catch (const slim::Exception& error)
@@ -293,6 +278,21 @@ namespace slim
 
 				void onSlimProtoOpen(ConnectionType& connection)
 				{
+					// using regular counter for session ID's instead of MAC's; it allows running multiple players on one host
+					std::stringstream ss;
+					ss << (++nextID);
+
+					// creating command session object
+					auto sessionPtr{std::make_unique<CommandSession<ConnectionType>>(connection, ss.str())};
+
+					// enable streaming for this session if required
+					if (streaming)
+					{
+						sessionPtr->stream(streamingPort, samplingRate);
+					}
+
+					// saving command session in the map
+					addSession(commandSessions, connection, std::move(sessionPtr));
 				}
 
 				void setProcessorProxy(conwrap::ProcessorProxy<ContainerBase>* p)
