@@ -173,6 +173,8 @@ namespace slim
 						{
 							LOG(WARNING) << LABELS{"proto"} << "Current chunk transmition was skipped for " << counter << " client(s)";
 						}
+
+						LOG(DEBUG) << LABELS{"proto"} << "Delivered chunk all the clients (size=" << chunk.getDataSize() << ", clinets=" << commandSessions.size() - counter << ")";
 					}
 
 					return streaming;
