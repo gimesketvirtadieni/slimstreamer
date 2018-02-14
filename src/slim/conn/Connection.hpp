@@ -39,7 +39,8 @@ namespace slim
 				, nativeSocket{*processorProxyPtr->getDispatcher()}
 				, socketStreamCallback{[&](auto* buffer, auto size) mutable
 				{
-					return send(buffer, size);
+					write(buffer, size);
+					return size;
 				}}
 				, socketStream{&socketStreamCallback}
 				, opened{false}
@@ -74,22 +75,6 @@ namespace slim
 					return opened;
 				}
 
-				inline auto send(const void* buffer, const std::size_t size)
-				{
-					std::size_t sent{0};
-
-					if (nativeSocket.is_open())
-					{
-						sent = nativeSocket.send(asio::buffer(buffer, size));
-					}
-					else
-					{
-						LOG(WARNING) << LABELS{"conn"} << "Could not send any data to as socket is not opened (id=" << this << ")";
-					}
-
-					return sent;
-				}
-
 				void start(asio::ip::tcp::acceptor& acceptor)
 				{
 					onStart();
@@ -120,6 +105,19 @@ namespace slim
 						nativeSocket.close();
 					}
 					catch(...) {}
+				}
+
+				inline void write(const void* buffer, const std::size_t size)
+				{
+					if (nativeSocket.is_open())
+					{
+						// assio::write function writes all provided data
+						asio::write(nativeSocket, asio::buffer(buffer, size));
+					}
+					else
+					{
+						LOG(WARNING) << LABELS{"conn"} << "Could not send any data to as socket is not opened (id=" << this << ")";
+					}
 				}
 
 			protected:

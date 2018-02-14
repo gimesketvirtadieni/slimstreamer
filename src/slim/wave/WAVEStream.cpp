@@ -28,8 +28,8 @@ namespace slim
 
 		void WAVEStream::write(const void* buffer, std::size_t size)
 		{
+			// std::ostream::write method writes all data before returning, so no need to check how much data was actually written
 			outputStreamPtr->write(reinterpret_cast<const char*>(buffer), size);
-			outputStreamPtr->flush();
 		}
 
 

@@ -36,7 +36,8 @@ namespace slim
 				: connection{co}
 				, outputStreamCallback{[&](auto* buffer, auto size) mutable
 				{
-					return connection.send(buffer, size);
+					connection.write(buffer, size);
+					return size;
 				}}
 				, samplingRate{sr}
 				, waveStream{std::make_unique<std::ostream>(&outputStreamCallback), channels, samplingRate, bitePerSample}

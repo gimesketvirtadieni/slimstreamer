@@ -307,11 +307,7 @@ namespace slim
 				inline void send(CommandType command)
 				{
 					// TODO: introduce buffer wrapper so it can be passed to a stream; then in can be moved to a Command class
-					auto buffer{command.getBuffer()};
-					for (std::size_t i{0}, size{command.getSize()}; i < size;)
-					{
-						i += connection.send(buffer + i, size - i);
-					}
+					connection.write(command.getBuffer(), command.getSize());
 				}
 
 			private:
