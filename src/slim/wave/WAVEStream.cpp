@@ -29,6 +29,7 @@ namespace slim
 		void WAVEStream::write(const void* buffer, std::size_t size)
 		{
 			outputStreamPtr->write(reinterpret_cast<const char*>(buffer), size);
+			outputStreamPtr->flush();
 		}
 
 
