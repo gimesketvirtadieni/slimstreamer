@@ -76,11 +76,15 @@ namespace slim
 
 				inline auto send(const void* buffer, const std::size_t size)
 				{
-					std::size_t sent = size;
+					std::size_t sent{0};
 
 					if (nativeSocket.is_open())
 					{
 						sent = nativeSocket.send(asio::buffer(buffer, size));
+					}
+					else
+					{
+						LOG(WARNING) << LABELS{"conn"} << "Could not send any data to as socket is not opened (id=" << this << ")";
 					}
 
 					return sent;
