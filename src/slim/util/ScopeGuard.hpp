@@ -30,10 +30,10 @@ namespace slim
 		{
 			public:
 				ScopeGuard(Fun f) noexcept
-				: ScopeGuardBase{}
-				, fun{std::move(f)} {}
+				: fun{std::move(f)} {}
 
-				~ScopeGuard() noexcept
+				// cannot use Rule of Zero due to custom logic in destructor
+			   ~ScopeGuard() noexcept
 				{
 					// fun in the condition is required as move constructor creates an empty fun
 					if (isActive() && fun) try

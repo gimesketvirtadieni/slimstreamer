@@ -12,8 +12,6 @@
 
 #pragma once
 
-#include <utility>
-
 
 /*
  * This C++17 code is based on https://rnestler.github.io/c-list-of-scopeguard.html
@@ -25,10 +23,8 @@ namespace slim
 		class ScopeGuardBase
 		{
 			public:
-				ScopeGuardBase() noexcept
-				: active{true} {}
-
 				// using Rule Of Zero
+				ScopeGuardBase() = default;
 				ScopeGuardBase(const ScopeGuardBase&) = delete;             // non-copyable
 				ScopeGuardBase& operator=(const ScopeGuardBase&) = delete;  // non-copyable
 				ScopeGuardBase(ScopeGuardBase&& rhs) = default;
@@ -52,7 +48,7 @@ namespace slim
 				~ScopeGuardBase() = default;
 
 			private:
-				bool active;
+				bool active{true};
 		};
 	}
 }
