@@ -15,19 +15,19 @@
 #include <utility>  // std::move
 
 
+/*
+ * This code is based on http://videocortex.io/2017/custom-stream-buffers/
+ */
 namespace slim
 {
 	namespace util
 	{
-		/*
-		 * This code is based on http://videocortex.io/2017/custom-stream-buffers/
-		 */
 		template <typename CallbackType>
 		class OutputStreamCallback : public std::streambuf
 		{
 			public:
 				OutputStreamCallback(CallbackType c)
-				: callback{std::move(c)} {}
+				: callback{std::move(c ? c : [](const char_type* s, std::streamsize n) {return n;})} {}
 
 				// using Rule Of Zero
 				virtual ~OutputStreamCallback() = default;
