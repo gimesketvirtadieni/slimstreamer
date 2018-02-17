@@ -159,8 +159,8 @@ int main(int argc, char *argv[])
 
 		// Callbacks objects 'glue' SlimProto Streamer with TCP Command Servers
 		auto streamerPtr{std::make_unique<Streamer>(streamingPort)};
-		auto commandServerPtr{std::make_unique<Server>(commandsPort, 2, createCommandCallbacks(*streamerPtr))};
-		auto streamingServerPtr{std::make_unique<Server>(streamingPort, 2, createStreamingCallbacks(*streamerPtr))};
+		auto commandServerPtr{std::make_unique<Server>(commandsPort, 20, createCommandCallbacks(*streamerPtr))};
+		auto streamingServerPtr{std::make_unique<Server>(streamingPort, 20, createStreamingCallbacks(*streamerPtr))};
 
 		// creating Scheduler object
 		auto schedulerPtr{std::make_unique<Scheduler>(createPipelines(*streamerPtr))};
