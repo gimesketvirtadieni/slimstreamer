@@ -12,6 +12,7 @@
 
 #pragma once
 
+#include <asio/system_error.hpp>
 #include <conwrap/ProcessorAsioProxy.hpp>
 #include <cstddef>  // std::size_t
 #include <functional>
@@ -109,14 +110,19 @@ namespace slim
 
 				inline void write(const void* buffer, const std::size_t size)
 				{
-					if (nativeSocket.is_open())
+					// this validation does not save from an exception in case transfer gets terminated
+					if (nativeSocket.is_open()) try
 					{
-						// assio::write function writes all provided data
+						// no need to return actually written bytes as assio::write function writes all provided data
 						asio::write(nativeSocket, asio::buffer(buffer, size));
+					}
+					catch(const std::exception& e)
+					{
+						LOG(WARNING) << LABELS{"conn"} << "Could not send data due to an error (id=" << this << ", error=" << e.what() << ")";
 					}
 					else
 					{
-						LOG(WARNING) << LABELS{"conn"} << "Could not send any data to as socket is not opened (id=" << this << ")";
+						LOG(WARNING) << LABELS{"conn"} << "Could not send data as socket is not opened (id=" << this << ")";
 					}
 				}
 

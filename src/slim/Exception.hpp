@@ -33,8 +33,8 @@ namespace slim
 
 			// using Rule Of Zero
 			virtual ~Exception() = default;
-			Exception(const Exception&) = default;             // non-copyable
-			Exception& operator=(const Exception&) = default;  // non-assignable
+			Exception(const Exception&) = delete;             // non-copyable
+			Exception& operator=(const Exception&) = delete;  // non-assignable
 			Exception(Exception&& rhs) = default;
 			Exception& operator=(Exception&& rhs) = default;
 	};
