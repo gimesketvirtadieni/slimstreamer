@@ -139,7 +139,7 @@ int main(int argc, char *argv[])
 	// initializing log
 	auto logWorkerPtr = g3::LogWorker::createLogWorker();
 	g3::initializeLogging(logWorkerPtr.get());
-	g3::only_change_at_initialization::setLogLevel(ERROR, true);
+	g3::only_change_at_initialization::addLogLevel(ERROR);
 
 	// adding custom sinks
     logWorkerPtr->addSink(std::make_unique<ConsoleSink>(), &ConsoleSink::print);
