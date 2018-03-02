@@ -18,7 +18,7 @@
 #include <string>
 
 #include "slim/log/log.hpp"
-#include "slim/util/OutputStreamCallback.hpp"
+#include "slim/util/StreamBufferWithCallback.hpp"
 #include "slim/wave/WAVEStream.hpp"
 
 
@@ -29,18 +29,18 @@ namespace slim
 		template<typename ConnectionType>
 		class StreamingSession
 		{
-			using OutputStreamCallback = util::OutputStreamCallback<std::function<std::streamsize(const char*, std::streamsize)>>;
+			using StreamBuffer = util::StreamBufferWithCallback<std::function<std::streamsize(const char*, std::streamsize)>>;
 
 			public:
 				StreamingSession(ConnectionType& co, unsigned int channels, unsigned int sr, unsigned int bitePerSample)
 				: connection{co}
-				, outputStreamCallback{[&](auto* buffer, auto size) mutable
+				, streamBuffer{[&](auto* buffer, auto size) mutable
 				{
 					connection.write(buffer, size);
 					return size;
 				}}
 				, samplingRate{sr}
-				, waveStream{std::make_unique<std::ostream>(&outputStreamCallback), channels, samplingRate, bitePerSample}
+				, waveStream{std::make_unique<std::ostream>(&streamBuffer), channels, samplingRate, bitePerSample}
 				{
 					LOG(DEBUG) << LABELS{"proto"} << "HTTP session object was created (id=" << this << ")";
 
@@ -131,7 +131,7 @@ namespace slim
 			private:
 				ConnectionType&            connection;
 				std::optional<std::string> clientID;
-				OutputStreamCallback       outputStreamCallback;
+				StreamBuffer               streamBuffer;
 				unsigned int               samplingRate;
 				wave::WAVEStream           waveStream;
 		};

@@ -19,7 +19,6 @@
 
 #include "slim/Chunk.hpp"
 #include "slim/log/log.hpp"
-#include "slim/util/OutputStreamCallback.hpp"
 #include "slim/wave/WAVEStream.hpp"
 
 
@@ -29,10 +28,6 @@ namespace slim
 	{
 		class Destination
 		{
-			// TODO: it is possible to optimize by dropping std::function; an empty lambda can be used as a container
-			using Callback             = std::function<std::streamsize(const char*, std::streamsize)>;
-			using OutputStreamCallback = util::OutputStreamCallback<Callback>;
-
 			public:
 				explicit Destination(std::unique_ptr<std::ofstream> fs, unsigned int channels, unsigned int sampleRate, unsigned int bitsPerSample)
 				: waveStream{std::move(fs), channels, sampleRate, bitsPerSample}

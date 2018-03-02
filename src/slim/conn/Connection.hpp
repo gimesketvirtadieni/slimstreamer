@@ -21,7 +21,6 @@
 
 #include "slim/conn/CallbacksBase.hpp"
 #include "slim/log/log.hpp"
-#include "slim/util/OutputStreamCallback.hpp"
 
 
 namespace slim
@@ -31,19 +30,11 @@ namespace slim
 		template <typename ContainerType>
 		class Connection
 		{
-			using SocketStreamCallback = util::OutputStreamCallback<std::function<std::streamsize(const char*, std::streamsize)>>;
-
 			public:
 				Connection(conwrap::ProcessorAsioProxy<ContainerType>* p, CallbacksBase<Connection<ContainerType>>& c)
 				: processorProxyPtr{p}
 				, callbacks{c}
 				, nativeSocket{*processorProxyPtr->getDispatcher()}
-				, socketStreamCallback{[&](auto* buffer, auto size) mutable
-				{
-					write(buffer, size);
-					return size;
-				}}
-				, socketStream{&socketStreamCallback}
 				, opened{false}
 				{
 					LOG(DEBUG) << LABELS{"conn"} << "Connection object was created (id=" << this << ")";
@@ -64,11 +55,6 @@ namespace slim
 				inline auto& getNativeSocket()
 				{
 					return nativeSocket;
-				}
-
-				inline auto& getSocketStream()
-				{
-					return socketStream;
 				}
 
 				inline auto isOpen()
@@ -221,8 +207,6 @@ namespace slim
 				conwrap::ProcessorAsioProxy<ContainerType>* processorProxyPtr;
 				CallbacksBase<Connection<ContainerType>>&   callbacks;
 				asio::ip::tcp::socket                       nativeSocket;
-				SocketStreamCallback                        socketStreamCallback;
-				std::ostream                                socketStream;
 				bool                                        opened;
 
 				// TODO: think of some smarter way of managing buffer

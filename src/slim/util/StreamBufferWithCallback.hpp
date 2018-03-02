@@ -23,18 +23,18 @@ namespace slim
 	namespace util
 	{
 		template <typename CallbackType>
-		class OutputStreamCallback : public std::streambuf
+		class StreamBufferWithCallback : public std::streambuf
 		{
 			public:
-				OutputStreamCallback(CallbackType c)
+				StreamBufferWithCallback(CallbackType c)
 				: callback{std::move(c ? c : [](const char_type* s, std::streamsize n) {return n;})} {}
 
 				// using Rule Of Zero
-				virtual ~OutputStreamCallback() = default;
-				OutputStreamCallback(const OutputStreamCallback&) = delete;             // non-copyable
-				OutputStreamCallback& operator=(const OutputStreamCallback&) = delete;  // non-assignable
-				OutputStreamCallback(OutputStreamCallback&& rhs) = default;
-				OutputStreamCallback& operator=(OutputStreamCallback&& rhs) = default;
+				virtual ~StreamBufferWithCallback() = default;
+				StreamBufferWithCallback(const StreamBufferWithCallback&) = delete;             // non-copyable
+				StreamBufferWithCallback& operator=(const StreamBufferWithCallback&) = delete;  // non-assignable
+				StreamBufferWithCallback(StreamBufferWithCallback&& rhs) = default;
+				StreamBufferWithCallback& operator=(StreamBufferWithCallback&& rhs) = default;
 
 			protected:
 				virtual std::streamsize xsputn(const char_type* s, std::streamsize n) override
@@ -55,9 +55,9 @@ namespace slim
 
 
 		template <typename CallbackType>
-		inline auto makeOutputStreamCallback(CallbackType callback)
+		inline auto makeStreamBufferWithCallback(CallbackType callback)
 		{
-		    return std::move(OutputStreamCallback<CallbackType>(std::move(callback)));
+		    return std::move(StreamBufferWithCallback<CallbackType>(std::move(callback)));
 		}
 	}
 }
