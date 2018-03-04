@@ -11,7 +11,9 @@ SOURCES               = $(BASE_DIRECTORY)/src
 HEADERS              += -I$(SOURCES)
 HEADERS              += -I$(BASE_DIRECTORY)/dependencies/asio/asio/include
 HEADERS              += -I$(BASE_DIRECTORY)/dependencies/conwrap/src/include
+HEADERS              += -I$(BASE_DIRECTORY)/dependencies/cxxopts/include
 HEADERS              += -I$(BASE_DIRECTORY)/dependencies/g3log/src
+HEADERS              += -I$(BASE_DIRECTORY)/dependencies/scope_guard/include
 SYMBOLS              += -DASIO_STANDALONE
 SYMBOLS              += -DVERSION='"$(VERSION)"'
 EXECUTABLE            = SlimStreamer
