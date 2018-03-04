@@ -124,9 +124,7 @@ Building SlimStreamer is done in three steps:
 1. Obtaining source code
 
 ```
-git clone https://github.com/gimesketvirtadieni/slimstreamer.git
-cd slimstreamer
-git submodule update --init --recursive
+git clone --recurse-submodules https://github.com/gimesketvirtadieni/slimstreamer.git
 ```
 
 It will download all the source code needed for compiling SlimStreamer.
