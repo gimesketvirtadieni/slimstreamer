@@ -157,7 +157,7 @@ Now the actual compilation steps for the logger library:
 ```
 mkdir build
 cd build
-cmake -DCMAKE_BUILD_TYPE=Release -DUSE_DYNAMIC_LOGGING_LEVELS=ON ..
+cmake -DCMAKE_BUILD_TYPE=Release -DUSE_DYNAMIC_LOGGING_LEVELS=ON -DG3_SHARED_LIB=OFF ..
 make
 ls
 ```
@@ -166,17 +166,9 @@ The output should look similar to:
 
 ```
 andrej@sandbox:~/slimstreamer/dependencies/g3log/build$ ls
-CMakeCache.txt  cmake_install.cmake  CPackSourceConfig.cmake  g3log-FATAL-contract  libg3logger.a   Makefile
-CMakeFiles      CPackConfig.cmake    g3log-FATAL-choice       g3log-FATAL-sigsegv   libg3logger.so
+CMakeCache.txt        CMakeFiles           cmake_install.cmake  CPackConfig.cmake  CPackSourceConfig.cmake  g3log-FATAL-choice
+g3log-FATAL-contract  g3log-FATAL-sigsegv  include              libg3logger.a      Makefile
 ```
-
-One more important step:
-
-```
-rm libg3logger.so
-```
-
-It is required to remove dynamic library file (libg3logger.so) to make sure linker bundles everything into one executable file, avoiding any dependencies to dynamic libraries.
 
 
 3. Compiling SlimStreamer itself
