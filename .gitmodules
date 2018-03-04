@@ -15,4 +15,4 @@
 	url = https://github.com/jarro2783/cxxopts.git
 [submodule "dependencies/scope_guard"]
 	path = dependencies/scope_guard
-	url = https://github.com/yuri-kilochek/boost.scope_guard.git
+	url = https://github.com/gimesketvirtadieni/boost.scope_guard.git
