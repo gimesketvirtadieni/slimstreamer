@@ -12,10 +12,10 @@
 
 #pragma once
 
-#include <boost/scope_guard.hpp>
 #include <chrono>
 #include <cstddef>  // std::size_t
 #include <optional>
+#include <scope_guard.hpp>
 #include <string>
 
 #include "slim/Exception.hpp"

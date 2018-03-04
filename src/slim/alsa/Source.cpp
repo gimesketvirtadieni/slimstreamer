@@ -10,8 +10,8 @@
  * Author: gimesketvirtadieni at gmail dot com (Andrej Kislovskij)
  */
 
-#include <boost/scope_guard.hpp>
 #include <functional>
+#include <scope_guard.hpp>
 #include <string>
 
 #include "slim/alsa/Source.hpp"
