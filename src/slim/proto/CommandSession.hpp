@@ -12,7 +12,7 @@
 
 #pragma once
 
-#include <slim/util/ExpandableBuffer.hpp>
+#include <boost/scope_guard.hpp>
 #include <chrono>
 #include <cstddef>  // std::size_t
 #include <optional>
@@ -28,7 +28,6 @@
 #include "slim/proto/CommandSTRM.hpp"
 #include "slim/proto/StreamingSession.hpp"
 #include "slim/util/ExpandableBuffer.hpp"
-#include "slim/util/ScopeGuard.hpp"
 
 
 namespace slim
@@ -95,11 +94,11 @@ namespace slim
 					commandBuffer.append(buffer, size);
 
 					// removing processed data from the buffer in exception safe way
-					std::size_t processedSize{commandBuffer.size()};
-					auto guard = util::makeScopeGuard([&]
+					std::size_t        processedSize{commandBuffer.size()};
+					boost::scope_guard guard = [&]
 					{
 						commandBuffer.shrinkLeft(processedSize);
-					});
+					};
 
 					std::size_t keySize{4};
 					if (processedSize > keySize)

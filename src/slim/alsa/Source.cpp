@@ -10,13 +10,13 @@
  * Author: gimesketvirtadieni at gmail dot com (Andrej Kislovskij)
  */
 
+#include <boost/scope_guard.hpp>
 #include <functional>
 #include <string>
 
 #include "slim/alsa/Source.hpp"
 #include "slim/Exception.hpp"
 #include "slim/log/log.hpp"
-#include "slim/util/ScopeGuard.hpp"
 
 
 namespace slim
@@ -106,7 +106,7 @@ namespace slim
 			auto                 deviceName  = parameters.getDeviceName();
 			auto                 rate        = parameters.getRate();
 			int                  result;
-			auto                 guard       = util::makeScopeGuard([&]()
+			boost::scope_guard   guard       = [&]
 			{
 				// releasing hardware and software parameters
 				if (hardwarePtr)
@@ -117,7 +117,7 @@ namespace slim
 				{
 					snd_pcm_sw_params_free(softwarePtr);
 				}
-			});
+			};
 
 			if ((result = snd_pcm_open(&handlePtr, deviceName.c_str(), SND_PCM_STREAM_CAPTURE, 0)) < 0)
 			{
