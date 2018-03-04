@@ -31,6 +31,8 @@
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/dependencies/g3log/build/include}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/dependencies/conwrap/src/include}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/dependencies/asio/asio/include}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/dependencies/cxxopts/include}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/dependencies/scope_guard/include}&quot;"/>
 								</option>
 								<option id="gnu.cpp.compiler.option.preprocessor.def.192776670" name="Defined symbols (-D)" superClass="gnu.cpp.compiler.option.preprocessor.def" useByScannerDiscovery="false" valueType="definedSymbols">
 									<listOptionValue builtIn="false" value="ASIO_STANDALONE"/>
@@ -107,6 +109,8 @@
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/dependencies/g3log/src}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/dependencies/conwrap/src/include}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/dependencies/asio/asio/include}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/dependencies/cxxopts/include}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/dependencies/scope_guard/include}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/dependencies/googletest/googlemock/include}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/dependencies/googletest/googletest/include}&quot;"/>
 								</option>
@@ -188,6 +192,8 @@
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/dependencies/g3log/src}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/dependencies/conwrap/src/include}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/dependencies/asio/asio/include}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/dependencies/cxxopts/include}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/dependencies/scope_guard/include}&quot;"/>
 								</option>
 								<option id="gnu.cpp.compiler.option.preprocessor.def.1107656414" name="Defined symbols (-D)" superClass="gnu.cpp.compiler.option.preprocessor.def" useByScannerDiscovery="false" valueType="definedSymbols">
 									<listOptionValue builtIn="false" value="ASIO_STANDALONE"/>
