@@ -87,7 +87,7 @@ SlimStreamer is written in C++17 so it requires an adequate compiler (the comman
 
 ```
 sudo apt-get update
-sudo apt-get install build-essential g++ libasound2-dev
+sudo apt-get install build-essential g++ libasound2-dev cmake git
 ```
 
 To validate if installed compiler supports C++17, use this command:
@@ -114,7 +114,7 @@ sudo apt-get install gcc-7 g++-7
 sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-7 60 --slave /usr/bin/g++ g++ /usr/bin/g++-7
 ```
 
-After upgrading GCC to the latest version, you should get a similar output as above, while typing g++ --version command.
+After upgrading GCC, you should get a similar output as above when issuing a command ```g++ --version```.
 
 
 ## Compiling SlimStreamer
@@ -125,9 +125,12 @@ Building SlimStreamer is done in three steps:
 
 ```
 git clone --recurse-submodules https://github.com/gimesketvirtadieni/slimstreamer.git
+cd slimstreamer
+./scripts/createLocalBranches.sh
 ```
 
 It will download all the source code needed for compiling SlimStreamer.
+The last two lines are required only if you want to get all the branches into your local repo.
 
 
 2. Compiling dependencies
