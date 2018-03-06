@@ -13,6 +13,7 @@
 #include <chrono>
 #include <conwrap/ProcessorAsio.hpp>
 #include <csignal>
+#include <cxxopts.hpp>
 #include <exception>
 #include <g3log/logworker.hpp>
 #include <memory>
@@ -57,6 +58,32 @@ static volatile bool running = true;
 void signalHandler(int sig)
 {
 	running = false;
+}
+
+
+void printVersionInfo()
+{
+	std::cout << "SlimStreamer version " << VERSION << std::endl;
+}
+
+
+void printLicenseInfo()
+{
+	printVersionInfo();
+
+	std::cout << std::endl;
+	std::cout << "Copyright 2017, Andrej Kislovskij" << std::endl;
+	std::cout << std::endl;
+	std::cout << "This is PUBLIC DOMAIN software so use at your own risk as it comes" << std::endl;
+	std::cout << "with no warranties. This code is yours to share, use and modify without" << std::endl;
+	std::cout << "any restrictions or obligations." << std::endl;
+	std::cout << std::endl;
+	std::cout << "For more information see conwrap/LICENSE or refer refer to http://unlicense.org" << std::endl;
+	std::cout << std::endl;
+	std::cout << "Author: gimesketvirtadieni at gmail dot com (Andrej Kislovskij)" << std::endl;
+	std::cout << std::endl;
+
+	// TODO: references to dependancies
 }
 
 
@@ -134,6 +161,17 @@ auto createPipelines(Streamer& streamer)
 }
 
 
+class custom_boolean_value : public cxxopts::values::standard_value<bool>
+{
+	public:
+		custom_boolean_value()
+		{
+			m_default = false;
+		}
+		~custom_boolean_value() = default;
+};
+
+
 int main(int argc, char *argv[])
 {
 	// initializing log and adding custom sink
@@ -142,56 +180,108 @@ int main(int argc, char *argv[])
 	g3::only_change_at_initialization::addLogLevel(ERROR);
     logWorkerPtr->addSink(std::make_unique<ConsoleSink>(), &ConsoleSink::print);
 
-    LOG(INFO) << "Starting SlimStreamer (" << VERSION << ")...";
-
-	signal(SIGHUP, signalHandler);
-	signal(SIGTERM, signalHandler);
-	signal(SIGINT, signalHandler);
-
 	try
 	{
-		// TODO: parametrize ports
-		unsigned int commandsPort{3484};
-		unsigned int streamingPort{9001};
+		// defining supported options
+		cxxopts::Options options("SlimStreamer", "SlimStreamer - A multi-room bit-perfect streamer for systemwise audio\n");
+		options
+			.custom_help("[options]")
+			.add_options()
+				("c,maxclients", "Maximum amount of clients able to connect", cxxopts::value<int>()->default_value("10"), "<number>")
+				("h,help", "Print this help message", std::make_shared<custom_boolean_value>())
+				("l,license", "Print license details", std::make_shared<custom_boolean_value>())
+				("s,slimprotoport", "SlimProto (command connection) server port", cxxopts::value<int>()->default_value("3483"), "<port>")
+				("t,httpport", "HTTP (streaming connection) server port", cxxopts::value<int>()->default_value("9000"), "<port>")
+				("v,version", "Print version details", std::make_shared<custom_boolean_value>());
 
-		// Callbacks objects 'glue' SlimProto Streamer with TCP Command Servers
-		auto streamerPtr{std::make_unique<Streamer>(streamingPort)};
-		auto commandServerPtr{std::make_unique<Server>(commandsPort, 20, createCommandCallbacks(*streamerPtr))};
-		auto streamingServerPtr{std::make_unique<Server>(streamingPort, 20, createStreamingCallbacks(*streamerPtr))};
+		// parsing provided options
+		auto result = options.parse(argc, argv);
 
-		// creating Scheduler object
-		auto schedulerPtr{std::make_unique<Scheduler>(createPipelines(*streamerPtr))};
-
-		// creating Container object within Asio Processor with Scheduler and Servers
-		conwrap::ProcessorAsio<ContainerBase> processorAsio
+		if (result.count("help"))
 		{
-			std::unique_ptr<ContainerBase>
+			std::cout << options.help() << std::endl;
+		}
+		else if (result.count("license"))
+		{
+			printLicenseInfo();
+		}
+		else if (result.count("version"))
+		{
+			printVersionInfo();
+		}
+		else
+		{
+			auto maxClients    = result["maxclients"].as<int>();
+			auto slimprotoPort = result["slimprotoport"].as<int>();
+			auto httpPort      = result["httpport"].as<int>();
+
+			// Callbacks objects 'glue' SlimProto Streamer with TCP Command Servers
+			auto streamerPtr{std::make_unique<Streamer>(slimprotoPort)};
+			auto commandServerPtr{std::make_unique<Server>(slimprotoPort, maxClients, createCommandCallbacks(*streamerPtr))};
+			auto streamingServerPtr{std::make_unique<Server>(httpPort, maxClients, createStreamingCallbacks(*streamerPtr))};
+
+			// creating Scheduler object
+			auto schedulerPtr{std::make_unique<Scheduler>(createPipelines(*streamerPtr))};
+
+			// creating Container object within Asio Processor with Scheduler and Servers
+			conwrap::ProcessorAsio<ContainerBase> processorAsio
 			{
-				new Container(std::move(schedulerPtr), std::move(commandServerPtr), std::move(streamingServerPtr), std::move(streamerPtr))
+				std::unique_ptr<ContainerBase>
+				{
+					new Container(std::move(schedulerPtr), std::move(commandServerPtr), std::move(streamingServerPtr), std::move(streamerPtr))
+				}
+			};
+
+			// start streaming
+			LOG(INFO) << "Starting SlimStreamer...";
+			auto startStatus = processorAsio.process([](auto context) -> bool
+			{
+				auto started{false};
+
+				try
+				{
+					context.getResource()->start();
+					started = true;
+				}
+				catch (const std::exception& error)
+				{
+					LOG(ERROR) << error.what();
+				}
+				catch (...)
+				{
+					std::cout << "Unexpected exception" << std::endl;
+				}
+
+				return started;
+			});
+			if (startStatus.get())
+			{
+				LOG(INFO) << "SlimStreamer was started";
+
+				// registering signal handler
+				signal(SIGHUP, signalHandler);
+				signal(SIGTERM, signalHandler);
+				signal(SIGINT, signalHandler);
+
+				// waiting for Control^C
+				while(running)
+				{
+					std::this_thread::sleep_for(std::chrono::milliseconds{200});
+				}
+
+				// stop streaming
+				LOG(INFO) << "Stopping SlimStreamer...";
+				processorAsio.process([](auto context)
+				{
+					context.getResource()->stop();
+				}).wait();
+				LOG(INFO) << "SlimStreamer was stopped";
 			}
-		};
-
-        // start streaming
-        processorAsio.process([](auto context)
-        {
-        	context.getResource()->start();
-        }).wait();
-
-        LOG(INFO) << "SlimStreamer was started";
-
-        // waiting for Control^C
-        while(running)
-        {
-			std::this_thread::sleep_for(std::chrono::milliseconds{200});
-        }
-
-    	LOG(INFO) << "Stopping SlimStreamer...";
-
-    	// stop streaming
-        processorAsio.process([](auto context)
-        {
-        	context.getResource()->stop();
-        });
+		}
+	}
+	catch (const cxxopts::OptionException& e)
+	{
+		std::cout << "Wrong option(s) provided: " << e.what() << std::endl;
 	}
 	catch (const slim::Exception& error)
 	{
@@ -203,10 +293,8 @@ int main(int argc, char *argv[])
 	}
 	catch (...)
 	{
-		LOG(ERROR) << "Unexpected exception";
+		std::cout << "Unexpected exception" << std::endl;
 	}
-
-	LOG(INFO) << "SlimStreamer was stopped";
 
 	return 0;
 }
