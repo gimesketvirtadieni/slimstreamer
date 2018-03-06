@@ -216,7 +216,7 @@ int main(int argc, char *argv[])
 			auto httpPort      = result["httpport"].as<int>();
 
 			// Callbacks objects 'glue' SlimProto Streamer with TCP Command Servers
-			auto streamerPtr{std::make_unique<Streamer>(slimprotoPort)};
+			auto streamerPtr{std::make_unique<Streamer>(httpPort)};
 			auto commandServerPtr{std::make_unique<Server>(slimprotoPort, maxClients, createCommandCallbacks(*streamerPtr))};
 			auto streamingServerPtr{std::make_unique<Server>(httpPort, maxClients, createStreamingCallbacks(*streamerPtr))};
 
