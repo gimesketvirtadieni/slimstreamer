@@ -160,7 +160,7 @@ auto createPipelines(Streamer& streamer)
 	return pipelines;
 }
 
-
+/*
 class custom_boolean_value : public cxxopts::values::standard_value<bool>
 {
 	public:
@@ -170,7 +170,7 @@ class custom_boolean_value : public cxxopts::values::standard_value<bool>
 		}
 		~custom_boolean_value() = default;
 };
-
+*/
 
 int main(int argc, char *argv[])
 {
@@ -188,11 +188,11 @@ int main(int argc, char *argv[])
 			.custom_help("[options]")
 			.add_options()
 				("c,maxclients", "Maximum amount of clients able to connect", cxxopts::value<int>()->default_value("10"), "<number>")
-				("h,help", "Print this help message", std::make_shared<custom_boolean_value>())
-				("l,license", "Print license details", std::make_shared<custom_boolean_value>())
+				("h,help", "Print this help message", cxxopts::value<bool>())
+				("l,license", "Print license details", cxxopts::value<bool>())
 				("s,slimprotoport", "SlimProto (command connection) server port", cxxopts::value<int>()->default_value("3483"), "<port>")
 				("t,httpport", "HTTP (streaming connection) server port", cxxopts::value<int>()->default_value("9000"), "<port>")
-				("v,version", "Print version details", std::make_shared<custom_boolean_value>());
+				("v,version", "Print version details", cxxopts::value<bool>());
 
 		// parsing provided options
 		auto result = options.parse(argc, argv);
