@@ -101,12 +101,12 @@ namespace slim
 
 		void Source::open()
 		{
-			snd_pcm_hw_params_t* hardwarePtr = nullptr;
-			snd_pcm_sw_params_t* softwarePtr = nullptr;
-			auto                 deviceName  = parameters.getDeviceName();
-			auto                 rate        = parameters.getRate();
+			snd_pcm_hw_params_t* hardwarePtr  = nullptr;
+			snd_pcm_sw_params_t* softwarePtr  = nullptr;
+			auto                 deviceName   = parameters.getDeviceName();
+			auto                 samplingRate = parameters.getSamplingRate();
 			int                  result;
-			boost::scope_guard   guard       = [&]
+			boost::scope_guard   guard        = [&]
 			{
 				// releasing hardware and software parameters
 				if (hardwarePtr)
@@ -139,7 +139,7 @@ namespace slim
 			{
 				throw Exception(formatError("Cannot set sample format", result));
 			}
-			else if ((result = snd_pcm_hw_params_set_rate_near(handlePtr, hardwarePtr, &rate, nullptr)) < 0)
+			else if ((result = snd_pcm_hw_params_set_rate_near(handlePtr, hardwarePtr, &samplingRate, nullptr)) < 0)
 			{
 				throw Exception(formatError("Cannot set sample rate", result));
 			}
@@ -226,10 +226,9 @@ namespace slim
 					if (offset >= 0)
 					{
 						// reading PCM data directly into the queue
-						queuePtr->enqueue([&](Chunk& chunk)
+						queuePtr->enqueue([&](util::ExpandableBuffer& buffer)
 						{
 							// setting new chunk size in bytes
-							auto& buffer{chunk.getBuffer()};
 							buffer.size(copyData(srcBuffer + offset * bytesPerFrame, buffer.data(), frames - offset) * (parameters.getChannels() - 1) * (parameters.getBitDepth() >> 3));
 
 							// available is used to provide optimization for a scheduler submitting tasks to a processor

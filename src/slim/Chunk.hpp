@@ -21,7 +21,10 @@ namespace slim
 	{
 		public:
 			// using Rule Of Zero
-			Chunk() = default;
+			Chunk(util::ExpandableBuffer& b, unsigned int sr)
+			: buffer{b}
+			, samplingRate{sr} {}
+
 		   ~Chunk() = default;
 
 			Chunk(const Chunk& rhs) = default;
@@ -35,7 +38,8 @@ namespace slim
 			}
 
 		private:
-			util::ExpandableBuffer buffer;
+			util::ExpandableBuffer& buffer;
+			const unsigned int      samplingRate;
 	};
 
 

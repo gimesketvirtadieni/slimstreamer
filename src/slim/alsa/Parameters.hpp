@@ -29,7 +29,7 @@ namespace slim
 				: deviceName{d}
 				, channels{c}
 				, format{f}
-				, rate{r}
+				, samplingRate{r}
 				, queueSize{qs}
 				, framesPerChunk{fc}
 				, periods{p} {}
@@ -62,9 +62,9 @@ namespace slim
 					return queueSize;
 				}
 
-				inline const unsigned int getRate() const
+				inline const unsigned int getSamplingRate() const
 				{
-					return rate;
+					return samplingRate;
 				}
 
 				inline const snd_pcm_format_t getFormat() const
@@ -92,16 +92,16 @@ namespace slim
 					framesPerChunk = f;
 				}
 
-				inline void setRate(unsigned int r)
+				inline void setSamplingRate(unsigned int r)
 				{
-					rate = r;
+					samplingRate = r;
 				}
 
 			private:
 				std::string       deviceName;
 				unsigned int      channels;
 				snd_pcm_format_t  format;
-				unsigned int      rate;
+				unsigned int      samplingRate;
 				size_t            queueSize;
 				snd_pcm_uframes_t framesPerChunk;
 				unsigned int      periods;

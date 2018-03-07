@@ -20,6 +20,7 @@
 
 #include "slim/alsa/Parameters.hpp"
 #include "slim/Chunk.hpp"
+#include "slim/util/ExpandableBuffer.hpp"
 #include "slim/util/RealTimeQueue.hpp"
 
 
@@ -43,10 +44,9 @@ namespace slim
 				, producing{false}
 				, available{false}
 				, streaming{true}
-				, queuePtr{std::make_unique<util::RealTimeQueue<Chunk>>(parameters.getQueueSize(), [&](Chunk& chunk)
+				, queuePtr{std::make_unique<util::RealTimeQueue<util::ExpandableBuffer>>(parameters.getQueueSize(), [&](util::ExpandableBuffer& buffer)
 				{
 					// last channel does not contain PCM data so it will be filtered out
-					auto& buffer{chunk.getBuffer()};
 					buffer.capacity(p.getFramesPerChunk() * (p.getChannels() - 1) * (p.getBitDepth() >> 3));
 				})}
 				{
@@ -131,10 +131,13 @@ namespace slim
 				inline bool supply(std::function<bool(Chunk&)> consumer)
 				{
 					// this call does NOT block if bounded queue (buffer) is empty
-					return queuePtr->dequeue([&](Chunk& chunk)
+					return queuePtr->dequeue([&](util::ExpandableBuffer& buffer)
 					{
+						// creating Chunk object which is a wrapper around ExpandableBuffer with meta data about PCM stream details
+						Chunk chunk{buffer, parameters.getSamplingRate()};
 						return consumer(chunk);
-					}, [&]
+					}
+					, [&]
 					{
 						available.store(false, std::memory_order_release);
 					});
@@ -161,7 +164,7 @@ namespace slim
 				std::atomic<bool>                           producing;
 				std::atomic<bool>                           available;
 				bool                                        streaming;
-				std::unique_ptr<util::RealTimeQueue<Chunk>> queuePtr;
+				std::unique_ptr<util::RealTimeQueue<util::ExpandableBuffer>> queuePtr;
 		};
 	}
 }

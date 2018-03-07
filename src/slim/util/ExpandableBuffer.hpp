@@ -27,10 +27,10 @@ namespace slim
 			public:
 				using size_type = std::size_t;
 
-				explicit ExpandableBuffer(size_type s = 0)
+				inline explicit ExpandableBuffer(size_type s = 0)
 				: ExpandableBuffer(s, s) {}
 
-				explicit ExpandableBuffer(size_type s, size_type c)
+				inline explicit ExpandableBuffer(size_type s, size_type c)
 				: size_{s}
 				, capacity_{c}
 				, free_{true}
@@ -42,10 +42,10 @@ namespace slim
 					data_ = (c != 0 ? new unsigned char[c] : 0);
 				}
 
-				explicit ExpandableBuffer(const void* d, size_type s)
+				inline explicit ExpandableBuffer(const void* d, size_type s)
 				: ExpandableBuffer(d, s, s) {}
 
-				explicit ExpandableBuffer(const void* d, size_type s, size_type c)
+				inline explicit ExpandableBuffer(const void* d, size_type s, size_type c)
 				: size_{s}
 				, capacity_{c}
 				, free_{true}
@@ -70,7 +70,7 @@ namespace slim
 					}
 				}
 
-				explicit ExpandableBuffer(void* d, size_type s, size_type c, bool own)
+				inline explicit ExpandableBuffer(void* d, size_type s, size_type c, bool own)
 				: data_{static_cast<unsigned char*>(d)}
 				, size_{s}
 				, capacity_{s}
@@ -82,7 +82,7 @@ namespace slim
 					}
 				}
 
-			   ~ExpandableBuffer()
+				inline ~ExpandableBuffer()
 				{
 					if (free_)
 					{
@@ -91,8 +91,45 @@ namespace slim
 				}
 
 				// TODO: move semantic
-				ExpandableBuffer(const ExpandableBuffer&);
-				ExpandableBuffer& operator=(const ExpandableBuffer&);
+				inline ExpandableBuffer(const ExpandableBuffer& x)
+				: free_{true}
+				{
+				  if (x.capacity_ != 0)
+				  {
+					data_ = new unsigned char[x.capacity_];
+
+					if (x.size_ != 0)
+					  std::memcpy (data_, x.data_, x.size_);
+				  }
+				  else
+					data_ = 0;
+
+				  size_ = x.size_;
+				  capacity_ = x.capacity_;
+				}
+
+				inline ExpandableBuffer& operator=(const ExpandableBuffer& x)
+				{
+				  if (&x != this)
+				  {
+					if (x.size_ > capacity_)
+					{
+					  if (free_)
+						delete[] data_;
+
+					  data_ = new unsigned char[x.capacity_];
+					  capacity_ = x.capacity_;
+					  free_ = true;
+					}
+
+					if (x.size_ != 0)
+					  std::memcpy (data_, x.data_, x.size_);
+
+					size_ = x.size_;
+				  }
+
+				  return *this;
+				}
 
 				void swap(ExpandableBuffer&);
 				unsigned char* detach();
@@ -142,46 +179,6 @@ namespace slim
 		//
 		// Implementation.
 		//
-		inline ExpandableBuffer::ExpandableBuffer (const ExpandableBuffer& x)
-			: free_ (true)
-		{
-		  if (x.capacity_ != 0)
-		  {
-			data_ = new unsigned char[x.capacity_];
-
-			if (x.size_ != 0)
-			  std::memcpy (data_, x.data_, x.size_);
-		  }
-		  else
-			data_ = 0;
-
-		  size_ = x.size_;
-		  capacity_ = x.capacity_;
-		}
-
-		inline ExpandableBuffer& ExpandableBuffer::operator= (const ExpandableBuffer& x)
-		{
-		  if (&x != this)
-		  {
-			if (x.size_ > capacity_)
-			{
-			  if (free_)
-				delete[] data_;
-
-			  data_ = new unsigned char[x.capacity_];
-			  capacity_ = x.capacity_;
-			  free_ = true;
-			}
-
-			if (x.size_ != 0)
-			  std::memcpy (data_, x.data_, x.size_);
-
-			size_ = x.size_;
-		  }
-
-		  return *this;
-		}
-
 		inline void ExpandableBuffer::swap(ExpandableBuffer& x)
 		{
 		  unsigned char* d (x.data_);
