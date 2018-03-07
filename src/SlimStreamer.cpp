@@ -160,19 +160,8 @@ auto createPipelines(Streamer& streamer)
 	return pipelines;
 }
 
-/*
-class custom_boolean_value : public cxxopts::values::standard_value<bool>
-{
-	public:
-		custom_boolean_value()
-		{
-			m_default = false;
-		}
-		~custom_boolean_value() = default;
-};
-*/
 
-int main(int argc, char *argv[])
+int main(int argc, const char *argv[])
 {
 	// initializing log and adding custom sink
 	auto logWorkerPtr = g3::LogWorker::createLogWorker();

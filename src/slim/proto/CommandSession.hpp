@@ -94,8 +94,8 @@ namespace slim
 					commandBuffer.append(buffer, size);
 
 					// removing processed data from the buffer in exception safe way
-					std::size_t        processedSize{commandBuffer.size()};
-					boost::scope_guard guard = [&]
+					std::size_t         processedSize{commandBuffer.size()};
+					::util::scope_guard guard = [&]
 					{
 						commandBuffer.shrinkLeft(processedSize);
 					};
