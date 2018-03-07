@@ -81,9 +81,10 @@ namespace slim
 
 				inline bool consume(Chunk& chunk)
 				{
-					auto size{chunk.getDataSize()};
+					auto& buffer{chunk.getBuffer()};
+					auto  size{buffer.size()};
 
-					waveStream.write(chunk.getBuffer(), size);
+					waveStream.write(buffer.data(), size);
 
 					LOG(DEBUG) << LABELS{"wave"} << "Written " << (size / bytesPerFrame) << " frames";
 

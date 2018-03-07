@@ -229,7 +229,8 @@ namespace slim
 						queuePtr->enqueue([&](Chunk& chunk)
 						{
 							// setting new chunk size in bytes
-							chunk.setDataSize(copyData(srcBuffer + offset * bytesPerFrame, chunk.getBuffer(), frames - offset) * (parameters.getChannels() - 1) * (parameters.getBitDepth() >> 3));
+							auto& buffer{chunk.getBuffer()};
+							buffer.size(copyData(srcBuffer + offset * bytesPerFrame, buffer.data(), frames - offset) * (parameters.getChannels() - 1) * (parameters.getBitDepth() >> 3));
 
 							// available is used to provide optimization for a scheduler submitting tasks to a processor
 							available.store(true, std::memory_order_release);

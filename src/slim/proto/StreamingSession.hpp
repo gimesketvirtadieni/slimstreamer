@@ -17,6 +17,7 @@
 #include <optional>
 #include <string>
 
+#include "slim/Chunk.hpp"
 #include "slim/log/log.hpp"
 #include "slim/util/StreamBufferWithCallback.hpp"
 #include "slim/wave/WAVEStream.hpp"
@@ -69,7 +70,8 @@ namespace slim
 				{
 					if (samplingRate == sr)
 					{
-						waveStream.write(chunk.getBuffer(), chunk.getDataSize());
+						auto& buffer{chunk.getBuffer()};
+						waveStream.write(buffer.data(), buffer.size());
 					}
 					else
 					{

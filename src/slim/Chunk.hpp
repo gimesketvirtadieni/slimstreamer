@@ -12,8 +12,7 @@
 
 #pragma once
 
-#include <cstddef>
-#include <memory>
+#include "slim/util/ExpandableBuffer.hpp"
 
 
 namespace slim
@@ -21,51 +20,28 @@ namespace slim
 	class Chunk
 	{
 		public:
-			Chunk()
-			: size{0}
-			, dataSize{0}
-			, buffer{nullptr} {}
-
 			// using Rule Of Zero
-			~Chunk() = default;
-			Chunk(const Chunk&) = delete;             // non-copyable
-			Chunk& operator=(const Chunk&) = delete;  // non-assignable
+			Chunk() = default;
+		   ~Chunk() = default;
+
+			Chunk(const Chunk& rhs) = default;
+			Chunk& operator=(const Chunk& rhs) = default;
 			Chunk(Chunk&& rhs) = default;
 			Chunk& operator=(Chunk&& rhs) = default;
 
-			inline unsigned char* getBuffer() const
+			inline auto& getBuffer()
 			{
-				return buffer.get();
-			}
-
-			inline size_t getDataSize() const
-			{
-				return dataSize;
-			}
-
-			inline size_t getSize() const
-			{
-				return size;
-			}
-
-			inline void setDataSize(size_t s)
-			{
-				// TODO: handle case when s > buffer size
-				dataSize = s;
-			}
-
-			inline void setSize(size_t s)
-			{
-				size     = s;
-				dataSize = 0;
-
-				// allocating buffer
-				buffer = std::make_unique<unsigned char[]>(size);
+				return buffer;
 			}
 
 		private:
-			size_t                           size;
-			size_t                           dataSize;
-			std::unique_ptr<unsigned char[]> buffer;
+			util::ExpandableBuffer buffer;
 	};
+
+
+	// TODO: implement
+	//inline std::ostream &operator<<(std::ostream &outputstream, Chunk const &chunk)
+	//{
+	//	return outputstream << ""/*m.i*/;
+	//}
 }

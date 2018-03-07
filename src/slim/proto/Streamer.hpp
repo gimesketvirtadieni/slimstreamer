@@ -24,6 +24,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "slim/Chunk.hpp"
 #include "slim/Exception.hpp"
 #include "slim/log/log.hpp"
 #include "slim/proto/CommandSession.hpp"
@@ -156,25 +157,7 @@ namespace slim
 
 					if (sr && samplingRate == sr && streaming)
 					{
-						// sending chunk to all HTTP sessions
-						auto counter{commandSessions.size()};
-						for (auto& entry : commandSessions)
-						{
-							auto streamingSessionPtr{entry.second->getStreamingSession()};
-							if (streamingSessionPtr)
-							{
-								streamingSessionPtr->onChunk(chunk, samplingRate);
-								counter--;
-							}
-						}
-
-						// if there are command sessions without relevant HTTP session
-						if (counter > 0)
-						{
-							LOG(WARNING) << LABELS{"proto"} << "Current chunk transmition was skipped for " << counter << " client(s)";
-						}
-
-						LOG(DEBUG) << LABELS{"proto"} << "Delivered chunk all the clients (size=" << chunk.getDataSize() << ", clients=" << commandSessions.size() - counter << ")";
+						distributeChunk(chunk, samplingRate);
 					}
 
 					return streaming;
@@ -341,6 +324,29 @@ namespace slim
 					}
 
 					return (found != sessions.end());
+				}
+
+				inline void distributeChunk(Chunk& chunk, unsigned int sr)
+				{
+					// sending chunk to all HTTP sessions
+					auto counter{commandSessions.size()};
+					for (auto& entry : commandSessions)
+					{
+						auto streamingSessionPtr{entry.second->getStreamingSession()};
+						if (streamingSessionPtr)
+						{
+							streamingSessionPtr->onChunk(chunk, samplingRate);
+							counter--;
+						}
+					}
+
+					// if there are command sessions without relevant HTTP session
+					if (counter > 0)
+					{
+						LOG(WARNING) << LABELS{"proto"} << "Current chunk transmition was skipped for " << counter << " client(s)";
+					}
+
+					LOG(DEBUG) << LABELS{"proto"} << "Delivered chunk all the clients (size=" << chunk.getBuffer().size() << ", clients=" << commandSessions.size() - counter << ")";
 				}
 
 				auto findCommandSession(std::string clientID)

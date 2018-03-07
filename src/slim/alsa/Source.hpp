@@ -46,7 +46,8 @@ namespace slim
 				, queuePtr{std::make_unique<util::RealTimeQueue<Chunk>>(parameters.getQueueSize(), [&](Chunk& chunk)
 				{
 					// last channel does not contain PCM data so it will be filtered out
-					chunk.setSize(p.getFramesPerChunk() * (p.getChannels() - 1) * (p.getBitDepth() >> 3));
+					auto& buffer{chunk.getBuffer()};
+					buffer.capacity(p.getFramesPerChunk() * (p.getChannels() - 1) * (p.getBitDepth() >> 3));
 				})}
 				{
 					open();
