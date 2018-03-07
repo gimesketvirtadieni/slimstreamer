@@ -66,9 +66,9 @@ namespace slim
 				StreamingSession(StreamingSession&& rhs) = delete;              // non-movable
 				StreamingSession& operator=(StreamingSession&& rhs) = delete;   // non-movable-assignable
 
-				inline void onChunk(Chunk& chunk, unsigned int sr)
+				inline void onChunk(Chunk chunk)
 				{
-					if (samplingRate == sr)
+					if (samplingRate == chunk.getSamplingRate())
 					{
 						auto& buffer{chunk.getBuffer()};
 						waveStream.write(buffer.data(), buffer.size());

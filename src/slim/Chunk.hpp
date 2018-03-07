@@ -37,6 +37,11 @@ namespace slim
 				return buffer;
 			}
 
+			inline auto getSamplingRate()
+			{
+				return samplingRate;
+			}
+
 		private:
 			util::ExpandableBuffer& buffer;
 			const unsigned int      samplingRate;

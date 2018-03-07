@@ -153,8 +153,8 @@ auto createPipelines(Streamer& streamer)
 		parameters.setSamplingRate(rateValue);
 		parameters.setDeviceName(deviceValue);
 		parameters.setFramesPerChunk((rateValue * chunkDurationMilliSecond) / 1000);
-		//pipelines.emplace_back(Source{parameters}, Destination{std::make_unique<std::ofstream>(std::to_string(std::get<0>(rate)) + ".wav", std::ios::binary), 2, std::get<0>(rate), 32});
-		pipelines.emplace_back(Source{parameters}, Destination{streamer, rateValue});
+		//pipelines.emplace_back(Source{parameters}, Destination{std::make_unique<std::ofstream>(std::to_string(rateValue) + ".wav", std::ios::binary), 2, rateValue, 32});
+		pipelines.emplace_back(Source{parameters}, Destination{streamer});
 	}
 
 	return pipelines;

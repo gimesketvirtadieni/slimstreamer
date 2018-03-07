@@ -76,7 +76,7 @@ namespace slim
 					// processing chunks as long as destination is not deferring them AND max chunks per task is not reached AND there are chunks available
 					for (unsigned int count{0}; processed && count < maxChunks && isAvailable(); count++)
 					{
-						processed = source.supply([&](Chunk& chunk)
+						processed = source.supply([&](Chunk chunk)
 						{
 							return destination.consume(chunk);
 						});

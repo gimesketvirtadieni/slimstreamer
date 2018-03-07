@@ -79,7 +79,7 @@ namespace slim
 					return *this;
 				}
 
-				inline bool consume(Chunk& chunk)
+				inline bool consume(Chunk chunk)
 				{
 					auto& buffer{chunk.getBuffer()};
 					auto  size{buffer.size()};

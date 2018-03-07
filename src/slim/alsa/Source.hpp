@@ -128,14 +128,13 @@ namespace slim
 				void start(std::function<void()> overflowCallback = [] {});
 				void stop(bool gracefully = true);
 
-				inline bool supply(std::function<bool(Chunk&)> consumer)
+				inline bool supply(std::function<bool(Chunk)> consumer)
 				{
 					// this call does NOT block if bounded queue (buffer) is empty
 					return queuePtr->dequeue([&](util::ExpandableBuffer& buffer)
 					{
-						// creating Chunk object which is a wrapper around ExpandableBuffer with meta data about PCM stream details
-						Chunk chunk{buffer, parameters.getSamplingRate()};
-						return consumer(chunk);
+						// creating Chunk object which is a light weight wrapper around ExpandableBuffer with meta data about PCM stream details
+						return consumer(Chunk{buffer, parameters.getSamplingRate()});
 					}
 					, [&]
 					{

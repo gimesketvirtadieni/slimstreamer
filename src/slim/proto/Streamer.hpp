@@ -89,9 +89,11 @@ namespace slim
 				Streamer(Streamer&& rhs) = delete;              // non-movable
 				Streamer& operator=(Streamer&& rhs) = delete;   // non-movable-assinable
 
-				inline bool onChunk(Chunk& chunk, unsigned int sr)
+				inline bool onChunk(Chunk chunk)
 				{
-					if (sr && samplingRate && samplingRate != sr)
+					auto chunkSamplingRate{chunk.getSamplingRate()};
+
+					if (chunkSamplingRate && samplingRate && samplingRate != chunkSamplingRate)
 					{
 						// resetting current sampling rate to zero so futher routine can handle it
 						samplingRate = 0;
@@ -103,7 +105,7 @@ namespace slim
 						}
 					}
 
-					if (sr && !samplingRate)
+					if (chunkSamplingRate && !samplingRate)
 					{
 						// deferring chunk transmition for at least for one quantum
 						streaming = false;
@@ -111,14 +113,14 @@ namespace slim
 						LOG(INFO) << LABELS{"proto"} << "Initialize streaming (sessions=" << commandSessions.size() << ")";
 
 						// assigning new sampling rate and start streaming
-						samplingRate = sr;
+						samplingRate = chunkSamplingRate;
 						for (auto& entry : commandSessions)
 						{
 							entry.second->stream(streamingPort, samplingRate);
 						}
 					}
 
-					if (sr && samplingRate == sr && !streaming)
+					if (chunkSamplingRate && samplingRate == chunkSamplingRate && !streaming)
 					{
 						// evaluating whether timeout has expired and amount of missing HTTP sessions
 						auto threasholdReached{hasToFinish()};
@@ -155,9 +157,9 @@ namespace slim
 						}
 					}
 
-					if (sr && samplingRate == sr && streaming)
+					if (samplingRate && samplingRate == chunkSamplingRate && streaming)
 					{
-						distributeChunk(chunk, samplingRate);
+						distributeChunk(chunk);
 					}
 
 					return streaming;
@@ -326,7 +328,7 @@ namespace slim
 					return (found != sessions.end());
 				}
 
-				inline void distributeChunk(Chunk& chunk, unsigned int sr)
+				inline void distributeChunk(Chunk chunk)
 				{
 					// sending chunk to all HTTP sessions
 					auto counter{commandSessions.size()};
@@ -335,7 +337,7 @@ namespace slim
 						auto streamingSessionPtr{entry.second->getStreamingSession()};
 						if (streamingSessionPtr)
 						{
-							streamingSessionPtr->onChunk(chunk, samplingRate);
+							streamingSessionPtr->onChunk(chunk);
 							counter--;
 						}
 					}
