@@ -106,7 +106,7 @@ namespace slim
 			auto                 deviceName   = parameters.getDeviceName();
 			auto                 samplingRate = parameters.getSamplingRate();
 			int                  result;
-			boost::scope_guard   guard        = [&]
+			::util::scope_guard  guard        = [&]
 			{
 				// releasing hardware and software parameters
 				if (hardwarePtr)
