@@ -13,9 +13,11 @@ HEADERS              += -I$(BASE_DIRECTORY)/dependencies/asio/asio/include
 HEADERS              += -I$(BASE_DIRECTORY)/dependencies/conwrap/src/include
 HEADERS              += -I$(BASE_DIRECTORY)/dependencies/cxxopts/include
 HEADERS              += -I$(BASE_DIRECTORY)/dependencies/g3log/src
-HEADERS              += -I$(BASE_DIRECTORY)/dependencies/scope_guard/include
+HEADERS              += -I$(BASE_DIRECTORY)/dependencies/g3log/build/include
+HEADERS              += -I$(BASE_DIRECTORY)/dependencies/scope_guard/include/boost
 SYMBOLS              += -DASIO_STANDALONE
 SYMBOLS              += -DVERSION='"$(VERSION)"'
+SYMBOLS              += -DSCOPE_GUARD_STANDALONE
 EXECUTABLE            = SlimStreamer
 
 CXX                   = g++
