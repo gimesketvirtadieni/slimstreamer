@@ -30,8 +30,8 @@ The easest way to obtain SlimStreamer is to download the binary file.
 Please note that binary files are platform specific, so use below instructions only as example (you can check out all releases with binaries [here](https://github.com/gimesketvirtadieni/slimstreamer/releases))
 
 ```
-wget https://github.com/gimesketvirtadieni/slimstreamer/releases/download/v0.2.0-alpha/SlimStreamer_v0.2.0_amd64.zip
-unzip SlimStreamer_v0.2.0_amd64.zip
+wget https://github.com/gimesketvirtadieni/slimstreamer/releases/download/v0.2.0-alpha/SlimStreamer_v0.3.1_amd64.zip
+unzip SlimStreamer_v0.3.1_amd64.zip
 ./SlimStreamer
 ```
 
