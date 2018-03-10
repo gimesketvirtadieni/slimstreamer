@@ -31,7 +31,7 @@ Please note that binary files are platform specific, so use below instructions o
 
 ```
 wget https://github.com/gimesketvirtadieni/slimstreamer/releases/download/v0.3.1-alpha/SlimStreamer_v0.3.1-alpha_amd64.zip
-unzip SlimStreamer_v0.3.1_amd64.zip
+unzip SlimStreamer_v0.3.1-alpha_amd64.zip
 ./SlimStreamer
 ```
 
