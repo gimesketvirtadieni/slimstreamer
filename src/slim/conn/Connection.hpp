@@ -112,6 +112,20 @@ namespace slim
 					}
 				}
 
+				inline void writeAsync(const void* data, const std::size_t size, std::function<void(const std::error_code&, std::size_t)> callback)
+				{
+					asio::async_write(
+						nativeSocket,
+						asio::buffer(data, size),
+						[=](const std::error_code error, std::size_t bytes_transferred)
+						{
+							processorProxyPtr->wrap([=]
+							{
+								callback(error, bytes_transferred);
+							})();
+						});
+				}
+
 			protected:
 				void onClose(const std::error_code error)
 				{

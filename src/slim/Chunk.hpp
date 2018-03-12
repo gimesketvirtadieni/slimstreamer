@@ -26,9 +26,15 @@ namespace slim
 			, samplingRate{sr} {}
 
 		   ~Chunk() = default;
-
 			Chunk(const Chunk& rhs) = default;
-			Chunk& operator=(const Chunk& rhs) = default;
+			Chunk& operator=(const Chunk& rhs)
+			{
+				// default implementation gives this error: non-static reference member ‘slim::util::ExpandableBuffer& slim::Chunk::buffer’, can’t use default assignment operator
+				buffer       = rhs.buffer;
+				samplingRate = rhs.samplingRate;
+
+				return *this;
+			}
 			Chunk(Chunk&& rhs) = default;
 			Chunk& operator=(Chunk&& rhs) = default;
 
@@ -44,7 +50,7 @@ namespace slim
 
 		private:
 			util::ExpandableBuffer& buffer;
-			const unsigned int      samplingRate;
+			unsigned int            samplingRate;
 	};
 
 
