@@ -16,18 +16,17 @@
 #include <conwrap/ProcessorProxy.hpp>
 
 #include "slim/Chunk.hpp"
-#include "slim/ContainerBase.hpp"
 
 
 namespace slim
 {
-	template<typename Source, typename Destination>
+	template<typename SourceType, typename DestinationType>
 	class Pipeline
 	{
 		using TimePoint = std::chrono::time_point<std::chrono::steady_clock>;
 
 		public:
-			Pipeline(Source s, Destination d)
+			Pipeline(SourceType s, DestinationType d)
 			: source{std::move(s)}
 			, destination{std::move(d)} {}
 
@@ -60,35 +59,27 @@ namespace slim
 				return source.isProducing();
 			}
 
-			inline void onProcess()
+			inline void pause(unsigned int millisec)
 			{
-				// making sure pipeline is not paused
-				if (!pauseUntil.has_value() || pauseUntil.value() < std::chrono::steady_clock::now())
+				pauseUntil = std::chrono::steady_clock::now() + std::chrono::milliseconds{millisec};
+			}
+
+			inline bool processQuantum()
+			{
+				auto processed{true};
+
+				// TODO: calculate total chunks per processing quantum
+				// processing chunks as long as destination is not deferring them AND max chunks per task is not reached AND there are chunks available
+				for (unsigned int count{5}; processed && count > 0 && isAvailable(); count--)
 				{
-					pauseUntil.reset();
-
-					// TODO: calculate maxChunks per processing quantum
-					unsigned int maxChunks{5};
-
-					// no need to return defer status to the scheduler as deferring chunks is handled by a pipeline, source and destination
-					auto processed{true};
-
-					// processing chunks as long as destination is not deferring them AND max chunks per task is not reached AND there are chunks available
-					for (unsigned int count{0}; processed && count < maxChunks && isAvailable(); count++)
+					processed = source.supply([&](Chunk chunk)
 					{
-						processed = source.supply([&](Chunk chunk)
-						{
-							return destination.consume(chunk);
-						});
-					}
-
-					// if it was not possible to process a chunk then pausing this pipeline
-					// TODO: calculate optimal pause timeout
-					if (!processed)
-					{
-						pause(50);
-					}
+						return destination.consume(chunk);
+					});
 				}
+
+				// returning TRUE if pipeline deferes processing
+				return !processed;
 			}
 
 			inline void start()
@@ -104,15 +95,9 @@ namespace slim
 				source.stop(gracefully);
 			}
 
-		protected:
-			inline void pause(unsigned int millisec)
-			{
-				pauseUntil = std::chrono::steady_clock::now() + std::chrono::milliseconds{millisec};
-			}
-
 		private:
-			Source                   source;
-			Destination              destination;
+			SourceType               source;
+			DestinationType          destination;
 			std::optional<TimePoint> pauseUntil{std::nullopt};
 	};
 }

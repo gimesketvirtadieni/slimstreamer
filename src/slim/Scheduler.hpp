@@ -23,11 +23,11 @@
 
 namespace slim
 {
-	template<typename Source, typename Destination>
+	template<typename SourceType, typename DestinationType>
 	class Scheduler
 	{
 		public:
-			explicit Scheduler(std::vector<Pipeline<Source, Destination>> p)
+			explicit Scheduler(std::vector<Pipeline<SourceType, DestinationType>> p)
 			: pipelines{std::move(p)}
 			{
 				LOG(DEBUG) << LABELS{"slim"} << "Scheduler object was created (id=" << this << ")";
@@ -90,7 +90,7 @@ namespace slim
 					{
 						LOG(DEBUG) << LABELS{"slim"} << "Streamer thread was started (id=" << std::this_thread::get_id() << ")";
 
-						// required to make signal sheduler when consumer is fully ready
+						// signalling sheduler when consumer is fully ready
 						consumerStarted = true;
 
 						for(auto producing{true}, available{true}; producing;)
@@ -108,7 +108,12 @@ namespace slim
 								{
 									processorProxyPtr->process([&]
 									{
-										pipeline.onProcess();
+										// if pipeline defers processing then pause it for some period
+										if (pipeline.processQuantum())
+										{
+											// TODO: cruise control should be implemented
+											pipeline.pause(50);
+										}
 									});
 								}
 
@@ -165,9 +170,9 @@ namespace slim
 			}
 
 		private:
-			std::vector<Pipeline<Source, Destination>> pipelines;
-			std::vector<std::thread>                   threads;
-			volatile bool                              consumerStarted{false};
-			conwrap::ProcessorProxy<ContainerBase>*    processorProxyPtr{nullptr};
+			std::vector<Pipeline<SourceType, DestinationType>> pipelines;
+			std::vector<std::thread>                           threads;
+			volatile bool                                      consumerStarted{false};
+			conwrap::ProcessorProxy<ContainerBase>*            processorProxyPtr{nullptr};
 	};
 }
