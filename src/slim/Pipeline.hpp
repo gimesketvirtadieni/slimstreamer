@@ -16,19 +16,20 @@
 #include <conwrap/ProcessorProxy.hpp>
 
 #include "slim/Chunk.hpp"
+#include "slim/Consumer.hpp"
+#include "slim/Producer.hpp"
 
 
 namespace slim
 {
-	template<typename SourceType, typename DestinationType>
 	class Pipeline
 	{
 		using TimePoint = std::chrono::time_point<std::chrono::steady_clock>;
 
 		public:
-			Pipeline(SourceType s, DestinationType d)
-			: source{std::move(s)}
-			, destination{std::move(d)} {}
+			Pipeline(Producer* p, Consumer c)
+			: producerPtr{p}
+			, consumer{std::move(c)} {}
 
 			// using Rule Of Zero
 		   ~Pipeline() = default;
@@ -47,7 +48,7 @@ namespace slim
 				}
 				else
 				{
-					result = source.isAvailable();
+					result = producerPtr->isAvailable();
 					pauseUntil.reset();
 				}
 
@@ -56,7 +57,7 @@ namespace slim
 
 			inline auto isProducing()
 			{
-				return source.isProducing();
+				return producerPtr->isProducing();
 			}
 
 			inline void pause(unsigned int millisec)
@@ -72,10 +73,7 @@ namespace slim
 				// processing chunks as long as destination is not deferring them AND max chunks per task is not reached AND there are chunks available
 				for (unsigned int count{5}; processed && count > 0 && isAvailable(); count--)
 				{
-					processed = source.supply([&](Chunk chunk)
-					{
-						return destination.consume(chunk);
-					});
+					processed = producerPtr->produce(consumer);
 				}
 
 				// returning TRUE if pipeline deferes processing
@@ -84,7 +82,7 @@ namespace slim
 
 			inline void start()
 			{
-				source.start([]
+				producerPtr->start([]
 				{
 					LOG(ERROR) << LABELS{"slim"} << "Buffer overflow error: a chunk was skipped";
 				});
@@ -92,12 +90,12 @@ namespace slim
 
 			inline void stop(bool gracefully = true)
 			{
-				source.stop(gracefully);
+				producerPtr->stop(gracefully);
 			}
 
 		private:
-			SourceType               source;
-			DestinationType          destination;
+			Producer*                producerPtr;
+			Consumer                 consumer;
 			std::optional<TimePoint> pauseUntil{std::nullopt};
 	};
 }

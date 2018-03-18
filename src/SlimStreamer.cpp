@@ -15,6 +15,7 @@
 #include <csignal>
 #include <cxxopts.hpp>
 #include <exception>
+#include <functional>
 #include <g3log/logworker.hpp>
 #include <memory>
 #include <string>
@@ -25,16 +26,16 @@
 #include "slim/alsa/Source.hpp"
 #include "slim/conn/Callbacks.hpp"
 #include "slim/conn/Server.hpp"
+#include "slim/Consumer.hpp"
 #include "slim/Container.hpp"
 #include "slim/Exception.hpp"
 #include "slim/log/ConsoleSink.hpp"
 #include "slim/log/log.hpp"
 #include "slim/Pipeline.hpp"
-#include "slim/proto/CommandSession.hpp"
-#include "slim/proto/Destination.hpp"
+#include "slim/Producer.hpp"
 #include "slim/proto/Streamer.hpp"
 #include "slim/Scheduler.hpp"
-#include "slim/wave/Destination.hpp"
+#include "slim/wave/File.hpp"
 
 
 using ContainerBase = slim::ContainerBase;
@@ -44,10 +45,9 @@ using Callbacks     = slim::conn::Callbacks<ContainerBase>;
 using Streamer      = slim::proto::Streamer<Connection>;
 
 using Source        = slim::alsa::Source;
-//using Destination   = slim::wave::Destination;
-using Destination   = slim::proto::Destination<Connection>;
-using Pipeline      = slim::Pipeline<Source, Destination>;
-using Scheduler     = slim::Scheduler<Source, Destination>;
+using File          = slim::wave::File;
+using Pipeline      = slim::Pipeline;
+using Scheduler     = slim::Scheduler;
 
 using Container     = slim::Container<Scheduler, Server, Server, Streamer>;
 
@@ -123,7 +123,43 @@ auto createStreamingCallbacks(Streamer& streamer)
 }
 
 
-auto createPipelines(Streamer& streamer)
+auto createPipelines(std::vector<std::unique_ptr<Source>>& sources, Streamer& streamer)
+{
+	std::vector<Pipeline> pipelines;
+
+	//File f{std::make_unique<std::ofstream>(std::to_string(rateValue) + ".wav", std::ios::binary), 2, rateValue, 32};
+	//pipelines.emplace_back(Source{parameters}, [f = std::move(f)](auto chunk) mutable -> bool
+	//{
+	//	return f.write(chunk);
+	//});
+/*
+	pipelines.emplace_back([s = std::move(s)](auto& consumer) mutable
+	{
+		// TODO: change Source.supply signature
+		return s.supply([&](auto chunk) -> bool
+		{
+			return consumer(chunk);
+		});
+	},
+	[&](auto chunk) -> bool
+	{
+		return streamer.stream(chunk);
+	});
+*/
+	for (auto& sourcePtr : sources)
+	{
+		pipelines.emplace_back(sourcePtr.get(),
+		[&](auto chunk) -> bool
+		{
+			return streamer.stream(chunk);
+		});
+	}
+
+	return std::move(pipelines);
+}
+
+
+auto createSources()
 {
 	std::vector<std::tuple<unsigned int, std::string>> rates
 	{
@@ -142,9 +178,9 @@ auto createPipelines(Streamer& streamer)
 		{192000, "hw:2,1,6"},
 	};
 
-	slim::alsa::Parameters parameters{"", 3, SND_PCM_FORMAT_S32_LE, 0, 128, 0, 8};
-	std::vector<Pipeline>  pipelines;
-	unsigned int           chunkDurationMilliSecond{100};
+	slim::alsa::Parameters               parameters{"", 3, SND_PCM_FORMAT_S32_LE, 0, 128, 0, 8};
+	unsigned int                         chunkDurationMilliSecond{100};
+	std::vector<std::unique_ptr<Source>> sources;
 
 	for (auto& rate : rates)
 	{
@@ -153,11 +189,11 @@ auto createPipelines(Streamer& streamer)
 		parameters.setSamplingRate(rateValue);
 		parameters.setDeviceName(deviceValue);
 		parameters.setFramesPerChunk((rateValue * chunkDurationMilliSecond) / 1000);
-		//pipelines.emplace_back(Source{parameters}, Destination{std::make_unique<std::ofstream>(std::to_string(rateValue) + ".wav", std::ios::binary), 2, rateValue, 32});
-		pipelines.emplace_back(Source{parameters}, Destination{streamer});
+
+		sources.push_back(std::make_unique<Source>(parameters));
 	}
 
-	return pipelines;
+	return std::move(sources);
 }
 
 
@@ -209,8 +245,11 @@ int main(int argc, const char *argv[])
 			auto commandServerPtr{std::make_unique<Server>(slimprotoPort, maxClients, createCommandCallbacks(*streamerPtr))};
 			auto streamingServerPtr{std::make_unique<Server>(httpPort, maxClients, createStreamingCallbacks(*streamerPtr))};
 
+			// creating source objects stored in vector
+			auto sources{createSources()};
+
 			// creating Scheduler object
-			auto schedulerPtr{std::make_unique<Scheduler>(createPipelines(*streamerPtr))};
+			auto schedulerPtr{std::make_unique<Scheduler>(createPipelines(sources, *streamerPtr))};
 
 			// creating Container object within Asio Processor with Scheduler and Servers
 			conwrap::ProcessorAsio<ContainerBase> processorAsio

@@ -20,6 +20,8 @@
 
 #include "slim/alsa/Parameters.hpp"
 #include "slim/Chunk.hpp"
+#include "slim/Consumer.hpp"
+#include "slim/Producer.hpp"
 #include "slim/util/ExpandableBuffer.hpp"
 #include "slim/util/RealTimeQueue.hpp"
 
@@ -35,7 +37,7 @@ namespace slim
 			data              = 3,
 		};
 
-		class Source
+		class Source : public Producer
 		{
 			public:
 				Source(Parameters p)
@@ -53,82 +55,32 @@ namespace slim
 					open();
 				}
 
-				// there is a need for a custom destructor so Rule Of Zero cannot be used
-				// Instead of The Rule of The Big Four (and a half) the following approach is used: http://scottmeyers.blogspot.dk/2014/06/the-drawbacks-of-implementing-move.html
-				~Source()
+				virtual ~Source()
 				{
-					if (!empty)
+					// TODO: it is not safe; a synchronisation with start must be introduced
+					if (producing.load(std::memory_order_acquire))
 					{
-						// TODO: it is not safe; a synchronisation with start must be introduced
-						if (producing.load(std::memory_order_acquire))
-						{
-							stop();
-						}
-						close();
+						stop();
 					}
+					close();
 				}
 
 				Source(const Source&) = delete;             // non-copyable
 				Source& operator=(const Source&) = delete;  // non-assignable
+				Source(Source&& rhs) = delete;              // non-movable
+				Source& operator=(Source&& rhs) = delete;   // non-move-assignable
 
-				Source(Source&& rhs)
-				: parameters{std::move(rhs.parameters)}
-				, handlePtr{std::move(rhs.handlePtr)}
-				, producing{rhs.producing.load()}  // TODO: handle atomic properly
-				, available{rhs.available.load()}  // TODO: handle atomic properly
-				, streaming{rhs.streaming}
-				, queuePtr{std::move(rhs.queuePtr)}
-				{
-					rhs.empty = true;
-				}
-
-				Source& operator=(Source&& rhs)
-				{
-					using std::swap;
-
-					// any resources should be released for this object here because it will take over resources from rhs object
-					if (!empty)
-					{
-						// TODO: it is not safe
-						if (producing.load(std::memory_order_acquire))
-						{
-							stop(false);
-						}
-
-						// closing source if it's been opened from the constructor
-						if (handlePtr)
-						{
-							snd_pcm_close(handlePtr);
-						}
-					}
-					rhs.empty = true;
-
-					swap(parameters, rhs.parameters);
-					swap(handlePtr, rhs.handlePtr);
-
-					// TODO: handle atomic properly
-					producing.store(rhs.producing.load());
-					available.store(rhs.available.load());
-					swap(streaming, rhs.streaming);
-					swap(queuePtr, rhs.queuePtr);
-
-					return *this;
-				}
-
-				inline bool isAvailable()
+				virtual bool isAvailable() override
 				{
 					return available.load(std::memory_order_acquire);
 				}
 
-				inline bool isProducing()
+				virtual bool isProducing() override
 				{
 					return producing.load(std::memory_order_acquire);
 				}
 
-				void start(std::function<void()> overflowCallback = [] {});
-				void stop(bool gracefully = true);
-
-				inline bool supply(std::function<bool(Chunk)> consumer)
+				virtual bool produce(Consumer& consumer) override
 				{
 					// this call does NOT block if bounded queue (buffer) is empty
 					return queuePtr->dequeue([&](util::ExpandableBuffer& buffer)
@@ -141,6 +93,9 @@ namespace slim
 						available.store(false, std::memory_order_release);
 					});
 				}
+
+				virtual void start(std::function<void()> overflowCallback = [] {}) override;
+				virtual void stop(bool gracefully = true) override;
 
 			protected:
 				void              close();
@@ -156,13 +111,11 @@ namespace slim
 				bool restore(snd_pcm_sframes_t error);
 
 			private:
-				// TODO: empty attribute should be refactored to a separate class
-				bool                                        empty      = false;
-				Parameters                                  parameters;
-				snd_pcm_t*                                  handlePtr;
-				std::atomic<bool>                           producing;
-				std::atomic<bool>                           available;
-				bool                                        streaming;
+				Parameters        parameters;
+				snd_pcm_t*        handlePtr;
+				std::atomic<bool> producing;
+				std::atomic<bool> available;
+				bool              streaming;
 				std::unique_ptr<util::RealTimeQueue<util::ExpandableBuffer>> queuePtr;
 		};
 	}

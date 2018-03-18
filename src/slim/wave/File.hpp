@@ -26,10 +26,10 @@ namespace slim
 {
 	namespace wave
 	{
-		class Destination
+		class File
 		{
 			public:
-				explicit Destination(std::unique_ptr<std::ofstream> fs, unsigned int channels, unsigned int sampleRate, unsigned int bitsPerSample)
+				File(std::unique_ptr<std::ofstream> fs, unsigned int channels, unsigned int sampleRate, unsigned int bitsPerSample)
 				: waveStream{std::move(fs), channels, sampleRate, bitsPerSample}
 				, bytesPerFrame{channels * (bitsPerSample >> 3)}
 				{
@@ -38,7 +38,7 @@ namespace slim
 
 				// there is a need for a custom destructor so Rule Of Zero cannot be used
 				// Instead of The Rule of The Big Four (and a half) the following approach is used: http://scottmeyers.blogspot.dk/2014/06/the-drawbacks-of-implementing-move.html
-				~Destination()
+			   ~File()
 				{
 					if (!empty)
 					{
@@ -49,17 +49,17 @@ namespace slim
 					}
 				}
 
-				Destination(const Destination&) = delete;
-				Destination& operator=(const Destination&) = delete;
+				File(const File&) = delete;
+				File& operator=(const File&) = delete;
 
-				Destination(Destination&& rhs)
+				File(File&& rhs)
 				: waveStream{std::move(rhs.waveStream)}
 				, bytesPerFrame{std::move(rhs.bytesPerFrame)}
 				{
 					rhs.empty = true;
 				}
 
-				Destination& operator=(Destination&& rhs)
+				File& operator=(File&& rhs)
 				{
 					using std::swap;
 
@@ -79,7 +79,7 @@ namespace slim
 					return *this;
 				}
 
-				inline bool consume(Chunk chunk)
+				inline bool write(Chunk chunk)
 				{
 					auto& buffer{chunk.getBuffer()};
 					auto  size{buffer.size()};

@@ -23,11 +23,10 @@
 
 namespace slim
 {
-	template<typename SourceType, typename DestinationType>
 	class Scheduler
 	{
 		public:
-			explicit Scheduler(std::vector<Pipeline<SourceType, DestinationType>> p)
+			Scheduler(std::vector<Pipeline> p)
 			: pipelines{std::move(p)}
 			{
 				LOG(DEBUG) << LABELS{"slim"} << "Scheduler object was created (id=" << this << ")";
@@ -170,9 +169,9 @@ namespace slim
 			}
 
 		private:
-			std::vector<Pipeline<SourceType, DestinationType>> pipelines;
-			std::vector<std::thread>                           threads;
-			volatile bool                                      consumerStarted{false};
-			conwrap::ProcessorProxy<ContainerBase>*            processorProxyPtr{nullptr};
+			std::vector<Pipeline>                   pipelines;
+			std::vector<std::thread>                threads;
+			volatile bool                           consumerStarted{false};
+			conwrap::ProcessorProxy<ContainerBase>* processorProxyPtr{nullptr};
 	};
 }
