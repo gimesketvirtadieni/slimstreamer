@@ -83,7 +83,7 @@ void printLicenseInfo()
 	std::cout << "Author: gimesketvirtadieni at gmail dot com (Andrej Kislovskij)" << std::endl;
 	std::cout << std::endl;
 
-	// TODO: references to dependancies
+	// TODO: add references to dependancies
 }
 
 
@@ -123,36 +123,19 @@ auto createStreamingCallbacks(Streamer& streamer)
 }
 
 
-auto createPipelines(std::vector<std::unique_ptr<Source>>& sources, Streamer& streamer)
+auto createPipelines(std::vector<std::unique_ptr<Source>>& sources, Streamer& streamer, std::vector<std::unique_ptr<File>>& waveFiles)
 {
 	std::vector<Pipeline> pipelines;
 
-	//File f{std::make_unique<std::ofstream>(std::to_string(rateValue) + ".wav", std::ios::binary), 2, rateValue, 32};
-	//pipelines.emplace_back(Source{parameters}, [f = std::move(f)](auto chunk) mutable -> bool
-	//{
-	//	return f.write(chunk);
-	//});
-/*
-	pipelines.emplace_back([s = std::move(s)](auto& consumer) mutable
-	{
-		// TODO: change Source.supply signature
-		return s.supply([&](auto chunk) -> bool
-		{
-			return consumer(chunk);
-		});
-	},
-	[&](auto chunk) -> bool
-	{
-		return streamer.stream(chunk);
-	});
-*/
 	for (auto& sourcePtr : sources)
 	{
-		pipelines.emplace_back(sourcePtr.get(),
-		[&](auto chunk) -> bool
-		{
-			return streamer.stream(chunk);
-		});
+		auto parameters{sourcePtr->getParameters()};
+		auto filePtr{std::make_unique<slim::wave::File>(std::make_unique<std::ofstream>(std::to_string(parameters.getSamplingRate()) + ".wav", std::ios::binary), 2, parameters.getSamplingRate(), 32)};
+
+		//pipelines.emplace_back(sourcePtr.get(), filePtr.get());
+		//waveFiles.push_back(std::move(filePtr));
+
+		pipelines.emplace_back(sourcePtr.get(), &streamer);
 	}
 
 	return std::move(pipelines);
@@ -240,16 +223,19 @@ int main(int argc, const char *argv[])
 			auto slimprotoPort = result["slimprotoport"].as<int>();
 			auto httpPort      = result["httpport"].as<int>();
 
+			// creating source objects stored in a vector
+			auto sources{createSources()};
+
 			// Callbacks objects 'glue' SlimProto Streamer with TCP Command Servers
 			auto streamerPtr{std::make_unique<Streamer>(httpPort)};
 			auto commandServerPtr{std::make_unique<Server>(slimprotoPort, maxClients, createCommandCallbacks(*streamerPtr))};
 			auto streamingServerPtr{std::make_unique<Server>(httpPort, maxClients, createStreamingCallbacks(*streamerPtr))};
 
-			// creating source objects stored in vector
-			auto sources{createSources()};
+			// creating a container for WAVE files objects
+			std::vector<std::unique_ptr<File>> waveFiles;
 
-			// creating Scheduler object
-			auto schedulerPtr{std::make_unique<Scheduler>(createPipelines(sources, *streamerPtr))};
+			// creating Scheduler object with destination directed to slimproto Streamer
+			auto schedulerPtr{std::make_unique<Scheduler>(createPipelines(sources, *streamerPtr, waveFiles))};
 
 			// creating Container object within Asio Processor with Scheduler and Servers
 			conwrap::ProcessorAsio<ContainerBase> processorAsio

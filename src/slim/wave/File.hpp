@@ -18,6 +18,7 @@
 #include <memory>
 
 #include "slim/Chunk.hpp"
+#include "slim/Consumer.hpp"
 #include "slim/log/log.hpp"
 #include "slim/wave/WAVEStream.hpp"
 
@@ -26,7 +27,7 @@ namespace slim
 {
 	namespace wave
 	{
-		class File
+		class File : public Consumer
 		{
 			public:
 				File(std::unique_ptr<std::ofstream> fs, unsigned int channels, unsigned int sampleRate, unsigned int bitsPerSample)
@@ -38,48 +39,20 @@ namespace slim
 
 				// there is a need for a custom destructor so Rule Of Zero cannot be used
 				// Instead of The Rule of The Big Four (and a half) the following approach is used: http://scottmeyers.blogspot.dk/2014/06/the-drawbacks-of-implementing-move.html
-			   ~File()
+				virtual ~File()
 				{
-					if (!empty)
-					{
-						waveStream.getOutputStream().seekp(0, std::ios::end);
-						auto size = waveStream.getOutputStream().tellp();
-						waveStream.getOutputStream().seekp(0, std::ios::beg);
-						waveStream.writeHeader(size);
-					}
+					waveStream.getOutputStream().seekp(0, std::ios::end);
+					auto size = waveStream.getOutputStream().tellp();
+					waveStream.getOutputStream().seekp(0, std::ios::beg);
+					waveStream.writeHeader(size);
 				}
 
 				File(const File&) = delete;
 				File& operator=(const File&) = delete;
+				File(File&& rhs) = delete;
+				File& operator=(File&& rhs) = delete;
 
-				File(File&& rhs)
-				: waveStream{std::move(rhs.waveStream)}
-				, bytesPerFrame{std::move(rhs.bytesPerFrame)}
-				{
-					rhs.empty = true;
-				}
-
-				File& operator=(File&& rhs)
-				{
-					using std::swap;
-
-					// any resources should be released for this object here because it will take over resources from rhs object
-					if (!empty)
-					{
-						waveStream.getOutputStream().seekp(0, std::ios::end);
-						auto size = waveStream.getOutputStream().tellp();
-						waveStream.getOutputStream().seekp(0, std::ios::beg);
-						waveStream.writeHeader(size);
-					}
-					rhs.empty = true;
-
-					swap(waveStream, rhs.waveStream);
-					swap(bytesPerFrame, rhs.bytesPerFrame);
-
-					return *this;
-				}
-
-				inline bool write(Chunk chunk)
+				virtual bool consume(Chunk chunk) override
 				{
 					auto& buffer{chunk.getBuffer()};
 					auto  size{buffer.size()};
@@ -93,8 +66,6 @@ namespace slim
 				}
 
 			private:
-				// TODO: empty attribute should be refactored to a separate class
-				bool         empty = false;
 				WAVEStream   waveStream;
 				unsigned int bytesPerFrame;
 		};

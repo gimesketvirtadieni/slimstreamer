@@ -12,12 +12,15 @@
 
 #pragma once
 
-#include <functional>
-
 #include "slim/Chunk.hpp"
 
 
 namespace slim
 {
-	using Consumer = std::function<bool(Chunk)>;
+	class Consumer
+	{
+		public:
+			virtual     ~Consumer() = default;
+			virtual bool consume(Chunk) = 0;
+	};
 }

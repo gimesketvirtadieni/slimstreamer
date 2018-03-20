@@ -27,9 +27,9 @@ namespace slim
 		using TimePoint = std::chrono::time_point<std::chrono::steady_clock>;
 
 		public:
-			Pipeline(Producer* p, Consumer c)
+			Pipeline(Producer* p, Consumer* c)
 			: producerPtr{p}
-			, consumer{std::move(c)} {}
+			, consumerPtr{c} {}
 
 			// using Rule Of Zero
 		   ~Pipeline() = default;
@@ -73,7 +73,7 @@ namespace slim
 				// processing chunks as long as destination is not deferring them AND max chunks per task is not reached AND there are chunks available
 				for (unsigned int count{5}; processed && count > 0 && isAvailable(); count--)
 				{
-					processed = producerPtr->produce(consumer);
+					processed = producerPtr->produce(consumerPtr);
 				}
 
 				// returning TRUE if pipeline deferes processing
@@ -95,7 +95,7 @@ namespace slim
 
 		private:
 			Producer*                producerPtr;
-			Consumer                 consumer;
+			Consumer*                consumerPtr;
 			std::optional<TimePoint> pauseUntil{std::nullopt};
 	};
 }

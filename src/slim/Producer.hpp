@@ -12,6 +12,8 @@
 
 #pragma once
 
+#include <functional>
+
 #include "slim/Consumer.hpp"
 
 
@@ -23,7 +25,7 @@ namespace slim
 			virtual     ~Producer() = default;
 			virtual bool isAvailable() = 0;
 			virtual bool isProducing() = 0;
-			virtual bool produce(Consumer&) = 0;
+			virtual bool produce(Consumer*) = 0;
 			virtual void start(std::function<void()> = [] {}) = 0;
 			virtual void stop(bool gracefully = true) = 0;
 	};

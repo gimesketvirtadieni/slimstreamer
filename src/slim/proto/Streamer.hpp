@@ -25,6 +25,7 @@
 #include <vector>
 
 #include "slim/Chunk.hpp"
+#include "slim/Consumer.hpp"
 #include "slim/Exception.hpp"
 #include "slim/log/log.hpp"
 #include "slim/proto/CommandSession.hpp"
@@ -36,7 +37,7 @@ namespace slim
 	namespace proto
 	{
 		template<typename ConnectionType>
-		class Streamer
+		class Streamer : public Consumer
 		{
 			template<typename SessionType>
 			using SessionsMap = std::unordered_map<ConnectionType*, std::unique_ptr<SessionType>>;
@@ -76,7 +77,7 @@ namespace slim
 					LOG(DEBUG) << LABELS{"proto"} << "Streamer object was created (id=" << this << ")";
 				}
 
-			   ~Streamer()
+				virtual ~Streamer()
 				{
 					timerRunning = false;
 					timerThread.join();
@@ -88,6 +89,82 @@ namespace slim
 				Streamer& operator=(const Streamer&) = delete;  // non-assignable
 				Streamer(Streamer&& rhs) = delete;              // non-movable
 				Streamer& operator=(Streamer&& rhs) = delete;   // non-movable-assinable
+
+				virtual bool consume(Chunk chunk) override
+				{
+					auto chunkSamplingRate{chunk.getSamplingRate()};
+
+					if (chunkSamplingRate && samplingRate && samplingRate != chunkSamplingRate)
+					{
+						// resetting current sampling rate to zero so futher routine can handle it
+						samplingRate = 0;
+
+						// stopping all streaming sessions which will make them reconnect using a new sampling rate
+						for (auto& entry : streamingSessions)
+						{
+							entry.first->stop();
+						}
+					}
+
+					if (chunkSamplingRate && !samplingRate)
+					{
+						// deferring chunk transmition for at least for one quantum
+						streaming = false;
+
+						LOG(INFO) << LABELS{"proto"} << "Initialize streaming (sessions=" << commandSessions.size() << ")";
+
+						// assigning new sampling rate and start streaming
+						samplingRate = chunkSamplingRate;
+						for (auto& entry : commandSessions)
+						{
+							entry.second->stream(streamingPort, samplingRate);
+						}
+					}
+
+					if (chunkSamplingRate && samplingRate == chunkSamplingRate && !streaming)
+					{
+						// evaluating whether timeout has expired and amount of missing HTTP sessions
+						auto threasholdReached{hasToFinish()};
+						auto missingSessionsTotal{std::count_if(commandSessions.begin(), commandSessions.end(), [&](auto& entry)
+						{
+							auto streamingSessionPtr{entry.second->getStreamingSession()};
+
+							return !(streamingSessionPtr && samplingRate == streamingSessionPtr->getSamplingRate());
+						})};
+
+						if (threasholdReached || !missingSessionsTotal)
+						{
+							if (missingSessionsTotal)
+							{
+								LOG(WARNING) << LABELS{"proto"} << "Could not defer chunk processing due to reached threashold";
+							}
+							LOG(INFO) << LABELS{"proto"} << "Start streaming";
+
+							streaming = true;
+
+							// resetting period during which chunk processing can be deferred
+							deferStartedAt.reset();
+						}
+						else
+						{
+							if (missingSessionsTotal)
+							{
+								LOG(DEBUG) << LABELS{"proto"} << "Deferring chunk transmition due to missing HTTP sessions";
+							}
+
+							// TODO: implement cruise control; for now sleep is good enough
+							// this sleep prevents from busy spinning until all HTTP sessions reconnect
+							std::this_thread::sleep_for(std::chrono::milliseconds{20});
+						}
+					}
+
+					if (samplingRate && samplingRate == chunkSamplingRate && streaming)
+					{
+						distributeChunk(chunk);
+					}
+
+					return streaming;
+				}
 
 				void onHTTPClose(ConnectionType& connection)
 				{
@@ -213,82 +290,6 @@ namespace slim
 				void setProcessorProxy(conwrap::ProcessorProxy<ContainerBase>* p)
 				{
 					processorProxyPtr = p;
-				}
-
-				inline bool stream(Chunk chunk)
-				{
-					auto chunkSamplingRate{chunk.getSamplingRate()};
-
-					if (chunkSamplingRate && samplingRate && samplingRate != chunkSamplingRate)
-					{
-						// resetting current sampling rate to zero so futher routine can handle it
-						samplingRate = 0;
-
-						// stopping all streaming sessions which will make them reconnect using a new sampling rate
-						for (auto& entry : streamingSessions)
-						{
-							entry.first->stop();
-						}
-					}
-
-					if (chunkSamplingRate && !samplingRate)
-					{
-						// deferring chunk transmition for at least for one quantum
-						streaming = false;
-
-						LOG(INFO) << LABELS{"proto"} << "Initialize streaming (sessions=" << commandSessions.size() << ")";
-
-						// assigning new sampling rate and start streaming
-						samplingRate = chunkSamplingRate;
-						for (auto& entry : commandSessions)
-						{
-							entry.second->stream(streamingPort, samplingRate);
-						}
-					}
-
-					if (chunkSamplingRate && samplingRate == chunkSamplingRate && !streaming)
-					{
-						// evaluating whether timeout has expired and amount of missing HTTP sessions
-						auto threasholdReached{hasToFinish()};
-						auto missingSessionsTotal{std::count_if(commandSessions.begin(), commandSessions.end(), [&](auto& entry)
-						{
-							auto streamingSessionPtr{entry.second->getStreamingSession()};
-
-							return !(streamingSessionPtr && samplingRate == streamingSessionPtr->getSamplingRate());
-						})};
-
-						if (threasholdReached || !missingSessionsTotal)
-						{
-							if (missingSessionsTotal)
-							{
-								LOG(WARNING) << LABELS{"proto"} << "Could not defer chunk processing due to reached threashold";
-							}
-							LOG(INFO) << LABELS{"proto"} << "Start streaming";
-
-							streaming = true;
-
-							// resetting period during which chunk processing can be deferred
-							deferStartedAt.reset();
-						}
-						else
-						{
-							if (missingSessionsTotal)
-							{
-								LOG(DEBUG) << LABELS{"proto"} << "Deferring chunk transmition due to missing HTTP sessions";
-							}
-
-							// TODO: implement cruise control; for now sleep is good enough
-							// this sleep prevents from busy spinning until all HTTP sessions reconnect
-							std::this_thread::sleep_for(std::chrono::milliseconds{20});
-						}
-					}
-
-					if (samplingRate && samplingRate == chunkSamplingRate && streaming)
-					{
-						distributeChunk(chunk);
-					}
-
-					return streaming;
 				}
 
 			protected:

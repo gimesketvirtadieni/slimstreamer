@@ -70,6 +70,11 @@ namespace slim
 				Source(Source&& rhs) = delete;              // non-movable
 				Source& operator=(Source&& rhs) = delete;   // non-move-assignable
 
+				inline auto getParameters()
+				{
+					return parameters;
+				}
+
 				virtual bool isAvailable() override
 				{
 					return available.load(std::memory_order_acquire);
@@ -80,13 +85,13 @@ namespace slim
 					return producing.load(std::memory_order_acquire);
 				}
 
-				virtual bool produce(Consumer& consumer) override
+				virtual bool produce(Consumer* consumerPtr) override
 				{
 					// this call does NOT block if bounded queue (buffer) is empty
 					return queuePtr->dequeue([&](util::ExpandableBuffer& buffer)
 					{
 						// creating Chunk object which is a light weight wrapper around ExpandableBuffer with meta data about PCM stream details
-						return consumer(Chunk{buffer, parameters.getSamplingRate()});
+						return consumerPtr->consume(Chunk{buffer, parameters.getSamplingRate()});
 					}
 					, [&]
 					{
