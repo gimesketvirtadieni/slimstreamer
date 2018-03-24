@@ -15,6 +15,7 @@
 #include <csignal>
 #include <cxxopts.hpp>
 #include <exception>
+#include <fstream>
 #include <functional>
 #include <g3log/logworker.hpp>
 #include <memory>
@@ -35,6 +36,7 @@
 #include "slim/Producer.hpp"
 #include "slim/proto/Streamer.hpp"
 #include "slim/Scheduler.hpp"
+#include "slim/StreamWriter.hpp"
 #include "slim/wave/File.hpp"
 
 
@@ -130,7 +132,10 @@ auto createPipelines(std::vector<std::unique_ptr<Source>>& sources, Streamer& st
 	for (auto& sourcePtr : sources)
 	{
 		auto parameters{sourcePtr->getParameters()};
-		auto filePtr{std::make_unique<slim::wave::File>(std::make_unique<std::ofstream>(std::to_string(parameters.getSamplingRate()) + ".wav", std::ios::binary), 2, parameters.getSamplingRate(), 32)};
+
+		//auto streamPtr{std::make_unique<std::ofstream>(std::to_string(parameters.getSamplingRate()) + ".wav", std::ios::binary)};
+		//auto writerPtr{std::make_unique<slim::SyncStreamWriter>(std::move(streamPtr))};
+		//auto filePtr{std::make_unique<slim::wave::File>(std::move(writerPtr), 2, parameters.getSamplingRate(), 32)};
 
 		//pipelines.emplace_back(sourcePtr.get(), filePtr.get());
 		//waveFiles.push_back(std::move(filePtr));

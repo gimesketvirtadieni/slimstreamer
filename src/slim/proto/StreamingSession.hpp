@@ -12,15 +12,12 @@
 
 #pragma once
 
-#include <functional>
-#include <iostream>
 #include <optional>
 #include <string>
 
 #include "slim/Chunk.hpp"
 #include "slim/log/log.hpp"
 #include "slim/util/ExpandableBuffer.hpp"
-#include "slim/util/StreamBufferWithCallback.hpp"
 #include "slim/wave/WAVEStream.hpp"
 
 
@@ -31,18 +28,11 @@ namespace slim
 		template<typename ConnectionType>
 		class StreamingSession
 		{
-			using StreamBuffer = util::StreamBufferWithCallback<std::function<std::streamsize(const char*, std::streamsize)>>;
-
 			public:
-				StreamingSession(ConnectionType& co, unsigned int channels, unsigned int sr, unsigned int bitePerSample)
+				StreamingSession(ConnectionType& co, unsigned int channels, unsigned int sr, unsigned int bitsPerSample)
 				: connection{co}
-				, streamBuffer{[&](auto* buffer, auto size) mutable
-				{
-					connection.write(buffer, size);
-					return size;
-				}}
 				, samplingRate{sr}
-				, waveStream{std::make_unique<std::ostream>(&streamBuffer), channels, samplingRate, bitePerSample}
+				, waveStream{&connection, channels, samplingRate, bitsPerSample}
 				, currentChunkPtr{std::make_unique<Chunk>(buffer1, samplingRate)}
 				, nextChunkPtr{std::make_unique<Chunk>(buffer2, samplingRate)}
 				{
@@ -59,7 +49,7 @@ namespace slim
 					waveStream.write("\r\n");
 				}
 
-			   ~StreamingSession()
+				virtual ~StreamingSession()
 				{
 					LOG(DEBUG) << LABELS{"proto"} << "HTTP session object was deleted (id=" << this << ")";
 				}
@@ -126,6 +116,11 @@ namespace slim
 				}
 
 			protected:
+				inline auto& getConnection()
+				{
+					return connection;
+				}
+
 				static auto parseClientID(std::string header)
 				{
 					auto result{std::optional<std::string>{std::nullopt}};
@@ -140,7 +135,6 @@ namespace slim
 					return result;
 				}
 
-				// TODO: the below implementation works however it bypasses WAVEStream, which is not good enough; proper solution should introduce async buffer intead of StreamBufferWithCallback
 				void sendAsync()
 				{
 					// if there is an available chunk and there is no ongoing transfer
@@ -155,7 +149,7 @@ namespace slim
 					if (buffer.size() > 0)
 					{
 						// to guarantee buffer is not a dangling reference, declaring a new buffer refence in capture list
-						connection.writeAsync(buffer.data(), buffer.size(), [&, &buffer = buffer](const std::error_code& error, std::size_t bytes_transferred) mutable
+						waveStream.writeAsync(buffer.data(), buffer.size(), [&, &buffer = buffer](const std::error_code& error, std::size_t bytes_transferred) mutable
 						{
 							if (!error)
 							{
@@ -182,14 +176,13 @@ namespace slim
 
 			private:
 				ConnectionType&            connection;
-				std::optional<std::string> clientID;
-				StreamBuffer               streamBuffer;
 				unsigned int               samplingRate;
 				wave::WAVEStream           waveStream;
-				util::ExpandableBuffer     buffer1;
-				util::ExpandableBuffer     buffer2;
 				std::unique_ptr<Chunk>     currentChunkPtr;
 				std::unique_ptr<Chunk>     nextChunkPtr;
+				util::ExpandableBuffer     buffer1;
+				util::ExpandableBuffer     buffer2;
+				std::optional<std::string> clientID{std::nullopt};
 		};
 	}
 }

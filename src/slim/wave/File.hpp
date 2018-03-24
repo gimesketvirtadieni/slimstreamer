@@ -12,14 +12,12 @@
 
 #pragma once
 
-#include <fstream>
-#include <functional>
-#include <iostream>
 #include <memory>
 
 #include "slim/Chunk.hpp"
 #include "slim/Consumer.hpp"
 #include "slim/log/log.hpp"
+#include "slim/StreamWriter.hpp"
 #include "slim/wave/WAVEStream.hpp"
 
 
@@ -30,8 +28,9 @@ namespace slim
 		class File : public Consumer
 		{
 			public:
-				File(std::unique_ptr<std::ofstream> fs, unsigned int channels, unsigned int sampleRate, unsigned int bitsPerSample)
-				: waveStream{std::move(fs), channels, sampleRate, bitsPerSample}
+				File(std::unique_ptr<StreamWriter> w, unsigned int channels, unsigned int sampleRate, unsigned int bitsPerSample)
+				: writerPtr{std::move(w)}
+				, waveStream{writerPtr.get(), channels, sampleRate, bitsPerSample}
 				, bytesPerFrame{channels * (bitsPerSample >> 3)}
 				{
 					waveStream.writeHeader();
@@ -41,23 +40,20 @@ namespace slim
 				// Instead of The Rule of The Big Four (and a half) the following approach is used: http://scottmeyers.blogspot.dk/2014/06/the-drawbacks-of-implementing-move.html
 				virtual ~File()
 				{
-					waveStream.getOutputStream().seekp(0, std::ios::end);
-					auto size = waveStream.getOutputStream().tellp();
-					waveStream.getOutputStream().seekp(0, std::ios::beg);
-					waveStream.writeHeader(size);
+					waveStream.writeHeader(waveStream.getBytesWritten());
 				}
 
-				File(const File&) = delete;
-				File& operator=(const File&) = delete;
-				File(File&& rhs) = delete;
-				File& operator=(File&& rhs) = delete;
+				File(const File&) = delete;             // non-copyable
+				File& operator=(const File&) = delete;  // non-assignable
+				File(File&& rhs) = delete;              // non-movable
+				File& operator=(File&& rhs) = delete;   // non-assign-movable
 
 				virtual bool consume(Chunk chunk) override
 				{
-					auto& buffer{chunk.getBuffer()};
-					auto  size{buffer.size()};
+					auto* data{chunk.getBuffer().data()};
+					auto  size{chunk.getBuffer().size()};
 
-					waveStream.write(buffer.data(), size);
+					waveStream.write(data, size);
 
 					LOG(DEBUG) << LABELS{"wave"} << "Written " << (size / bytesPerFrame) << " frames";
 
@@ -66,8 +62,9 @@ namespace slim
 				}
 
 			private:
-				WAVEStream   waveStream;
-				unsigned int bytesPerFrame;
+				std::unique_ptr<StreamWriter> writerPtr;
+				WAVEStream                    waveStream;
+				unsigned int                  bytesPerFrame;
 		};
 	}
 }

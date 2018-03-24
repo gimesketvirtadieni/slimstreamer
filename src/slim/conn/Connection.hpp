@@ -15,12 +15,11 @@
 #include <asio/system_error.hpp>
 #include <conwrap/ProcessorAsioProxy.hpp>
 #include <cstddef>  // std::size_t
-#include <functional>
-#include <iostream>
 #include <memory>
 
 #include "slim/conn/CallbacksBase.hpp"
 #include "slim/log/log.hpp"
+#include "slim/StreamWriter.hpp"
 
 
 namespace slim
@@ -28,11 +27,35 @@ namespace slim
 	namespace conn
 	{
 		template <typename ContainerType>
-		class Connection
+		class Connection : public StreamWriter
 		{
 			public:
 				Connection(conwrap::ProcessorAsioProxy<ContainerType>* p, CallbacksBase<Connection<ContainerType>>& c)
-				: processorProxyPtr{p}
+				: StreamWriter
+				{
+					std::move([&](auto* data, auto size) mutable
+					{
+						try
+						{
+							if (getNativeSocket().is_open())
+							{
+								// no need to return actually written bytes as assio::write function writes all provided data
+								asio::write(getNativeSocket(), asio::buffer(data, size));
+							}
+							else
+							{
+								LOG(WARNING) << LABELS{"conn"} << "Could not send data as socket is not opened (id=" << this << ")";
+							}
+						}
+						catch(const std::exception& e)
+						{
+							LOG(ERROR) << LABELS{"conn"} << "Could not send data due to an error (id=" << this << ", error=" << e.what() << ")";
+						}
+
+						return size;
+					})
+				}
+				, processorProxyPtr{p}
 				, callbacks{c}
 				, nativeSocket{*processorProxyPtr->getDispatcher()}
 				, opened{false}
@@ -40,7 +63,7 @@ namespace slim
 					LOG(DEBUG) << LABELS{"conn"} << "Connection object was created (id=" << this << ")";
 				}
 
-				~Connection()
+				virtual ~Connection()
 				{
 					stop();
 
@@ -94,30 +117,12 @@ namespace slim
 					catch(...) {}
 				}
 
-				inline void write(const void* buffer, const std::size_t size)
-				{
-					// this validation does not save from an exception in case transfer gets terminated
-					if (nativeSocket.is_open()) try
-					{
-						// no need to return actually written bytes as assio::write function writes all provided data
-						asio::write(nativeSocket, asio::buffer(buffer, size));
-					}
-					catch(const std::exception& e)
-					{
-						LOG(WARNING) << LABELS{"conn"} << "Could not send data due to an error (id=" << this << ", error=" << e.what() << ")";
-					}
-					else
-					{
-						LOG(WARNING) << LABELS{"conn"} << "Could not send data as socket is not opened (id=" << this << ")";
-					}
-				}
-
-				inline void writeAsync(const void* data, const std::size_t size, std::function<void(const std::error_code&, std::size_t)> callback)
+				virtual void writeAsync(const void* data, const std::size_t size, WriteCallback callback)
 				{
 					asio::async_write(
 						nativeSocket,
 						asio::buffer(data, size),
-						[=](const std::error_code error, std::size_t bytes_transferred)
+						[=](const std::error_code error, const std::size_t bytes_transferred)
 						{
 							processorProxyPtr->wrap([=]
 							{

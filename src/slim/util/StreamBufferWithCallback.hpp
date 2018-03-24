@@ -37,10 +37,10 @@ namespace slim
 				StreamBufferWithCallback& operator=(StreamBufferWithCallback&& rhs) = default;
 
 			protected:
-				virtual std::streamsize xsputn(const char_type* s, std::streamsize n) override
+				virtual std::streamsize xsputn(const char_type* data, std::streamsize size) override
 				{
 					// returning number of characters successfully written
-					return callback(s, n);
+					return callback(data, size);
 				};
 
 				virtual int_type overflow(int_type c) override
