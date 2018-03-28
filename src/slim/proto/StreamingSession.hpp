@@ -16,6 +16,7 @@
 #include <string>
 
 #include "slim/Chunk.hpp"
+#include "slim/flac/Stream.hpp"
 #include "slim/log/log.hpp"
 #include "slim/util/ExpandableBuffer.hpp"
 #include "slim/wave/WAVEStream.hpp"
@@ -28,25 +29,31 @@ namespace slim
 		template<typename ConnectionType>
 		class StreamingSession
 		{
+			// TODO: parametrize Stream type
+			using Stream = flac::Stream;
+
 			public:
 				StreamingSession(ConnectionType& co, unsigned int channels, unsigned int sr, unsigned int bitsPerSample)
 				: connection{co}
 				, samplingRate{sr}
-				, waveStream{&connection, channels, samplingRate, bitsPerSample}
+				, stream{&connection, channels, samplingRate, bitsPerSample}
 				, currentChunkPtr{std::make_unique<Chunk>(buffer1, samplingRate)}
 				, nextChunkPtr{std::make_unique<Chunk>(buffer2, samplingRate)}
 				{
 					LOG(DEBUG) << LABELS{"proto"} << "HTTP session object was created (id=" << this << ")";
 
+					// TODO: use async API
 					// sending HTTP response with the headers
-					waveStream.write("HTTP/1.1 200 OK\r\n");
-					waveStream.write("Server: SlimStreamer (");
+					connection.write("HTTP/1.1 200 OK\r\n");
+					connection.write("Server: SlimStreamer (");
 					// TODO: provide version to the constructor
-					waveStream.write(VERSION);
-					waveStream.write(")\r\n");
-					waveStream.write("Connection: close\r\n");
-					waveStream.write("Content-Type: audio/x-wave\r\n");
-					waveStream.write("\r\n");
+					connection.write(VERSION);
+					connection.write(")\r\n");
+					connection.write("Connection: close\r\n");
+					connection.write("Content-Type: ");
+					connection.write(stream.getMIME());
+					connection.write("\r\n");
+					connection.write("\r\n");
 				}
 
 				virtual ~StreamingSession()
@@ -149,7 +156,7 @@ namespace slim
 					if (buffer.size() > 0)
 					{
 						// to guarantee buffer is not a dangling reference, declaring a new buffer refence in capture list
-						waveStream.writeAsync(buffer.data(), buffer.size(), [&, &buffer = buffer](const std::error_code& error, std::size_t bytes_transferred) mutable
+						stream.writeAsync(buffer.data(), buffer.size(), [&, &buffer = buffer](const std::error_code& error, std::size_t bytes_transferred) mutable
 						{
 							if (!error)
 							{
@@ -177,7 +184,7 @@ namespace slim
 			private:
 				ConnectionType&            connection;
 				unsigned int               samplingRate;
-				wave::WAVEStream           waveStream;
+				Stream                     stream;
 				std::unique_ptr<Chunk>     currentChunkPtr;
 				std::unique_ptr<Chunk>     nextChunkPtr;
 				util::ExpandableBuffer     buffer1;

@@ -53,6 +53,8 @@
 								<option id="gnu.cpp.link.option.libs.2126518241" name="Libraries (-l)" superClass="gnu.cpp.link.option.libs" useByScannerDiscovery="false" valueType="libs">
 									<listOptionValue builtIn="false" value="asound"/>
 									<listOptionValue builtIn="false" value="atomic"/>
+									<listOptionValue builtIn="false" srcPrefixMapping="" srcRootPath="" value="FLAC"/>
+									<listOptionValue builtIn="false" srcPrefixMapping="" srcRootPath="" value="FLAC++"/>
 									<listOptionValue builtIn="false" value="g3logger"/>
 									<listOptionValue builtIn="false" value="pthread"/>
 									<listOptionValue builtIn="false" value="rt"/>
@@ -134,6 +136,8 @@
 								<option id="gnu.cpp.link.option.libs.967972125" name="Libraries (-l)" superClass="gnu.cpp.link.option.libs" useByScannerDiscovery="false" valueType="libs">
 									<listOptionValue builtIn="false" value="asound"/>
 									<listOptionValue builtIn="false" value="atomic"/>
+									<listOptionValue builtIn="false" srcPrefixMapping="" srcRootPath="" value="FLAC"/>
+									<listOptionValue builtIn="false" srcPrefixMapping="" srcRootPath="" value="FLAC++"/>
 									<listOptionValue builtIn="false" value="g3logger"/>
 									<listOptionValue builtIn="false" value="gmock"/>
 									<listOptionValue builtIn="false" value="gtest"/>
@@ -216,6 +220,8 @@
 								<option id="gnu.cpp.link.option.libs.1712280024" name="Libraries (-l)" superClass="gnu.cpp.link.option.libs" useByScannerDiscovery="false" valueType="libs">
 									<listOptionValue builtIn="false" value="asound"/>
 									<listOptionValue builtIn="false" value="atomic"/>
+									<listOptionValue builtIn="false" srcPrefixMapping="" srcRootPath="" value="FLAC"/>
+									<listOptionValue builtIn="false" srcPrefixMapping="" srcRootPath="" value="FLAC++"/>
 									<listOptionValue builtIn="false" value="g3logger"/>
 									<listOptionValue builtIn="false" value="pthread"/>
 									<listOptionValue builtIn="false" value="rt"/>

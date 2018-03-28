@@ -48,6 +48,11 @@ namespace slim
 				WAVEStream(WAVEStream&&) = delete;                  // non-movable
 				WAVEStream& operator=(WAVEStream&&) = delete;       // non-assign-movable
 
+				virtual std::string getMIME()
+				{
+					return "audio/x-wave";
+				}
+
 				virtual void rewind(const std::streampos pos)
 				{
 					writerPtr->rewind(pos);

@@ -37,10 +37,10 @@ namespace slim
 					{
 						try
 						{
-							if (getNativeSocket().is_open())
+							if (nativeSocket.is_open())
 							{
 								// no need to return actually written bytes as assio::write function writes all provided data
-								asio::write(getNativeSocket(), asio::buffer(data, size));
+								asio::write(nativeSocket, asio::buffer(data, size));
 							}
 							else
 							{

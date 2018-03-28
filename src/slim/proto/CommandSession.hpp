@@ -140,6 +140,7 @@ namespace slim
 					auto  size{command.getSize()};
 					auto& nativeSocket{connection.getNativeSocket()};
 
+					// it is possible to use 'connection.write(...)' however the below implementation is more accurate
 					if (nativeSocket.is_open())
 					{
 						auto asioBuffer{asio::buffer(buffer, size)};
@@ -165,7 +166,10 @@ namespace slim
 						}
 
 						// restoring the last ping time value in case of an error
-						lastPingAt = tmp;
+						if (sent < 0)
+						{
+							lastPingAt = tmp;
+						}
 					}
 				}
 
