@@ -40,8 +40,8 @@ clean :
 cleanest : clean
 	rm $(EXECUTABLE)
 
-link : ConsoleSink.o SinkFilter.o SlimStreamer.o Source.o WAVEStream.o
-	$(CXX) -o $(EXECUTABLE) ./ConsoleSink.o ./SinkFilter.o ./SlimStreamer.o ./Source.o ./WAVEStream.o $(LD_FLAGS)
+link : ConsoleSink.o SinkFilter.o SlimStreamer.o Source.o
+	$(CXX) -o $(EXECUTABLE) ./ConsoleSink.o ./SinkFilter.o ./SlimStreamer.o ./Source.o $(LD_FLAGS)
 
 ConsoleSink.o :
 	$(CXX) -o ./ConsoleSink.o $(SOURCES)/slim/log/ConsoleSink.cpp $(CXX_FLAGS)
@@ -54,6 +54,3 @@ SlimStreamer.o :
 
 Source.o :
 	$(CXX) -o ./Source.o $(SOURCES)/slim/alsa/Source.cpp $(CXX_FLAGS)
-
-WAVEStream.o :
-	$(CXX) -o ./WAVEStream.o $(SOURCES)/slim/wave/WAVEStream.cpp $(CXX_FLAGS)
