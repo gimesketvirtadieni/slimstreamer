@@ -14,6 +14,7 @@
 
 #include <cstdint>  // std::u..._t types
 #include <cstring>  // memset, memcpy
+#include <optional>
 
 #include "slim/proto/Command.hpp"
 
@@ -30,14 +31,10 @@ namespace slim
 			std::uint32_t oldGainRight;
 			std::uint8_t  adjust;
 			std::uint8_t  preamp;
-			std::uint8_t  gainLeft1;
-			std::uint8_t  gainLeft2;
-			std::uint8_t  gainLeft3;
-			std::uint8_t  gainLeft4;
-			std::uint8_t  gainRight1;
-			std::uint8_t  gainRight2;
-			std::uint8_t  gainRight3;
-			std::uint8_t  gainRight4;
+			std::uint16_t gainLeft1;
+			std::uint16_t gainLeft2;
+			std::uint16_t gainRight1;
+			std::uint16_t gainRight2;
 			std::uint16_t sequenceID;  // not sure
 		};
 
@@ -53,19 +50,25 @@ namespace slim
 		class CommandAUDG : public Command<AUDG>
 		{
 			public:
-				CommandAUDG()
+				CommandAUDG(std::optional<unsigned int> gain = std::nullopt)
 				{
 					memset(&audg, 0, sizeof(AUDG));
 					memcpy(&audg.data.opcode, "audg", sizeof(audg.data.opcode));
 
-					audg.data.adjust = 1;
-					audg.data.preamp = 255;
+					if (gain.has_value())
+					{
+						auto g{gain.value()};
+						if (g > 100)
+						{
+							g = 100;
+						}
 
-					// TODO: work in progress
-					audg.data.gainLeft3  = 80;
-					audg.data.gainLeft4  = 255;
-					audg.data.gainRight3 = 80;
-					audg.data.gainRight4 = 255;
+						audg.data.adjust    = 1;    // digital volume control on/off
+						audg.data.preamp    = 255;  // level of preamplication
+
+						// TODO: this is linear scale, logarithmic scale should be used
+						audg.data.gainLeft2 = audg.data.gainRight2 = htons(uint32_t{65536 * g} / 100);
+					}
 
 					// preparing command size in indianless way
 					audg.size = htons(sizeof(audg.data));

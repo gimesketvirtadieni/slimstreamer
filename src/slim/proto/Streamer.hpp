@@ -44,8 +44,9 @@ namespace slim
 			using TimePoint   = std::chrono::time_point<std::chrono::steady_clock>;
 
 			public:
-				Streamer(unsigned int sp)
+				Streamer(unsigned int sp, std::optional<unsigned int> g = std::nullopt)
 				: streamingPort{sp}
+				, gain{g}
 				, timerThread{[&]
 				{
 					LOG(DEBUG) << LABELS{"proto"} << "Timer thread was started (id=" << std::this_thread::get_id() << ")";
@@ -275,7 +276,7 @@ namespace slim
 					ss << (++nextID);
 
 					// creating command session object
-					auto sessionPtr{std::make_unique<CommandSession<ConnectionType>>(connection, ss.str())};
+					auto sessionPtr{std::make_unique<CommandSession<ConnectionType>>(connection, ss.str(), gain)};
 
 					// enable streaming for this session if required
 					if (streaming)
@@ -412,6 +413,7 @@ namespace slim
 
 			private:
 				unsigned int                                  streamingPort;
+				std::optional<unsigned int>                   gain;
 				SessionsMap<CommandSession<ConnectionType>>   commandSessions;
 				SessionsMap<StreamingSession<ConnectionType>> streamingSessions;
 				bool                                          streaming{false};

@@ -41,9 +41,10 @@ namespace slim
 			using TimePoint   = std::chrono::time_point<std::chrono::steady_clock>;
 
 			public:
-				CommandSession(ConnectionType& c, std::string id)
+				CommandSession(ConnectionType& c, std::string id, std::optional<unsigned int> g = {std::nullopt})
 				: connection{c}
 				, clientID{id}
+				, gain{g}
 				, handlersMap
 				{
 					{"DSCO", [&](auto* buffer, auto size) {return onDSCO(buffer, size);}},
@@ -231,7 +232,7 @@ namespace slim
 						send(CommandSETD{DeviceID::RequestName});
 						send(CommandSETD{DeviceID::Squeezebox3});
 						send(CommandAUDE{true, true});
-						send(CommandAUDG{});
+						send(CommandAUDG{gain});
 
 						if (streaming)
 						{
@@ -312,6 +313,7 @@ namespace slim
 			private:
 				ConnectionType&                   connection;
 				std::string                       clientID;
+				std::optional<unsigned int>       gain;
 				HandlersMap                       handlersMap;
 				bool                              streaming{false};
 				unsigned int                      streamingPort;

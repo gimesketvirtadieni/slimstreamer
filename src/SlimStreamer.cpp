@@ -201,6 +201,7 @@ int main(int argc, const char *argv[])
 			.custom_help("[options]")
 			.add_options()
 				("c,maxclients", "Maximum amount of clients able to connect", cxxopts::value<int>()->default_value("10"), "<number>")
+				("g,gain", "Client audio gain", cxxopts::value<unsigned int>(), "<0-100>")
 				("h,help", "Print this help message", cxxopts::value<bool>())
 				("l,license", "Print license details", cxxopts::value<bool>())
 				("s,slimprotoport", "SlimProto (command connection) server port", cxxopts::value<int>()->default_value("3483"), "<port>")
@@ -224,15 +225,23 @@ int main(int argc, const char *argv[])
 		}
 		else
 		{
+			// setting mandatory parameters
 			auto maxClients    = result["maxclients"].as<int>();
 			auto slimprotoPort = result["slimprotoport"].as<int>();
 			auto httpPort      = result["httpport"].as<int>();
+
+			// setting optional parameters
+			std::optional<unsigned int> gain{std::nullopt};
+			if (result.count("gain"))
+			{
+				gain = result["gain"].as<unsigned int>();
+			}
 
 			// creating source objects stored in a vector
 			auto sources{createSources()};
 
 			// Callbacks objects 'glue' SlimProto Streamer with TCP Command Servers
-			auto streamerPtr{std::make_unique<Streamer>(httpPort)};
+			auto streamerPtr{std::make_unique<Streamer>(httpPort, gain)};
 			auto commandServerPtr{std::make_unique<Server>(slimprotoPort, maxClients, createCommandCallbacks(*streamerPtr))};
 			auto streamingServerPtr{std::make_unique<Server>(httpPort, maxClients, createStreamingCallbacks(*streamerPtr))};
 
