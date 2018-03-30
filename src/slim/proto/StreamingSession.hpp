@@ -19,7 +19,6 @@
 #include "slim/flac/Stream.hpp"
 #include "slim/log/log.hpp"
 #include "slim/util/ExpandableBuffer.hpp"
-#include "slim/wave/WAVEStream.hpp"
 
 
 namespace slim

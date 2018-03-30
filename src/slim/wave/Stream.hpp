@@ -23,10 +23,10 @@ namespace slim
 {
 	namespace wave
 	{
-		class WAVEStream : public StreamWriter
+		class Stream : public StreamWriter
 		{
 			public:
-				explicit WAVEStream(StreamWriter* w, unsigned int c, unsigned int s, unsigned int b)
+				explicit Stream(StreamWriter* w, unsigned int c, unsigned int s, unsigned int b)
 				: StreamWriter
 				{
 					std::move([=](auto* data, auto size) mutable
@@ -42,11 +42,11 @@ namespace slim
 				, bytesPerFrame{channels * (bitsPerSample >> 3)}
 				, byteRate{sampleRate * bytesPerFrame} {}
 
-				virtual ~WAVEStream() = default;
-				WAVEStream(const WAVEStream&) = delete;             // non-copyable
-				WAVEStream& operator=(const WAVEStream&) = delete;  // non-assignable
-				WAVEStream(WAVEStream&&) = delete;                  // non-movable
-				WAVEStream& operator=(WAVEStream&&) = delete;       // non-assign-movable
+				virtual ~Stream() = default;
+				Stream(const Stream&) = delete;             // non-copyable
+				Stream& operator=(const Stream&) = delete;  // non-assignable
+				Stream(Stream&&) = delete;                  // non-movable
+				Stream& operator=(Stream&&) = delete;       // non-assign-movable
 
 				virtual std::string getMIME()
 				{
