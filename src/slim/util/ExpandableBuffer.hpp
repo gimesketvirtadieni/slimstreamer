@@ -14,6 +14,7 @@
 #pragma once
 
 #include <cstddef>   // std::size_t
+#include <cstdint>   // std::u..._t types
 #include <cstring>   // std::memcpy, std::memcmp, std::memset, std::memchr
 #include <stdexcept> // std::out_of_range, std::invalid_argument
 
@@ -26,6 +27,7 @@ namespace slim
 		{
 			public:
 				using size_type = std::size_t;
+				using byte_type = std::uint8_t;
 
 				inline explicit ExpandableBuffer(size_type s = 0)
 				: ExpandableBuffer(s, s) {}
@@ -39,7 +41,7 @@ namespace slim
 					{
 						throw std::invalid_argument ("size greater than capacity");
 					}
-					data_ = (c != 0 ? new unsigned char[c] : 0);
+					data_ = (c != 0 ? new byte_type[c] : 0);
 				}
 
 				inline explicit ExpandableBuffer(const void* d, size_type s)
@@ -57,7 +59,7 @@ namespace slim
 
 					if (c > 0)
 					{
-						data_ = new unsigned char[c];
+						data_ = new byte_type[c];
 
 						if (s > 0)
 						{
@@ -71,7 +73,7 @@ namespace slim
 				}
 
 				inline explicit ExpandableBuffer(void* d, size_type s, size_type c, bool own)
-				: data_{static_cast<unsigned char*>(d)}
+				: data_{static_cast<byte_type*>(d)}
 				, size_{s}
 				, capacity_{s}
 				, free_{true}
@@ -99,7 +101,7 @@ namespace slim
 				{
 				  if (x.capacity_ != 0)
 				  {
-					data_ = new unsigned char[x.capacity_];
+					data_ = new byte_type[x.capacity_];
 
 					if (x.size_ != 0)
 					  std::memcpy (data_, x.data_, x.size_);
@@ -120,7 +122,7 @@ namespace slim
 					  if (free_)
 						delete[] data_;
 
-					  data_ = new unsigned char[x.capacity_];
+					  data_ = new byte_type[x.capacity_];
 					  capacity_ = x.capacity_;
 					  free_ = true;
 					}
@@ -135,7 +137,7 @@ namespace slim
 				}
 
 				void swap(ExpandableBuffer&);
-				unsigned char* detach();
+				byte_type* detach();
 
 				void assign(const void* data, size_type size);
 				void assign(void* data, size_type size, size_type capacity, bool assume_ownership);
@@ -143,8 +145,27 @@ namespace slim
 				void append(const void* data, size_type size);
 				void fill(char value = 0);
 
-				size_type size () const;
-				bool size (size_type);
+				inline size_type size() const
+				{
+					return size_;
+				}
+
+				inline bool size(size_type s)
+				{
+					auto r{false};
+
+					// adjusting capacity if needed
+					if(capacity_ < s)
+					{
+						r = capacity(s);
+					}
+
+					// changing the size
+					size_ = s;
+
+					return r;
+				}
+
 				size_type capacity () const;
 				bool capacity (size_type);
 
@@ -153,13 +174,11 @@ namespace slim
 					return size_ == 0;
 				}
 
-				void clear();
-
 				inline void shrinkLeft(size_type pos)
 				{
 					if (pos >= size_)
 					{
-						clear();
+						size(0);
 					}
 					else if (pos > 0)
 					{
@@ -168,15 +187,15 @@ namespace slim
 					}
 				}
 
-				unsigned char* data () const;
-				unsigned char& operator[] (size_type) const;
-				unsigned char& at (size_type) const;
+				byte_type* data () const;
+				byte_type& operator[] (size_type) const;
+				byte_type& at (size_type) const;
 
 			private:
-				unsigned char* data_;
-				size_type      size_;
-				size_type      capacity_;
-				bool           free_;
+				byte_type* data_;
+				size_type  size_;
+				size_type  capacity_;
+				bool       free_;
 		};
 
 		//
@@ -184,7 +203,7 @@ namespace slim
 		//
 		inline void ExpandableBuffer::swap(ExpandableBuffer& x)
 		{
-		  unsigned char* d (x.data_);
+			byte_type* d (x.data_);
 		  size_type s (x.size_);
 		  size_type c (x.capacity_);
 		  bool f (x.free_);
@@ -200,9 +219,9 @@ namespace slim
 		  free_ = f;
 		}
 
-		inline unsigned char* ExpandableBuffer::detach ()
+		inline ExpandableBuffer::byte_type* ExpandableBuffer::detach ()
 		{
-		  unsigned char* r (data_);
+			byte_type* r (data_);
 
 		  data_ = 0;
 		  size_ = 0;
@@ -218,7 +237,7 @@ namespace slim
 			if (free_)
 			  delete[] data_;
 
-			data_ = new unsigned char[s];
+			data_ = new byte_type[s];
 			capacity_ = s;
 			free_ = true;
 		  }
@@ -234,7 +253,7 @@ namespace slim
 		  if (free_)
 			delete[] data_;
 
-		  data_ = static_cast<unsigned char*> (d);
+		  data_ = static_cast<byte_type*> (d);
 		  size_ = s;
 		  capacity_ = c;
 		  free_ = own;
@@ -265,22 +284,6 @@ namespace slim
 			std::memset (data_, v, size_);
 		}
 
-		inline ExpandableBuffer::size_type ExpandableBuffer::size () const
-		{
-		  return size_;
-		}
-
-		inline bool ExpandableBuffer::size (size_type s)
-		{
-		  bool r{false};
-
-		  if (capacity_ < s)
-			r = capacity (s);
-
-		  size_ = s;
-		  return r;
-		}
-
 		inline ExpandableBuffer::size_type ExpandableBuffer::capacity () const
 		{
 		  return capacity_;
@@ -293,7 +296,7 @@ namespace slim
 		  if (capacity_ >= c)
 			return false;
 
-		  unsigned char* d (new unsigned char[c]);
+		  byte_type* d (new byte_type[c]);
 
 		  if (size_ != 0)
 			std::memcpy (d, data_, size_);
@@ -308,22 +311,17 @@ namespace slim
 		  return true;
 		}
 
-		inline void ExpandableBuffer::clear ()
+		inline ExpandableBuffer::byte_type* ExpandableBuffer::data () const
 		{
-		  size_ = 0;
+		  return ExpandableBuffer::data_;
 		}
 
-		inline unsigned char* ExpandableBuffer::data () const
-		{
-		  return data_;
-		}
-
-		inline unsigned char& ExpandableBuffer::operator[] (size_type i) const
+		inline ExpandableBuffer::byte_type& ExpandableBuffer::operator[] (size_type i) const
 		{
 		  return data_[i];
 		}
 
-		inline unsigned char& ExpandableBuffer::at (size_type i) const
+		inline ExpandableBuffer::byte_type& ExpandableBuffer::at (size_type i) const
 		{
 		  if (i >= size_)
 			throw std::out_of_range ("index out of range");

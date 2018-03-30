@@ -165,7 +165,7 @@ namespace slim
 							else
 							{
 								// buffer has to be flushed, otherwise sendAsync will not be invoked for new chunks
-								buffer.clear();
+								buffer.size(0);
 
 								// TODO: consider additional error processing
 								LOG(ERROR) << LABELS{"proto"} << "Error while transferring data (id=" << this << ", clientID=" << clientID.value() << ", error='" << error.message() << "')";
