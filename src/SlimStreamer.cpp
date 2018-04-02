@@ -16,7 +16,6 @@
 #include <cxxopts.hpp>
 #include <exception>
 #include <fstream>
-#include <functional>
 #include <g3log/logworker.hpp>
 #include <memory>
 #include <string>
@@ -30,7 +29,8 @@
 #include "slim/Consumer.hpp"
 #include "slim/Container.hpp"
 #include "slim/Exception.hpp"
-#include "slim/flac/File.hpp"
+#include "slim/FileConsumer.hpp"
+#include "slim/flac/Stream.hpp"
 #include "slim/log/ConsoleSink.hpp"
 #include "slim/log/log.hpp"
 #include "slim/Pipeline.hpp"
@@ -38,7 +38,6 @@
 #include "slim/proto/Streamer.hpp"
 #include "slim/Scheduler.hpp"
 #include "slim/StreamWriter.hpp"
-#include "slim/wave/File.hpp"
 
 
 using ContainerBase = slim::ContainerBase;
@@ -48,7 +47,7 @@ using Callbacks     = slim::conn::Callbacks<ContainerBase>;
 using Streamer      = slim::proto::Streamer<Connection>;
 
 using Source        = slim::alsa::Source;
-using File          = slim::flac::File;
+using File          = slim::FileConsumer<slim::flac::Stream>;
 using Pipeline      = slim::Pipeline;
 using Scheduler     = slim::Scheduler;
 
@@ -136,7 +135,7 @@ auto createPipelines(std::vector<std::unique_ptr<Source>>& sources, Streamer& st
 
 		auto streamPtr{std::make_unique<std::ofstream>(std::to_string(parameters.getSamplingRate()) + ".flac", std::ios::binary)};
 		auto writerPtr{std::make_unique<slim::SyncStreamWriter>(std::move(streamPtr))};
-		auto filePtr{std::make_unique<File>(std::move(writerPtr), 2, parameters.getSamplingRate(), 24)};
+		auto filePtr{std::make_unique<File>(std::move(writerPtr), 2, parameters.getSamplingRate(), 32)};
 
 		pipelines.emplace_back(sourcePtr.get(), filePtr.get());
 		files.push_back(std::move(filePtr));
@@ -193,8 +192,15 @@ int main(int argc, const char *argv[])
 	g3::initializeLogging(logWorkerPtr.get());
 	g3::only_change_at_initialization::addLogLevel(ERROR);
     logWorkerPtr->addSink(std::make_unique<ConsoleSink>(), &ConsoleSink::print);
-
-	try
+/*
+	// bit rate conversion (32 -> 24)
+    std::int32_t sample[2] = {-50, 50};
+    std::cout << sample[0] << std::endl;
+    std::cout << sample[1] << std::endl;
+    std::cout << ((std::int24_t)(sample[0]) >> 8) << std::endl;
+    std::cout << ((std::int24_t)(sample[1]) >> 8) << std::endl;
+*/
+    try
 	{
 		// defining supported options
 		cxxopts::Options options("SlimStreamer", "SlimStreamer - A multi-room bit-perfect streamer for systemwise audio\n");

@@ -17,7 +17,6 @@
 
 #include "slim/log/log.hpp"
 #include "slim/StreamWriter.hpp"
-#include "slim/util/ExpandableBuffer.hpp"
 
 
 namespace slim
@@ -123,36 +122,51 @@ namespace slim
 					callback(std::error_code(), size);
 				}
 
-			protected:
-				std::streamsize encode(const char* data, const std::streamsize size)
-				{
-					// allocating buffer
-					// TODO: avoid type conversion
-					if ((std::streamsize)buffer.capacity() < size)
-					{
-						buffer.capacity(size);
-					}
+				void writeHeader(std::uint32_t size = 0) {}
 
+			protected:
+				std::streamsize encode(const char* data, const std::streamsize s)
+				{
+					// TODO: avoid type conversion
+					auto size{(std::size_t)s};
 					auto samples{size >> 2};
 					auto frames{samples >> 1};
-					auto outputData{buffer.data()};
-					for (auto i{0}; i < samples; i++)
-					{
-						if (data[i * 4])
-						{
-							LOG(WARNING) << LABELS{"flac"} << "PCM data uses 32 bits, this is not supported by FLAC";
-						}
 
-						// TODO: implement bulk copy
-						outputData[i * 4]     = data[i * 4 + 1];
-						outputData[i * 4 + 1] = data[i * 4 + 2];
-						outputData[i * 4 + 2] = data[i * 4 + 3];
-						outputData[i * 4 + 3] = 0;
+					// checking if only 24 bits are used for PCM data
+					for (std::size_t i = 0; i < size; i += 4)
+					{
+						if (data[i])
+						{
+							LOG(WARNING) << LABELS{"flac"} << "All 32-bits are used for PCM data, whereas FLAC supports only 24 bits";
+							break;
+						}
 					}
 
-					if(!process_interleaved((const FLAC__int32*)outputData, frames))
+					// coverting data S32_LE to S24_LE by shifting data by 1 byte
+					if (frames > 1 && !process_interleaved((const FLAC__int32*)(data + 1), frames - 1))
 					{
 						LOG(ERROR) << LABELS{"flac"} << get_state().as_cstring();
+					}
+
+					// handling the last frame separately; requred due to data shift
+					if (frames > 0)
+					{
+						char lastFrame[8] =
+						{
+							data[samples * 4 - 7],
+							data[samples * 4 - 6],
+							data[samples * 4 - 5],
+							0,
+							data[samples * 4 - 3],
+							data[samples * 4 - 2],
+							data[samples * 4 - 1],
+							0
+						};
+
+						if (!process_interleaved((const FLAC__int32*)lastFrame, 1))
+						{
+							LOG(ERROR) << LABELS{"flac"} << get_state().as_cstring();
+						}
 					}
 
 					return size;
@@ -167,13 +181,12 @@ namespace slim
 				}
 
 			private:
-				StreamWriter*          writerPtr;
-				unsigned int           channels;
-				unsigned int           sampleRate;
-				unsigned int           bitsPerSample;
-				unsigned int           bytesPerFrame;
-				unsigned int           byteRate;
-				util::ExpandableBuffer buffer;
+				StreamWriter* writerPtr;
+				unsigned int  channels;
+				unsigned int  sampleRate;
+				unsigned int  bitsPerSample;
+				unsigned int  bytesPerFrame;
+				unsigned int  byteRate;
 		};
 	}
 }
