@@ -133,14 +133,14 @@ auto createPipelines(std::vector<std::unique_ptr<Source>>& sources, Streamer& st
 	{
 		auto parameters{sourcePtr->getParameters()};
 
-		auto streamPtr{std::make_unique<std::ofstream>(std::to_string(parameters.getSamplingRate()) + ".flac", std::ios::binary)};
-		auto writerPtr{std::make_unique<slim::SyncStreamWriter>(std::move(streamPtr))};
-		auto filePtr{std::make_unique<File>(std::move(writerPtr), 2, parameters.getSamplingRate(), 32)};
+		//auto streamPtr{std::make_unique<std::ofstream>(std::to_string(parameters.getSamplingRate()) + ".flac", std::ios::binary)};
+		//auto writerPtr{std::make_unique<slim::SyncStreamWriter>(std::move(streamPtr))};
+		//auto filePtr{std::make_unique<File>(std::move(writerPtr), 2, parameters.getSamplingRate(), 32)};
 
-		pipelines.emplace_back(sourcePtr.get(), filePtr.get());
-		files.push_back(std::move(filePtr));
+		//pipelines.emplace_back(sourcePtr.get(), filePtr.get());
+		//files.push_back(std::move(filePtr));
 
-		//pipelines.emplace_back(sourcePtr.get(), &streamer);
+		pipelines.emplace_back(sourcePtr.get(), &streamer);
 	}
 
 	return std::move(pipelines);
@@ -192,14 +192,7 @@ int main(int argc, const char *argv[])
 	g3::initializeLogging(logWorkerPtr.get());
 	g3::only_change_at_initialization::addLogLevel(ERROR);
     logWorkerPtr->addSink(std::make_unique<ConsoleSink>(), &ConsoleSink::print);
-/*
-	// bit rate conversion (32 -> 24)
-    std::int32_t sample[2] = {-50, 50};
-    std::cout << sample[0] << std::endl;
-    std::cout << sample[1] << std::endl;
-    std::cout << ((std::int24_t)(sample[0]) >> 8) << std::endl;
-    std::cout << ((std::int24_t)(sample[1]) >> 8) << std::endl;
-*/
+
     try
 	{
 		// defining supported options

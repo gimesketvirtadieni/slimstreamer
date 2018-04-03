@@ -14,9 +14,11 @@
 
 #include <cstddef>   // std::size_t
 #include <FLAC++/encoder.h>
+#include <optional>
 
 #include "slim/log/log.hpp"
 #include "slim/StreamWriter.hpp"
+#include "slim/util/ExpandableBuffer.hpp"
 
 
 namespace slim
@@ -29,9 +31,21 @@ namespace slim
 				explicit Stream(StreamWriter* w, unsigned int c, unsigned int s, unsigned int b)
 				: StreamWriter
 				{
-					std::move([&](auto* data, auto size) mutable
+					std::move([&](auto* data, auto s) mutable
 					{
-						return encode(data, size);
+						auto size{s};
+
+						// do not feed encoder with more data if there is no room in transfer buffer
+						if (getFreeBufferIndex().has_value())
+						{
+							size = encode(data, size);
+						}
+						else
+						{
+							LOG(WARNING) << LABELS{"flac"} << "Transfer buffer is full - skipping PCM chunk";
+						}
+
+						return size;
 					})
 				}
 				, writerPtr{w}
@@ -43,17 +57,20 @@ namespace slim
 				{
 					auto ok{true};
 
-					// TODO: encoding fails with FLAC__STREAM_ENCODER_VERIFY_MISMATCH_IN_AUDIO_DATA if verity is set to true
+					// do not validate whether the stream is bit-perfect to the original PCM data
 					ok &= set_verify(false);
-					ok &= set_compression_level(5);
+					ok &= set_compression_level(8);
 					ok &= set_channels(channels);
 					ok &= set_sample_rate(sampleRate);
 					// TODO: FLAC does not support 32 bits per sample
 					ok &= set_bits_per_sample(24);
-					//ok &= set_total_samples_estimate(total_samples);
+
+					// choosing big enough number of expected samples for streaming purpose
+					ok &= set_total_samples_estimate(0xFFFFFFFF);
 /*
 					// now add some metadata; we'll add some tags and a padding block
-					if(ok) {
+					if (ok)
+					{
 						if(
 							(metadata[0] = FLAC__metadata_object_new(FLAC__METADATA_TYPE_VORBIS_COMMENT)) == NULL ||
 							(metadata[1] = FLAC__metadata_object_new(FLAC__METADATA_TYPE_PADDING)) == NULL ||
@@ -72,7 +89,7 @@ namespace slim
 						ok = encoder.set_metadata(metadata, 2);
 					}
 */
-					if(ok)
+					if (ok)
 					{
 						auto init_status{init()};
 						if(init_status != FLAC__STREAM_ENCODER_INIT_STATUS_OK)
@@ -82,7 +99,7 @@ namespace slim
 						}
 					}
 
-					if(!ok)
+					if (!ok)
 					{
 						LOG(ERROR) << LABELS{"flac"} << "Initialization error";
 					}
@@ -92,7 +109,7 @@ namespace slim
 				{
 					if (!finish())
 					{
-						LOG(INFO) << LABELS{"flac"} << "Finish failed:" << get_state().as_cstring();
+						LOG(ERROR) << LABELS{"flac"} << "Finish failed:" << get_state().as_cstring();
 					}
 
 					// now that encoding is finished, the metadata can be freed
@@ -133,12 +150,18 @@ namespace slim
 					auto frames{samples >> 1};
 
 					// checking if only 24 bits are used for PCM data
+					auto scalingWarning{false};
 					for (std::size_t i = 0; i < size; i += 4)
 					{
 						if (data[i])
 						{
-							LOG(WARNING) << LABELS{"flac"} << "All 32-bits are used for PCM data, whereas FLAC supports only 24 bits";
-							break;
+							// TODO: consider other place for this scaling to 24 bits
+							const_cast<char*>(data)[i] = 0;
+							if (!scalingWarning)
+							{
+								LOG(WARNING) << LABELS{"flac"} << "All 32-bits are used for PCM data, scaling to 24 bits as required for FLAC";
+								scalingWarning = true;
+							}
 						}
 					}
 
@@ -172,10 +195,47 @@ namespace slim
 					return size;
 				}
 
-				virtual ::FLAC__StreamEncoderWriteStatus write_callback(const FLAC__byte buffer[], std::size_t bytes, unsigned samples, unsigned current_frame) override
+				std::optional<std::size_t> getFreeBufferIndex()
 				{
-					// TODO: handle exceptions
-					writerPtr->write(buffer, bytes);
+					std::optional<std::size_t> result{std::nullopt};
+					auto                       size{buffers.size()};
+
+					for (std::size_t i{0}; i < size; i++)
+					{
+						if (!buffers[i].size())
+						{
+							result = i;
+							break;
+						}
+					}
+
+					return result;
+				}
+
+				virtual ::FLAC__StreamEncoderWriteStatus write_callback(const FLAC__byte* data, std::size_t size, unsigned samples, unsigned current_frame) override
+				{
+					if (auto index{getFreeBufferIndex()}; index.has_value())
+					{
+						auto& buffer{buffers[index.value()]};
+
+						// no need for capacity adjustment as it is done by .assign method
+						buffer.assign(data, size);
+
+						writerPtr->writeAsync(buffer.data(), buffer.size(), [&](const std::error_code& error, std::size_t transferred) mutable
+						{
+							buffer.size(0);
+
+							// TODO: consider additional error processing
+							if (error)
+							{
+								LOG(ERROR) << LABELS{"flac"} << "Error while transferring data (" << error.message() << ")";
+							}
+						});
+					}
+					else
+					{
+						LOG(WARNING) << LABELS{"flac"} << "Transfer buffer is full - skipping encoded chunk";
+					}
 
 					return FLAC__STREAM_ENCODER_WRITE_STATUS_OK;
 				}
@@ -187,6 +247,9 @@ namespace slim
 				unsigned int  bitsPerSample;
 				unsigned int  bytesPerFrame;
 				unsigned int  byteRate;
+
+				// TODO: work in progress
+				std::array<util::ExpandableBuffer, 10> buffers;
 		};
 	}
 }
