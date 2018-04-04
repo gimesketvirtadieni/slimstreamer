@@ -30,7 +30,7 @@
 #include "slim/Container.hpp"
 #include "slim/Exception.hpp"
 #include "slim/FileConsumer.hpp"
-#include "slim/flac/Stream.hpp"
+#include "slim/flac/Encoder.hpp"
 #include "slim/log/ConsoleSink.hpp"
 #include "slim/log/log.hpp"
 #include "slim/Pipeline.hpp"
@@ -44,10 +44,11 @@ using ContainerBase = slim::ContainerBase;
 using Connection    = slim::conn::Connection<ContainerBase>;
 using Server        = slim::conn::Server<ContainerBase>;
 using Callbacks     = slim::conn::Callbacks<ContainerBase>;
-using Streamer      = slim::proto::Streamer<Connection>;
+using Encoder       = slim::flac::Encoder;
+using Streamer      = slim::proto::Streamer<Connection, Encoder>;
 
 using Source        = slim::alsa::Source;
-using File          = slim::FileConsumer<slim::flac::Stream>;
+using File          = slim::FileConsumer<Encoder>;
 using Pipeline      = slim::Pipeline;
 using Scheduler     = slim::Scheduler;
 
@@ -131,7 +132,7 @@ auto createPipelines(std::vector<std::unique_ptr<Source>>& sources, Streamer& st
 
 	for (auto& sourcePtr : sources)
 	{
-		auto parameters{sourcePtr->getParameters()};
+		//auto parameters{sourcePtr->getParameters()};
 
 		//auto streamPtr{std::make_unique<std::ofstream>(std::to_string(parameters.getSamplingRate()) + ".flac", std::ios::binary)};
 		//auto writerPtr{std::make_unique<slim::SyncStreamWriter>(std::move(streamPtr))};

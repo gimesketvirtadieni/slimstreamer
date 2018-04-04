@@ -36,12 +36,14 @@ namespace slim
 {
 	namespace proto
 	{
-		template<typename ConnectionType>
+		template<typename ConnectionType, typename EncoderType>
 		class Streamer : public Consumer
 		{
 			template<typename SessionType>
-			using SessionsMap = std::unordered_map<ConnectionType*, std::unique_ptr<SessionType>>;
-			using TimePoint   = std::chrono::time_point<std::chrono::steady_clock>;
+			using SessionsMap          = std::unordered_map<ConnectionType*, std::unique_ptr<SessionType>>;
+			using TimePoint            = std::chrono::time_point<std::chrono::steady_clock>;
+			using CommandSessionType   = CommandSession<ConnectionType, EncoderType>;
+			using StreamingSessionType = StreamingSession<ConnectionType, EncoderType>;
 
 			public:
 				Streamer(unsigned int sp)
@@ -199,7 +201,7 @@ namespace slim
 				{
 					try
 					{
-						if (!applyToSession(streamingSessions, connection, [&](StreamingSession<ConnectionType>& session)
+						if (!applyToSession(streamingSessions, connection, [&](StreamingSessionType& session)
 						{
 							auto clientID{session.getClientID()};
 
@@ -240,7 +242,7 @@ namespace slim
 					LOG(INFO) << LABELS{"proto"} << "New HTTP session request received (connection=" << &connection << ")";
 
 					// creating streaming session object
-					auto  streamingSessionPtr{std::make_unique<StreamingSession<ConnectionType>>(connection, 2, samplingRate, 32)};
+					auto  streamingSessionPtr{std::make_unique<StreamingSessionType>(connection, 2, samplingRate, 32)};
 					addSession(streamingSessions, connection, std::move(streamingSessionPtr));
 				}
 
@@ -253,7 +255,7 @@ namespace slim
 				{
 					try
 					{
-						if (!applyToSession(commandSessions, connection, [&](CommandSession<ConnectionType>& session)
+						if (!applyToSession(commandSessions, connection, [&](CommandSessionType& session)
 						{
 							session.onRequest(buffer, size);
 						}))
@@ -275,7 +277,7 @@ namespace slim
 					ss << (++nextID);
 
 					// creating command session object
-					auto sessionPtr{std::make_unique<CommandSession<ConnectionType>>(connection, ss.str())};
+					auto sessionPtr{std::make_unique<CommandSessionType>(connection, ss.str())};
 
 					// enable streaming for this session if required
 					if (streaming)
@@ -354,7 +356,7 @@ namespace slim
 
 				auto findCommandSession(std::string clientID)
 				{
-					auto result{std::optional<CommandSession<ConnectionType>*>{std::nullopt}};
+					auto result{std::optional<CommandSessionType*>{std::nullopt}};
 					auto found{std::find_if(commandSessions.begin(), commandSessions.end(), [&](auto& entry) -> bool
 					{
 						auto found{false};
@@ -411,16 +413,16 @@ namespace slim
 				}
 
 			private:
-				unsigned int                                  streamingPort;
-				SessionsMap<CommandSession<ConnectionType>>   commandSessions;
-				SessionsMap<StreamingSession<ConnectionType>> streamingSessions;
-				bool                                          streaming{false};
-				unsigned int                                  samplingRate{0};
-				unsigned long                                 nextID{0};
-				conwrap::ProcessorProxy<ContainerBase>*       processorProxyPtr{nullptr};
-				volatile bool                                 timerRunning{true};
-				std::thread                                   timerThread;
-				std::optional<TimePoint>                      deferStartedAt{std::nullopt};
+				unsigned int                            streamingPort;
+				SessionsMap<CommandSessionType>         commandSessions;
+				SessionsMap<StreamingSessionType>       streamingSessions;
+				bool                                    streaming{false};
+				unsigned int                            samplingRate{0};
+				unsigned long                           nextID{0};
+				conwrap::ProcessorProxy<ContainerBase>* processorProxyPtr{nullptr};
+				volatile bool                           timerRunning{true};
+				std::thread                             timerThread;
+				std::optional<TimePoint>                deferStartedAt{std::nullopt};
 		};
 	}
 }

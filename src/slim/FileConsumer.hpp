@@ -22,23 +22,23 @@
 
 namespace slim
 {
-	template <typename StreamType>
+	template <typename EncoderType>
 	class FileConsumer : public Consumer
 	{
 		public:
 			FileConsumer(std::unique_ptr<StreamWriter> w, unsigned int channels, unsigned int sampleRate, unsigned int bitsPerSample)
 			: writerPtr{std::move(w)}
-			, stream{writerPtr.get(), channels, sampleRate, bitsPerSample}
+			, encoder{writerPtr.get(), channels, sampleRate, bitsPerSample}
 			, bytesPerFrame{channels * (bitsPerSample >> 3)}
 			{
-				stream.writeHeader();
+				encoder.writeHeader();
 			}
 
 			// there is a need for a custom destructor so Rule Of Zero cannot be used
 			// Instead of The Rule of The Big Four (and a half) the following approach is used: http://scottmeyers.blogspot.dk/2014/06/the-drawbacks-of-implementing-move.html
 			virtual ~FileConsumer()
 			{
-				stream.writeHeader(stream.getBytesWritten());
+				encoder.writeHeader(encoder.getBytesEncoded());
 			}
 
 			FileConsumer(const FileConsumer&) = delete;             // non-copyable
@@ -51,7 +51,7 @@ namespace slim
 				auto* data{chunk.getBuffer().data()};
 				auto  size{chunk.getBuffer().size()};
 
-				stream.write(data, size);
+				encoder.encode(data, size);
 
 				LOG(DEBUG) << LABELS{"slim"} << "Written " << (size / bytesPerFrame) << " frames";
 
@@ -61,7 +61,7 @@ namespace slim
 
 		private:
 			std::unique_ptr<StreamWriter> writerPtr;
-			StreamType                    stream;
+			EncoderType                   encoder;
 			unsigned int                  bytesPerFrame;
 	};
 }

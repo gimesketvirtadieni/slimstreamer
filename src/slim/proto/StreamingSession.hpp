@@ -16,7 +16,6 @@
 #include <string>
 
 #include "slim/Chunk.hpp"
-#include "slim/flac/Stream.hpp"
 #include "slim/log/log.hpp"
 #include "slim/util/ExpandableBuffer.hpp"
 
@@ -25,17 +24,14 @@ namespace slim
 {
 	namespace proto
 	{
-		template<typename ConnectionType>
+		template<typename ConnectionType, typename EncoderType>
 		class StreamingSession
 		{
-			// TODO: parametrize Stream type
-			using Stream = flac::Stream;
-
 			public:
 				StreamingSession(ConnectionType& co, unsigned int channels, unsigned int sr, unsigned int bitsPerSample)
 				: connection{co}
 				, samplingRate{sr}
-				, stream{&connection, channels, samplingRate, bitsPerSample}
+				, encoder{&connection, channels, samplingRate, bitsPerSample}
 				, currentChunkPtr{std::make_unique<Chunk>(buffer1, samplingRate)}
 				, nextChunkPtr{std::make_unique<Chunk>(buffer2, samplingRate)}
 				{
@@ -50,7 +46,7 @@ namespace slim
 					connection.write(")\r\n");
 					connection.write("Connection: close\r\n");
 					connection.write("Content-Type: ");
-					connection.write(stream.getMIME());
+					connection.write(encoder.getMIME());
 					connection.write("\r\n");
 					connection.write("\r\n");
 				}
@@ -154,36 +150,21 @@ namespace slim
 					auto& buffer{currentChunkPtr->getBuffer()};
 					if (buffer.size() > 0)
 					{
-						// to guarantee buffer is not a dangling reference, declaring a new buffer refence in capture list
-						stream.writeAsync(buffer.data(), buffer.size(), [&, &buffer = buffer](const std::error_code& error, std::size_t bytes_transferred) mutable
+						// removing transferred data from the buffer
+						buffer.shrinkLeft(encoder.encode(buffer.data(), buffer.size()));
+
+						// keep sending data if there is anything to send or there is next chunk pending
+						if (buffer.size() > 0 || nextChunkPtr->getBuffer().size() > 0)
 						{
-							if (!error)
-							{
-								// removing transferred data from the buffer
-								buffer.shrinkLeft(bytes_transferred);
-
-								// keep sending data if there is anything to send or there is next chunk pending
-								if (buffer.size() > 0 || nextChunkPtr->getBuffer().size() > 0)
-								{
-									sendAsync();
-								}
-							}
-							else
-							{
-								// buffer has to be flushed, otherwise sendAsync will not be invoked for new chunks
-								buffer.clear();
-
-								// TODO: consider additional error processing
-								LOG(ERROR) << LABELS{"proto"} << "Error while transferring data (id=" << this << ", clientID=" << clientID.value() << ", error='" << error.message() << "')";
-							}
-						});
+							sendAsync();
+						}
 					}
 				}
 
 			private:
 				ConnectionType&            connection;
 				unsigned int               samplingRate;
-				Stream                     stream;
+				EncoderType                encoder;
 				std::unique_ptr<Chunk>     currentChunkPtr;
 				std::unique_ptr<Chunk>     nextChunkPtr;
 				util::ExpandableBuffer     buffer1;

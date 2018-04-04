@@ -34,11 +34,12 @@ namespace slim
 {
 	namespace proto
 	{
-		template<typename ConnectionType>
+		template<typename ConnectionType, typename EncoderType>
 		class CommandSession
 		{
-			using HandlersMap = std::unordered_map<std::string, std::function<std::size_t(unsigned char*, std::size_t)>>;
-			using TimePoint   = std::chrono::time_point<std::chrono::steady_clock>;
+			using HandlersMap          = std::unordered_map<std::string, std::function<std::size_t(unsigned char*, std::size_t)>>;
+			using TimePoint            = std::chrono::time_point<std::chrono::steady_clock>;
+			using StreamingSessionType = StreamingSession<ConnectionType, EncoderType>;
 
 			public:
 				CommandSession(ConnectionType& c, std::string id)
@@ -173,7 +174,7 @@ namespace slim
 					}
 				}
 
-				inline void setStreamingSession(StreamingSession<ConnectionType>* s)
+				inline void setStreamingSession(StreamingSessionType* s)
 				{
 					if (s)
 					{
@@ -314,18 +315,18 @@ namespace slim
 				}
 
 			private:
-				ConnectionType&                   connection;
-				std::string                       clientID;
-				HandlersMap                       handlersMap;
-				bool                              streaming{false};
-				unsigned int                      streamingPort;
-				unsigned int                      samplingRate;
-				StreamingSession<ConnectionType>* streamingSessionPtr{nullptr};
-				bool                              connectedReceived{false};
-				bool                              responseReceived{false};
-				util::ExpandableBuffer            commandBuffer{std:size_t{0}, std:size_t{2048}};
-				std::optional<CommandHELO>        commandHELO{std::nullopt};
-				std::optional<TimePoint>          lastPingAt{std::nullopt};
+				ConnectionType&            connection;
+				std::string                clientID;
+				HandlersMap                handlersMap;
+				bool                       streaming{false};
+				unsigned int               streamingPort;
+				unsigned int               samplingRate;
+				StreamingSessionType*      streamingSessionPtr{nullptr};
+				bool                       connectedReceived{false};
+				bool                       responseReceived{false};
+				util::ExpandableBuffer     commandBuffer{std:size_t{0}, std:size_t{2048}};
+				std::optional<CommandHELO> commandHELO{std::nullopt};
+				std::optional<TimePoint>   lastPingAt{std::nullopt};
 		};
 	}
 }
