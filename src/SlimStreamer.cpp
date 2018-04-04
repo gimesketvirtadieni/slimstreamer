@@ -16,7 +16,6 @@
 #include <cxxopts.hpp>
 #include <exception>
 #include <fstream>
-#include <functional>
 #include <g3log/logworker.hpp>
 #include <memory>
 #include <string>
@@ -30,6 +29,8 @@
 #include "slim/Consumer.hpp"
 #include "slim/Container.hpp"
 #include "slim/Exception.hpp"
+#include "slim/FileConsumer.hpp"
+#include "slim/flac/Encoder.hpp"
 #include "slim/log/ConsoleSink.hpp"
 #include "slim/log/log.hpp"
 #include "slim/Pipeline.hpp"
@@ -37,17 +38,17 @@
 #include "slim/proto/Streamer.hpp"
 #include "slim/Scheduler.hpp"
 #include "slim/StreamWriter.hpp"
-#include "slim/wave/File.hpp"
 
 
 using ContainerBase = slim::ContainerBase;
 using Connection    = slim::conn::Connection<ContainerBase>;
 using Server        = slim::conn::Server<ContainerBase>;
 using Callbacks     = slim::conn::Callbacks<ContainerBase>;
-using Streamer      = slim::proto::Streamer<Connection>;
+using Encoder       = slim::flac::Encoder;
+using Streamer      = slim::proto::Streamer<Connection, Encoder>;
 
 using Source        = slim::alsa::Source;
-using File          = slim::wave::File;
+using File          = slim::FileConsumer<Encoder>;
 using Pipeline      = slim::Pipeline;
 using Scheduler     = slim::Scheduler;
 
@@ -125,7 +126,7 @@ auto createStreamingCallbacks(Streamer& streamer)
 }
 
 
-auto createPipelines(std::vector<std::unique_ptr<Source>>& sources, Streamer& streamer, std::vector<std::unique_ptr<File>>& waveFiles)
+auto createPipelines(std::vector<std::unique_ptr<Source>>& sources, Streamer& streamer, std::vector<std::unique_ptr<File>>& files)
 {
 	std::vector<Pipeline> pipelines;
 
@@ -133,12 +134,12 @@ auto createPipelines(std::vector<std::unique_ptr<Source>>& sources, Streamer& st
 	{
 		auto parameters{sourcePtr->getParameters()};
 
-		//auto streamPtr{std::make_unique<std::ofstream>(std::to_string(parameters.getSamplingRate()) + ".wav", std::ios::binary)};
+		//auto streamPtr{std::make_unique<std::ofstream>(std::to_string(parameters.getSamplingRate()) + ".flac", std::ios::binary)};
 		//auto writerPtr{std::make_unique<slim::SyncStreamWriter>(std::move(streamPtr))};
-		//auto filePtr{std::make_unique<slim::wave::File>(std::move(writerPtr), 2, parameters.getSamplingRate(), 32)};
+		//auto filePtr{std::make_unique<File>(std::move(writerPtr), 2, parameters.getSamplingRate(), 32)};
 
 		//pipelines.emplace_back(sourcePtr.get(), filePtr.get());
-		//waveFiles.push_back(std::move(filePtr));
+		//files.push_back(std::move(filePtr));
 
 		pipelines.emplace_back(sourcePtr.get(), &streamer);
 	}
@@ -193,7 +194,7 @@ int main(int argc, const char *argv[])
 	g3::only_change_at_initialization::addLogLevel(ERROR);
     logWorkerPtr->addSink(std::make_unique<ConsoleSink>(), &ConsoleSink::print);
 
-	try
+    try
 	{
 		// defining supported options
 		cxxopts::Options options("SlimStreamer", "SlimStreamer - A multi-room bit-perfect streamer for systemwise audio\n");
@@ -245,11 +246,11 @@ int main(int argc, const char *argv[])
 			auto commandServerPtr{std::make_unique<Server>(slimprotoPort, maxClients, createCommandCallbacks(*streamerPtr))};
 			auto streamingServerPtr{std::make_unique<Server>(httpPort, maxClients, createStreamingCallbacks(*streamerPtr))};
 
-			// creating a container for WAVE files objects
-			std::vector<std::unique_ptr<File>> waveFiles;
+			// creating a container for files objects
+			std::vector<std::unique_ptr<File>> files;
 
 			// creating Scheduler object with destination directed to slimproto Streamer
-			auto schedulerPtr{std::make_unique<Scheduler>(createPipelines(sources, *streamerPtr, waveFiles))};
+			auto schedulerPtr{std::make_unique<Scheduler>(createPipelines(sources, *streamerPtr, files))};
 
 			// creating Container object within Asio Processor with Scheduler and Servers
 			conwrap::ProcessorAsio<ContainerBase> processorAsio

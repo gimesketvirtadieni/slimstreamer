@@ -52,12 +52,12 @@ namespace slim
 				streamPtr->seekp(pos);
 			}
 
-			virtual void write(std::string str)
+			virtual std::size_t write(std::string str)
 			{
-				write(str.c_str(), str.length());
+				return write(str.c_str(), str.length());
 			}
 
-			virtual void write(const void* data, const std::size_t size)
+			virtual std::size_t write(const void* data, const std::size_t size)
 			{
 				// std::ostream::write method writes all data before returning, so no need to check how much data was actually written
 				streamPtr->write(reinterpret_cast<const char*>(data), size);
@@ -65,6 +65,8 @@ namespace slim
 
 				// making sure everything is written
 				streamPtr->flush();
+
+				return size;
 			}
 
 			virtual void writeAsync(const void* data, const std::size_t size, WriteCallback callback) = 0;

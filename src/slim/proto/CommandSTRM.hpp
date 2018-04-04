@@ -76,16 +76,17 @@ namespace slim
 
 					strm.data.command    = static_cast<char>(commandSelection);
 					strm.data.autostart  = '1';  // autostart
-					strm.data.format     = 'p';  // PCM
-					strm.data.sampleSize = '3';  // 32 bits per sample
-					strm.data.sampleRate = mapSamplingRate(samplingRate);
-					strm.data.channels   = '2';  // stereo
-					strm.data.endianness = '1';  // WAV
+					// TODO: parametrize
+					strm.data.format     = 'f';  // FLAC
+					strm.data.sampleSize = '?';  // self-describing
+					strm.data.sampleRate = '?';  // self-describing
+					strm.data.channels   = '?';  // self-describing
+					strm.data.endianness = '?';  // self-describing
 
 					if (strm.data.command == static_cast<char>(CommandSelection::Start))
 					{
 						strm.data.serverPort = htons(port);
-						std::strcpy(strm.data.httpHeader, (std::string{"GET /stream.pcm?player="} += clientID).c_str());
+						std::strcpy(strm.data.httpHeader, (std::string{"GET /stream?player="} += clientID).c_str());
 					}
 
 					// preparing command size in indianless way
