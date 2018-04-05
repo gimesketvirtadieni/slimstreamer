@@ -209,7 +209,7 @@ namespace slim
 				unsigned int  bytesPerFrame;
 				unsigned int  byteRate;
 
-				// TODO: work in progress
+				// TODO: parametrize buffer size
 				std::array<util::ExpandableBuffer, 10> buffers;
 		};
 	}

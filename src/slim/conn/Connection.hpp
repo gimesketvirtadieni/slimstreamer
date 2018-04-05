@@ -31,31 +31,7 @@ namespace slim
 		{
 			public:
 				Connection(conwrap::ProcessorAsioProxy<ContainerType>* p, CallbacksBase<Connection<ContainerType>>& c)
-				: StreamWriter
-				{
-					std::move([&](auto* data, auto size) mutable
-					{
-						try
-						{
-							if (nativeSocket.is_open())
-							{
-								// no need to return actually written bytes as assio::write function writes all provided data
-								asio::write(nativeSocket, asio::buffer(data, size));
-							}
-							else
-							{
-								LOG(WARNING) << LABELS{"conn"} << "Could not send data as socket is not opened (id=" << this << ")";
-							}
-						}
-						catch(const std::exception& e)
-						{
-							LOG(ERROR) << LABELS{"conn"} << "Could not send data due to an error (id=" << this << ", error=" << e.what() << ")";
-						}
-
-						return size;
-					})
-				}
-				, processorProxyPtr{p}
+				: processorProxyPtr{p}
 				, callbacks{c}
 				, nativeSocket{*processorProxyPtr->getDispatcher()}
 				, opened{false}
@@ -117,7 +93,32 @@ namespace slim
 					catch(...) {}
 				}
 
-				virtual void writeAsync(const void* data, const std::size_t size, WriteCallback callback)
+				virtual std::size_t write(const void* data, const std::size_t size) override
+				{
+					try
+					{
+						if (nativeSocket.is_open())
+						{
+							// no need to return actually written bytes as assio::write function writes all provided data
+							asio::write(nativeSocket, asio::buffer(data, size));
+						}
+						else
+						{
+							LOG(WARNING) << LABELS{"conn"} << "Could not send data as socket is not opened (id=" << this << ")";
+						}
+					}
+					catch(const std::exception& e)
+					{
+						LOG(ERROR) << LABELS{"conn"} << "Could not send data due to an error (id=" << this << ", error=" << e.what() << ")";
+					}
+
+					return size;
+				}
+
+				// including writeAsync overloads
+				using StreamWriter::writeAsync;
+
+				virtual void writeAsync(const void* data, const std::size_t size, WriteCallback callback = [](auto&, auto) {}) override
 				{
 					asio::async_write(
 						nativeSocket,

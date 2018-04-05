@@ -37,7 +37,7 @@
 #include "slim/Producer.hpp"
 #include "slim/proto/Streamer.hpp"
 #include "slim/Scheduler.hpp"
-#include "slim/StreamWriter.hpp"
+#include "slim/SyncStreamWriter.hpp"
 
 
 using ContainerBase = slim::ContainerBase;

@@ -317,8 +317,8 @@ namespace slim
 				std::optional<unsigned int> gain;
 				HandlersMap                 handlersMap;
 				bool                        streaming{false};
-				unsigned int                streamingPort;
-				unsigned int                samplingRate;
+				unsigned int                streamingPort{0};
+				unsigned int                samplingRate{0};
 				StreamingSessionType*       streamingSessionPtr{nullptr};
 				bool                        connectedReceived{false};
 				bool                        responseReceived{false};

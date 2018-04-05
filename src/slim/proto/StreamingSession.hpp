@@ -13,6 +13,7 @@
 #pragma once
 
 #include <optional>
+#include <sstream>  // std::stringstream
 #include <string>
 
 #include "slim/Chunk.hpp"
@@ -37,17 +38,20 @@ namespace slim
 				{
 					LOG(DEBUG) << LABELS{"proto"} << "HTTP session object was created (id=" << this << ")";
 
-					// sending HTTP response with the headers
-					connection.write("HTTP/1.1 200 OK\r\n");
-					connection.write("Server: SlimStreamer (");
-					// TODO: provide version to the constructor
-					connection.write(VERSION);
-					connection.write(")\r\n");
-					connection.write("Connection: close\r\n");
-					connection.write("Content-Type: ");
-					connection.write(encoder.getMIME());
-					connection.write("\r\n");
-					connection.write("\r\n");
+					// creating response string
+					std::stringstream ss;
+					ss << "HTTP/1.1 200 OK\r\n"
+					   << "Server: SlimStreamer ("
+					   // TODO: provide version to the constructor
+					   << VERSION
+					   << ")\r\n"
+					   << "Connection: close\r\n"
+					   << "Content-Type: " << encoder.getMIME() << "\r\n"
+					   << "\r\n";
+
+					// saving response string in this object; required for async transfer
+					response = ss.str();
+					connection.writeAsync(response);
 				}
 
 				virtual ~StreamingSession()
@@ -169,6 +173,7 @@ namespace slim
 				util::ExpandableBuffer     buffer1;
 				util::ExpandableBuffer     buffer2;
 				std::optional<std::string> clientID{std::nullopt};
+				std::string                response;
 		};
 	}
 }
