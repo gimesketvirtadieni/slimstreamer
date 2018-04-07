@@ -18,8 +18,8 @@
 #include <string>
 
 #include "slim/log/log.hpp"
-#include "slim/StreamWriter.hpp"
 #include "slim/util/ExpandableBuffer.hpp"
+#include "slim/util/Writer.hpp"
 
 
 namespace slim
@@ -29,11 +29,11 @@ namespace slim
 		class Encoder : protected FLAC::Encoder::Stream
 		{
 			public:
-				explicit Encoder(StreamWriter* w, unsigned int c, unsigned int s, unsigned int b)
-				: writerPtr{w}
-				, channels{c}
+				explicit Encoder(unsigned int c, unsigned int s, unsigned int b, util::Writer* w, bool h)
+				: channels{c}
 				, sampleRate{s}
 				, bitsPerSample{b}
+				, writerPtr{w}
 				, bytesPerFrame{channels * (bitsPerSample >> 3)}
 				, byteRate{sampleRate * bytesPerFrame}
 				{
@@ -143,17 +143,10 @@ namespace slim
 					return encoded;
 				}
 
-				auto getBytesEncoded()
-				{
-					return writerPtr->getBytesWritten();
-				}
-
 				auto getMIME()
 				{
 					return std::string{"audio/flac"};
 				}
-
-				void writeHeader(std::uint32_t size = 0) {}
 
 			protected:
 				std::optional<std::size_t> getFreeBufferIndex()
@@ -202,10 +195,10 @@ namespace slim
 				}
 
 			private:
-				StreamWriter* writerPtr;
 				unsigned int  channels;
 				unsigned int  sampleRate;
 				unsigned int  bitsPerSample;
+				util::Writer* writerPtr;
 				unsigned int  bytesPerFrame;
 				unsigned int  byteRate;
 

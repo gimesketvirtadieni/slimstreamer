@@ -17,7 +17,7 @@
 #include "slim/Chunk.hpp"
 #include "slim/Consumer.hpp"
 #include "slim/log/log.hpp"
-#include "slim/StreamWriter.hpp"
+#include "slim/util/Writer.hpp"
 
 
 namespace slim
@@ -26,21 +26,12 @@ namespace slim
 	class FileConsumer : public Consumer
 	{
 		public:
-			FileConsumer(std::unique_ptr<StreamWriter> w, unsigned int channels, unsigned int sampleRate, unsigned int bitsPerSample)
+			FileConsumer(std::unique_ptr<util::Writer> w, unsigned int channels, unsigned int sampleRate, unsigned int bitsPerSample)
 			: writerPtr{std::move(w)}
-			, encoder{writerPtr.get(), channels, sampleRate, bitsPerSample}
-			, bytesPerFrame{channels * (bitsPerSample >> 3)}
-			{
-				encoder.writeHeader();
-			}
+			, encoder{channels, sampleRate, bitsPerSample, writerPtr.get(), true}
+			, bytesPerFrame{channels * (bitsPerSample >> 3)} {}
 
-			// there is a need for a custom destructor so Rule Of Zero cannot be used
-			// Instead of The Rule of The Big Four (and a half) the following approach is used: http://scottmeyers.blogspot.dk/2014/06/the-drawbacks-of-implementing-move.html
-			virtual ~FileConsumer()
-			{
-				encoder.writeHeader(encoder.getBytesEncoded());
-			}
-
+			virtual ~FileConsumer() = default;
 			FileConsumer(const FileConsumer&) = delete;             // non-copyable
 			FileConsumer& operator=(const FileConsumer&) = delete;  // non-assignable
 			FileConsumer(FileConsumer&& rhs) = delete;              // non-movable
@@ -60,7 +51,7 @@ namespace slim
 			}
 
 		private:
-			std::unique_ptr<StreamWriter> writerPtr;
+			std::unique_ptr<util::Writer> writerPtr;
 			EncoderType                   encoder;
 			unsigned int                  bytesPerFrame;
 	};

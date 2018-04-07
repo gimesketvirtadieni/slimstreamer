@@ -19,7 +19,7 @@
 
 #include "slim/conn/CallbacksBase.hpp"
 #include "slim/log/log.hpp"
-#include "slim/StreamWriter.hpp"
+#include "slim/util/Writer.hpp"
 
 
 namespace slim
@@ -27,7 +27,7 @@ namespace slim
 	namespace conn
 	{
 		template <typename ContainerType>
-		class Connection : public StreamWriter
+		class Connection : public util::Writer
 		{
 			public:
 				Connection(conwrap::ProcessorAsioProxy<ContainerType>* p, CallbacksBase<Connection<ContainerType>>& c)
@@ -61,6 +61,8 @@ namespace slim
 					return opened;
 				}
 
+				virtual void rewind(const std::streampos pos) override {}
+
 				void start(asio::ip::tcp::acceptor& acceptor)
 				{
 					onStart();
@@ -93,6 +95,9 @@ namespace slim
 					catch(...) {}
 				}
 
+				// including write overloads
+				using Writer::write;
+
 				virtual std::size_t write(const void* data, const std::size_t size) override
 				{
 					try
@@ -116,9 +121,9 @@ namespace slim
 				}
 
 				// including writeAsync overloads
-				using StreamWriter::writeAsync;
+				using Writer::writeAsync;
 
-				virtual void writeAsync(const void* data, const std::size_t size, WriteCallback callback = [](auto&, auto) {}) override
+				virtual void writeAsync(const void* data, const std::size_t size, util::WriteCallback callback = [](auto&, auto) {}) override
 				{
 					asio::async_write(
 						nativeSocket,

@@ -77,6 +77,11 @@ namespace slim
 					strm.data.command    = static_cast<char>(commandSelection);
 					strm.data.autostart  = '1';  // autostart
 					// TODO: parametrize
+					//strm.data.format     = 'p';  // PCM
+					//strm.data.sampleSize = '3';  // 32 bits per sample
+					//strm.data.sampleRate = mapSamplingRate(samplingRate);
+					//strm.data.channels   = '2';  // stereo
+					//strm.data.endianness = '1';  // WAV
 					strm.data.format     = 'f';  // FLAC
 					strm.data.sampleSize = '?';  // self-describing
 					strm.data.sampleRate = '?';  // self-describing

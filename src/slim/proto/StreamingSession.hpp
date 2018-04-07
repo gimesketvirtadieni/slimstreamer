@@ -32,7 +32,7 @@ namespace slim
 				StreamingSession(ConnectionType& co, unsigned int channels, unsigned int sr, unsigned int bitsPerSample)
 				: connection{co}
 				, samplingRate{sr}
-				, encoder{&connection, channels, samplingRate, bitsPerSample}
+				, encoder{channels, samplingRate, bitsPerSample, &connection, false}
 				, currentChunkPtr{std::make_unique<Chunk>(buffer1, samplingRate)}
 				, nextChunkPtr{std::make_unique<Chunk>(buffer2, samplingRate)}
 				{

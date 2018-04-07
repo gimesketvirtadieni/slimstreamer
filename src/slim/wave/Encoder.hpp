@@ -16,7 +16,7 @@
 #include <cstdint>   // std::int..._t
 #include <string>
 
-#include "slim/StreamWriter.hpp"
+#include "slim/Writer.hpp"
 
 
 namespace slim
@@ -26,15 +26,29 @@ namespace slim
 		class Encoder
 		{
 			public:
-				explicit Encoder(StreamWriter* w, unsigned int c, unsigned int s, unsigned int b)
-				: writerPtr{w}
-				, channels{c}
+				explicit Encoder(unsigned int c, unsigned int s, unsigned int b, Writer* w, bool h)
+				: channels{c}
 				, sampleRate{s}
 				, bitsPerSample{b}
+				, writerPtr{w}
+				, headerRequired{h}
 				, bytesPerFrame{channels * (bitsPerSample >> 3)}
-				, byteRate{sampleRate * bytesPerFrame} {}
+				, byteRate{sampleRate * bytesPerFrame}
+				{
+					if (headerRequired)
+					{
+						writeHeader();
+					}
+				}
 
-			   ~Encoder() = default;
+			   ~Encoder()
+				{
+					if (headerRequired)
+					{
+						writeHeader(bytesWritten);
+					}
+				}
+
 				Encoder(const Encoder&) = delete;             // non-copyable
 				Encoder& operator=(const Encoder&) = delete;  // non-assignable
 				Encoder(Encoder&&) = delete;                  // non-movable
@@ -43,12 +57,8 @@ namespace slim
 				auto encode(unsigned char* data, const std::size_t size)
 				{
 					// TODO: error handling
+					bytesWritten += size;
 					return writerPtr->write(data, size);
-				}
-
-				auto getBytesEncoded()
-				{
-					return writerPtr->getBytesWritten();
 				}
 
 				auto getMIME()
@@ -56,7 +66,8 @@ namespace slim
 					return std::string{"audio/x-wave"};
 				}
 
-				auto writeHeader(std::uint32_t size = 0)
+			protected:
+				void writeHeader(std::uint32_t size = 0)
 				{
 					const char chunkID[]     = {0x52, 0x49, 0x46, 0x46};
 					const char format[]      = {0x57, 0x41, 0x56, 0x45};
@@ -86,17 +97,21 @@ namespace slim
 
 					// seeking to the beginning
 					writerPtr->rewind(0);
+
+					bytesWritten += header.length();
 					writerPtr->writeAsync(header);
 				}
 
 			private:
-				StreamWriter* writerPtr;
-				unsigned int  channels;
-				unsigned int  sampleRate;
-				unsigned int  bitsPerSample;
-				unsigned int  bytesPerFrame;
-				unsigned int  byteRate;
-				std::string   header;
+				unsigned int    channels;
+				unsigned int    sampleRate;
+				unsigned int    bitsPerSample;
+				Writer*         writerPtr;
+				bool            headerRequired;
+				std::string     header;
+				unsigned int    bytesPerFrame;
+				unsigned int    byteRate;
+				std::streamsize bytesWritten{0};
 		};
 	}
 }
