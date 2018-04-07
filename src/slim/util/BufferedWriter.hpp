@@ -15,6 +15,7 @@
 #include <cstddef>  // std::size_t
 #include <functional>
 #include <string>
+#include <type_safe/reference.hpp>
 
 #include "slim/util/Writer.hpp"
 
@@ -27,28 +28,38 @@ namespace slim
 		class BufferedWriter : public Writer
 		{
 			public:
+				BufferedWriter(type_safe::object_ref<Writer> w)
+				: writerPtr{w} {}
+
 				virtual ~BufferedWriter() = default;
+				BufferedWriter(const BufferedWriter&) = delete;             // non-copyable
+				BufferedWriter& operator=(const BufferedWriter&) = delete;  // non-assignable
+				BufferedWriter(BufferedWriter&&) = delete;                  // non-movable
+				BufferedWriter& operator=(BufferedWriter&&) = delete;       // non-move-assinagle
 
-				virtual void rewind(const std::streampos pos) = 0;
-
-				virtual void write(std::string str)
+				virtual void rewind(const std::streampos pos)
 				{
-					write(str.c_str(), str.length());
+					writerPtr->rewind(pos);
 				}
 
-				virtual std::size_t write(const void* data, const std::size_t size) = 0;
+				// including write overloads
+				using Writer::write;
 
-				virtual void writeAsync(std::string str, WriteCallback callback = [](auto&, auto) {})
+				virtual std::size_t write(const void* data, const std::size_t size)
 				{
-					writeAsync(str.c_str(), str.length(), callback);
+					return writerPtr->write(data, size);
 				}
+
+				// including writeAsync overloads
+				using Writer::writeAsync;
 
 				virtual void writeAsync(const void* data, const std::size_t size, WriteCallback callback = [](auto&, auto) {}) override
 				{
-					//sdsd;
+					writerPtr->writeAsync(data, size, callback);
 				}
 
 			private:
+				type_safe::object_ref<Writer>                     writerPtr;
 				std::array<util::ExpandableBuffer, TotalElements> buffers;
 		};
 	}
