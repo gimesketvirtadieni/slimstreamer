@@ -28,12 +28,6 @@ namespace slim
 		class BufferedWriter : public Writer
 		{
 			public:
-				BufferedWriter(Writer& w)
-				: writerPtr{w} {}
-
-				BufferedWriter(Writer* w)
-				: writerPtr{*w} {}
-
 				BufferedWriter(type_safe::object_ref<Writer> w)
 				: writerPtr{w} {}
 
@@ -61,9 +55,42 @@ namespace slim
 
 				virtual void writeAsync(const void* data, const std::size_t size, WriteCallback callback = [](auto&, auto) {}) override
 				{
-					writerPtr->writeAsync(data, size, callback);
+					if (auto index{getFreeBufferIndex()}; index.has_value())
+					{
+						auto& buffer{buffers[index.value()]};
+
+						// no need for capacity adjustment as it is done by assign method
+						buffer.assign(data, size);
+
+						writerPtr->writeAsync(buffer.data(), buffer.size(), [c = callback, &b = buffer](auto& error, auto written)
+						{
+							// invoking callback
+							c(error, written);
+
+							// releasing buffer
+							b.size(0);
+						});
+					}
+					// TODO: handle cases when no buffer is available
 				}
 
+			protected:
+				std::optional<std::size_t> getFreeBufferIndex()
+				{
+					std::optional<std::size_t> result{std::nullopt};
+					auto                       size{buffers.size()};
+
+					for (std::size_t i{0}; i < size; i++)
+					{
+						if (!buffers[i].size())
+						{
+							result = i;
+							break;
+						}
+					}
+
+					return result;
+				}
 			private:
 				type_safe::object_ref<Writer>                     writerPtr;
 				std::array<util::ExpandableBuffer, TotalElements> buffers;

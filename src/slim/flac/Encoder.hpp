@@ -14,11 +14,11 @@
 
 #include <cstddef>   // std::size_t
 #include <FLAC++/encoder.h>
-#include <optional>
 #include <string>
+#include <type_safe/reference.hpp>
 
 #include "slim/log/log.hpp"
-#include "slim/util/ExpandableBuffer.hpp"
+#include "slim/util/BufferedWriter.hpp"
 #include "slim/util/Writer.hpp"
 
 
@@ -29,11 +29,11 @@ namespace slim
 		class Encoder : protected FLAC::Encoder::Stream
 		{
 			public:
-				explicit Encoder(unsigned int c, unsigned int s, unsigned int b, util::Writer* w, bool h)
+				explicit Encoder(unsigned int c, unsigned int s, unsigned int b, type_safe::object_ref<util::Writer> w, bool h)
 				: channels{c}
 				, sampleRate{s}
 				, bitsPerSample{b}
-				, writerPtr{w}
+				, bufferedWriter{w}
 				, bytesPerFrame{channels * (bitsPerSample >> 3)}
 				, byteRate{sampleRate * bytesPerFrame}
 				{
@@ -84,7 +84,8 @@ namespace slim
 					std::size_t encoded{0};
 
 					// do not feed encoder with more data if there is no room in transfer buffer
-					if (getFreeBufferIndex().has_value())
+					// TODO: introduce buffer available method
+					//if (getFreeBufferIndex().has_value())
 					{
 						auto samples{size >> 2};
 						auto frames{samples >> 1};
@@ -135,10 +136,10 @@ namespace slim
 						// is used to notify the caller about amount of data processed
 						encoded = size;
 					}
-					else
-					{
-						LOG(WARNING) << LABELS{"flac"} << "Transfer buffer is full - skipping PCM chunk";
-					}
+					//else
+					//{
+					//	LOG(WARNING) << LABELS{"flac"} << "Transfer buffer is full - skipping PCM chunk";
+					//}
 
 					return encoded;
 				}
@@ -149,61 +150,26 @@ namespace slim
 				}
 
 			protected:
-				std::optional<std::size_t> getFreeBufferIndex()
-				{
-					std::optional<std::size_t> result{std::nullopt};
-					auto                       size{buffers.size()};
-
-					for (std::size_t i{0}; i < size; i++)
-					{
-						if (!buffers[i].size())
-						{
-							result = i;
-							break;
-						}
-					}
-
-					return result;
-				}
-
 				virtual ::FLAC__StreamEncoderWriteStatus write_callback(const FLAC__byte* data, std::size_t size, unsigned samples, unsigned current_frame) override
 				{
-					if (auto index{getFreeBufferIndex()}; index.has_value())
-					{
-						auto& buffer{buffers[index.value()]};
-
-						// no need for capacity adjustment as it is done by assign method
-						buffer.assign(data, size);
-
-						writerPtr->writeAsync(buffer.data(), buffer.size(), [&](const std::error_code& error, std::size_t transferred) mutable
-						{
-							buffer.size(0);
-
-							// TODO: consider additional error processing
-							if (error)
-							{
-								LOG(ERROR) << LABELS{"flac"} << "Error while transferring data: " << error.message();
-							}
-						});
-					}
-					else
-					{
-						LOG(WARNING) << LABELS{"flac"} << "Transfer buffer is full - skipping encoded chunk";
-					}
+					// TODO: handle errors properly
+					bufferedWriter.writeAsync(data, size);
+					//else
+					//{
+					//	LOG(WARNING) << LABELS{"flac"} << "Transfer buffer is full - skipping encoded chunk";
+					//}
 
 					return FLAC__STREAM_ENCODER_WRITE_STATUS_OK;
 				}
 
 			private:
-				unsigned int  channels;
-				unsigned int  sampleRate;
-				unsigned int  bitsPerSample;
-				util::Writer* writerPtr;
-				unsigned int  bytesPerFrame;
-				unsigned int  byteRate;
-
-				// TODO: parametrize buffer size
-				std::array<util::ExpandableBuffer, 10> buffers;
+				unsigned int             channels;
+				unsigned int             sampleRate;
+				unsigned int             bitsPerSample;
+				// TODO: parametrize
+				util::BufferedWriter<10> bufferedWriter;
+				unsigned int             bytesPerFrame;
+				unsigned int             byteRate;
 		};
 	}
 }

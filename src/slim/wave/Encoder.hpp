@@ -59,8 +59,16 @@ namespace slim
 				auto encode(unsigned char* data, const std::size_t size)
 				{
 					// TODO: error handling
-					bytesWritten += size;
-					return bufferedWriter.write(data, size);
+					bufferedWriter.writeAsync(data, size, [&](auto& error, auto written)
+					{
+						if (!error)
+						{
+							bytesWritten += size;
+						}
+					});
+
+					// TODO: get rid of
+					return size;
 				}
 
 				auto getMIME()
@@ -94,14 +102,17 @@ namespace slim
 					ss.write(subchunk2ID, sizeof(subchunk2ID));
 					ss.write((const char*)&size, sizeof(size));
 
-					// saving response string in this object; required for async transfer
-					header = ss.str();
-
 					// seeking to the beginning
 					bufferedWriter.rewind(0);
 
-					bytesWritten += header.length();
-					bufferedWriter.writeAsync(header);
+					// no need to keep string to be sent as BufferedWriter uses its own buffer for async write
+					bufferedWriter.writeAsync(ss.str(), [&](auto& error, auto written)
+					{
+						if (!error)
+						{
+							bytesWritten += written;
+						}
+					});
 				}
 
 			private:
@@ -111,7 +122,6 @@ namespace slim
 				// TODO: parametrize
 				util::BufferedWriter<10> bufferedWriter;
 				bool                     headerRequired;
-				std::string              header;
 				unsigned int             bytesPerFrame;
 				unsigned int             byteRate;
 				std::streamsize          bytesWritten{0};
