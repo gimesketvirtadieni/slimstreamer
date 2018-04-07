@@ -30,7 +30,7 @@
 #include "slim/Container.hpp"
 #include "slim/Exception.hpp"
 #include "slim/FileConsumer.hpp"
-#include "slim/flac/Encoder.hpp"
+#include "slim/wave/Encoder.hpp"
 #include "slim/log/ConsoleSink.hpp"
 #include "slim/log/log.hpp"
 #include "slim/Pipeline.hpp"
@@ -46,7 +46,7 @@ using ContainerBase = slim::ContainerBase;
 using Connection    = slim::conn::Connection<ContainerBase>;
 using Server        = slim::conn::Server<ContainerBase>;
 using Callbacks     = slim::conn::Callbacks<ContainerBase>;
-using Encoder       = slim::flac::Encoder;
+using Encoder       = slim::wave::Encoder;
 using Streamer      = slim::proto::Streamer<Connection, Encoder>;
 
 using Source        = slim::alsa::Source;
@@ -136,14 +136,14 @@ auto createPipelines(std::vector<std::unique_ptr<Source>>& sources, Streamer& st
 	{
 		auto parameters{sourcePtr->getParameters()};
 
-		//auto streamPtr{std::make_unique<std::ofstream>(std::to_string(parameters.getSamplingRate()) + ".flac", std::ios::binary)};
-		//auto writerPtr{std::make_unique<slim::SyncStreamWriter>(std::move(streamPtr))};
-		//auto filePtr{std::make_unique<File>(std::move(writerPtr), 2, parameters.getSamplingRate(), 32)};
+		auto streamPtr{std::make_unique<std::ofstream>(std::to_string(parameters.getSamplingRate()) + ".wav", std::ios::binary)};
+		auto writerPtr{std::make_unique<slim::util::SyncStreamWriter>(std::move(streamPtr))};
+		auto filePtr{std::make_unique<File>(std::move(writerPtr), 2, parameters.getSamplingRate(), 32)};
 
-		//pipelines.emplace_back(sourcePtr.get(), filePtr.get());
-		//files.push_back(std::move(filePtr));
+		pipelines.emplace_back(sourcePtr.get(), filePtr.get());
+		files.push_back(std::move(filePtr));
 
-		pipelines.emplace_back(sourcePtr.get(), &streamer);
+		//pipelines.emplace_back(sourcePtr.get(), &streamer);
 	}
 
 	return std::move(pipelines);

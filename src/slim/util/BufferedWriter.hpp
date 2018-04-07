@@ -28,6 +28,12 @@ namespace slim
 		class BufferedWriter : public Writer
 		{
 			public:
+				BufferedWriter(Writer& w)
+				: writerPtr{w} {}
+
+				BufferedWriter(Writer* w)
+				: writerPtr{*w} {}
+
 				BufferedWriter(type_safe::object_ref<Writer> w)
 				: writerPtr{w} {}
 

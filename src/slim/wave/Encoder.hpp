@@ -15,8 +15,10 @@
 #include <cstddef>   // std::size_t
 #include <cstdint>   // std::int..._t
 #include <string>
+#include <type_safe/reference.hpp>
 
-#include "slim/Writer.hpp"
+#include "slim/util/BufferedWriter.hpp"
+#include "slim/util/Writer.hpp"
 
 
 namespace slim
@@ -26,11 +28,11 @@ namespace slim
 		class Encoder
 		{
 			public:
-				explicit Encoder(unsigned int c, unsigned int s, unsigned int b, Writer* w, bool h)
+				explicit Encoder(unsigned int c, unsigned int s, unsigned int b, type_safe::object_ref<util::Writer> w, bool h)
 				: channels{c}
 				, sampleRate{s}
 				, bitsPerSample{b}
-				, writerPtr{w}
+				, bufferedWriter{w}
 				, headerRequired{h}
 				, bytesPerFrame{channels * (bitsPerSample >> 3)}
 				, byteRate{sampleRate * bytesPerFrame}
@@ -58,7 +60,7 @@ namespace slim
 				{
 					// TODO: error handling
 					bytesWritten += size;
-					return writerPtr->write(data, size);
+					return bufferedWriter.write(data, size);
 				}
 
 				auto getMIME()
@@ -96,22 +98,23 @@ namespace slim
 					header = ss.str();
 
 					// seeking to the beginning
-					writerPtr->rewind(0);
+					bufferedWriter.rewind(0);
 
 					bytesWritten += header.length();
-					writerPtr->writeAsync(header);
+					bufferedWriter.writeAsync(header);
 				}
 
 			private:
-				unsigned int    channels;
-				unsigned int    sampleRate;
-				unsigned int    bitsPerSample;
-				Writer*         writerPtr;
-				bool            headerRequired;
-				std::string     header;
-				unsigned int    bytesPerFrame;
-				unsigned int    byteRate;
-				std::streamsize bytesWritten{0};
+				unsigned int             channels;
+				unsigned int             sampleRate;
+				unsigned int             bitsPerSample;
+				// TODO: parametrize
+				util::BufferedWriter<10> bufferedWriter;
+				bool                     headerRequired;
+				std::string              header;
+				unsigned int             bytesPerFrame;
+				unsigned int             byteRate;
+				std::streamsize          bytesWritten{0};
 		};
 	}
 }

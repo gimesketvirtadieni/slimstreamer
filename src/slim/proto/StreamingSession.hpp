@@ -15,6 +15,7 @@
 #include <optional>
 #include <sstream>  // std::stringstream
 #include <string>
+#include <type_safe/reference.hpp>
 
 #include "slim/Chunk.hpp"
 #include "slim/log/log.hpp"
@@ -32,7 +33,7 @@ namespace slim
 				StreamingSession(ConnectionType& co, unsigned int channels, unsigned int sr, unsigned int bitsPerSample)
 				: connection{co}
 				, samplingRate{sr}
-				, encoder{channels, samplingRate, bitsPerSample, &connection, false}
+				, encoder{channels, samplingRate, bitsPerSample, type_safe::object_ref<util::Writer>{connection}, false}
 				, currentChunkPtr{std::make_unique<Chunk>(buffer1, samplingRate)}
 				, nextChunkPtr{std::make_unique<Chunk>(buffer2, samplingRate)}
 				{
