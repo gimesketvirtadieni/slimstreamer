@@ -132,13 +132,11 @@ namespace slim
 					return size;
 				}
 
-				// TODO: refactor
+				// this method use used only in case of WAVE transfer
 				char mapSamplingRate(unsigned int samplingRate)
 				{
-					// TODO: use std::optional
 					char result = '?';
 
-					// TODO: use vector from config
 					if (samplingRate == 8000)
 					{
 						result = '5';
