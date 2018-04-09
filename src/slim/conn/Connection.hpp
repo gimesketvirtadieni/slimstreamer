@@ -12,10 +12,10 @@
 
 #pragma once
 
-#include <asio/system_error.hpp>
 #include <conwrap/ProcessorAsioProxy.hpp>
-#include <cstddef>  // std::size_t
-#include <memory>
+#include <cstddef>       // std::size_t
+#include <exception>     // std::exception
+#include <system_error>  // std::system_error
 
 #include "slim/conn/CallbacksBase.hpp"
 #include "slim/log/log.hpp"
@@ -35,6 +35,8 @@ namespace slim
 				, callbacks{c}
 				, nativeSocket{*processorProxyPtr->getDispatcher()}
 				, opened{false}
+				// TODO: parametrize
+				, buffer{1024}
 				{
 					LOG(DEBUG) << LABELS{"conn"} << "Connection object was created (id=" << this << ")";
 				}
@@ -105,7 +107,7 @@ namespace slim
 						if (nativeSocket.is_open())
 						{
 							// no need to return actually written bytes as assio::write function writes all provided data
-							asio::write(nativeSocket, asio::buffer(data, size));
+							asio::write(nativeSocket, asio::const_buffer(data, size));
 						}
 						else
 						{
@@ -127,7 +129,7 @@ namespace slim
 				{
 					asio::async_write(
 						nativeSocket,
-						asio::buffer(data, size),
+						asio::const_buffer(data, size),
 						[=](const std::error_code error, const std::size_t bytes_transferred)
 						{
 							processorProxyPtr->wrap([=]
@@ -165,7 +167,7 @@ namespace slim
 						// calling onData callback that does all the usefull work
 						if (receivedSize > 0)
 						{
-							callbacks.getDataCallback()(*this, buffer, receivedSize);
+							callbacks.getDataCallback()(*this, buffer.data(), receivedSize);
 						}
 
 						// submitting a new task here allows other tasks to progress
@@ -173,7 +175,7 @@ namespace slim
 						{
 							// keep receiving data 'recursivelly' (task processor is used instead of stack)
 							nativeSocket.async_read_some(
-								asio::buffer(buffer, bufferSize),
+								asio::mutable_buffer(buffer.data(), buffer.size()),
 								[&](const std::error_code error, std::size_t bytes_transferred)
 								{
 									processorProxyPtr->wrap([=]
@@ -233,10 +235,7 @@ namespace slim
 				CallbacksBase<Connection<ContainerType>>&   callbacks;
 				asio::ip::tcp::socket                       nativeSocket;
 				bool                                        opened;
-
-				// TODO: think of some smarter way of managing buffer
-				const std::size_t                           bufferSize = 1024;
-				unsigned char                               buffer[1024];
+				util::ExpandableBuffer                      buffer;
 		};
 	}
 }
