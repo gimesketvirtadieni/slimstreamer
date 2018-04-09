@@ -34,8 +34,8 @@ namespace slim
 				: connection{co}
 				, samplingRate{sr}
 				, encoder{channels, samplingRate, bitsPerSample, type_safe::object_ref<util::Writer>{connection}, false}
-				, currentChunkPtr{std::make_unique<Chunk>(buffer1, samplingRate)}
-				, nextChunkPtr{std::make_unique<Chunk>(buffer2, samplingRate)}
+				, currentChunkPtr{std::make_unique<Chunk>(type_safe::object_ref<util::ExpandableBuffer>{buffer1}, samplingRate)}
+				, nextChunkPtr{std::make_unique<Chunk>(type_safe::object_ref<util::ExpandableBuffer>{buffer2}, samplingRate)}
 				{
 					LOG(DEBUG) << LABELS{"proto"} << "HTTP session object was created (id=" << this << ")";
 

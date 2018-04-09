@@ -17,6 +17,7 @@
 #include <conwrap/ProcessorAsio.hpp>
 #include <functional>
 #include <memory>
+#include <type_safe/reference.hpp>
 
 #include "slim/alsa/Parameters.hpp"
 #include "slim/Chunk.hpp"
@@ -91,7 +92,7 @@ namespace slim
 					return queuePtr->dequeue([&](util::ExpandableBuffer& buffer)
 					{
 						// creating Chunk object which is a light weight wrapper around ExpandableBuffer with meta data about PCM stream details
-						return consumerPtr->consume(Chunk{buffer, parameters.getSamplingRate()});
+						return consumerPtr->consume(Chunk{type_safe::object_ref<util::ExpandableBuffer>{buffer}, parameters.getSamplingRate()});
 					}
 					, [&]
 					{

@@ -12,6 +12,8 @@
 
 #pragma once
 
+#include <type_safe/reference.hpp>
+
 #include "slim/util/ExpandableBuffer.hpp"
 
 
@@ -21,26 +23,20 @@ namespace slim
 	{
 		public:
 			// using Rule Of Zero
-			Chunk(util::ExpandableBuffer& b, unsigned int sr)
-			: buffer{b}
+			Chunk(type_safe::object_ref<util::ExpandableBuffer> b, unsigned int sr)
+			: bufferPtr{b}
 			, samplingRate{sr} {}
 
 		   ~Chunk() = default;
 			Chunk(const Chunk& rhs) = default;
-			Chunk& operator=(const Chunk& rhs)
-			{
-				// default implementation gives this error: non-static reference member ‘slim::util::ExpandableBuffer& slim::Chunk::buffer’, can’t use default assignment operator
-				buffer       = rhs.buffer;
-				samplingRate = rhs.samplingRate;
-
-				return *this;
-			}
+			Chunk& operator=(const Chunk& rhs) = default;
 			Chunk(Chunk&& rhs) = default;
 			Chunk& operator=(Chunk&& rhs) = default;
 
+			// TODO: encapsulate buffer properly
 			inline auto& getBuffer()
 			{
-				return buffer;
+				return *bufferPtr;
 			}
 
 			inline auto getSamplingRate()
@@ -49,14 +45,7 @@ namespace slim
 			}
 
 		private:
-			util::ExpandableBuffer& buffer;
-			unsigned int            samplingRate;
+			type_safe::object_ref<util::ExpandableBuffer> bufferPtr;
+			unsigned int                                  samplingRate;
 	};
-
-
-	// TODO: implement
-	//inline std::ostream &operator<<(std::ostream &outputstream, Chunk const &chunk)
-	//{
-	//	return outputstream << ""/*m.i*/;
-	//}
 }
