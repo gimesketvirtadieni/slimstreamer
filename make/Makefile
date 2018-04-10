@@ -15,6 +15,8 @@ HEADERS              += -I$(BASE_DIRECTORY)/dependencies/cxxopts/include
 HEADERS              += -I$(BASE_DIRECTORY)/dependencies/g3log/src
 HEADERS              += -I$(BASE_DIRECTORY)/dependencies/g3log/build/include
 HEADERS              += -I$(BASE_DIRECTORY)/dependencies/scope_guard/include/boost
+HEADERS              += -I$(BASE_DIRECTORY)/dependencies/type_safe/external/debug_assert
+HEADERS              += -I$(BASE_DIRECTORY)/dependencies/type_safe/include
 SYMBOLS              += -DASIO_STANDALONE
 SYMBOLS              += -DVERSION='"$(VERSION)"'
 SYMBOLS              += -DSCOPE_GUARD_STANDALONE
