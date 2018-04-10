@@ -50,9 +50,8 @@ namespace slim
 					   << "Content-Type: " << encoder.getMIME() << "\r\n"
 					   << "\r\n";
 
-					// saving response string in this object; required for async transfer
-					response = ss.str();
-					connection.writeAsync(response);
+					// sending response string
+					connection.write(ss.str());
 				}
 
 				virtual ~StreamingSession()
@@ -174,7 +173,6 @@ namespace slim
 				util::ExpandableBuffer     buffer1;
 				util::ExpandableBuffer     buffer2;
 				std::optional<std::string> clientID{std::nullopt};
-				std::string                response;
 		};
 	}
 }
