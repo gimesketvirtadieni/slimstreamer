@@ -307,8 +307,7 @@ namespace slim
 				template<typename CommandType>
 				inline void send(CommandType command)
 				{
-					// TODO: introduce buffer wrapper so it can be passed to a stream; then in can be moved to a Command class
-					connection.writeAsync(command.getBuffer(), command.getSize());
+					connection.write(command.getBuffer(), command.getSize());
 				}
 
 			private:
