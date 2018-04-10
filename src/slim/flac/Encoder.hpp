@@ -84,8 +84,7 @@ namespace slim
 					std::size_t encoded{0};
 
 					// do not feed encoder with more data if there is no room in transfer buffer
-					// TODO: introduce buffer available method
-					//if (getFreeBufferIndex().has_value())
+					if (bufferedWriter.isBufferAvailable())
 					{
 						auto samples{size >> 2};
 						auto frames{samples >> 1};
@@ -133,13 +132,13 @@ namespace slim
 							}
 						}
 
-						// is used to notify the caller about amount of data processed
+						// notifing the caller about amount of data processed
 						encoded = size;
 					}
-					//else
-					//{
-					//	LOG(WARNING) << LABELS{"flac"} << "Transfer buffer is full - skipping PCM chunk";
-					//}
+					else
+					{
+						LOG(WARNING) << LABELS{"flac"} << "Transfer buffer is full - skipping PCM chunk";
+					}
 
 					return encoded;
 				}
@@ -152,12 +151,15 @@ namespace slim
 			protected:
 				virtual ::FLAC__StreamEncoderWriteStatus write_callback(const FLAC__byte* data, std::size_t size, unsigned samples, unsigned current_frame) override
 				{
-					// TODO: handle errors properly
-					bufferedWriter.writeAsync(data, size);
-					//else
-					//{
-					//	LOG(WARNING) << LABELS{"flac"} << "Transfer buffer is full - skipping encoded chunk";
-					//}
+					if (bufferedWriter.isBufferAvailable())
+					{
+						// TODO: handle errors properly
+						bufferedWriter.writeAsync(data, size);
+					}
+					else
+					{
+						LOG(WARNING) << LABELS{"flac"} << "Transfer buffer is full - skipping encoded chunk";
+					}
 
 					return FLAC__STREAM_ENCODER_WRITE_STATUS_OK;
 				}

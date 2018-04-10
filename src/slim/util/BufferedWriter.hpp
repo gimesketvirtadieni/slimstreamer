@@ -37,6 +37,11 @@ namespace slim
 				BufferedWriter(BufferedWriter&&) = delete;                  // non-movable
 				BufferedWriter& operator=(BufferedWriter&&) = delete;       // non-move-assinagle
 
+				inline bool isBufferAvailable()
+				{
+					return (getFreeBufferIndex().has_value());
+				}
+
 				virtual void rewind(const std::streampos pos)
 				{
 					writerPtr->rewind(pos);
@@ -75,7 +80,7 @@ namespace slim
 				}
 
 			protected:
-				std::optional<std::size_t> getFreeBufferIndex()
+				inline std::optional<std::size_t> getFreeBufferIndex()
 				{
 					std::optional<std::size_t> result{std::nullopt};
 					auto                       size{buffers.size()};
