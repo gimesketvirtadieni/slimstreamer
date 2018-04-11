@@ -30,10 +30,12 @@ namespace slim
 		class StreamingSession
 		{
 			public:
-				StreamingSession(ConnectionType& co, unsigned int channels, unsigned int sr, unsigned int bitsPerSample)
-				: connection{co}
+				StreamingSession(type_safe::object_ref<ConnectionType> co, unsigned int channels, unsigned int sr, unsigned int bitsPerSample)
+				: connectionPtr{co}
 				, samplingRate{sr}
-				, encoder{channels, samplingRate, bitsPerSample, type_safe::object_ref<util::Writer>{connection}, false}
+				, encoder{channels, samplingRate, bitsPerSample, type_safe::object_ref<util::Writer>{*connectionPtr}, false}
+				, buffer1{std::size_t{0}}
+				, buffer2{std::size_t{0}}
 				, currentChunkPtr{std::make_unique<Chunk>(type_safe::object_ref<util::ExpandableBuffer>{buffer1}, samplingRate)}
 				, nextChunkPtr{std::make_unique<Chunk>(type_safe::object_ref<util::ExpandableBuffer>{buffer2}, samplingRate)}
 				{
@@ -51,7 +53,7 @@ namespace slim
 					   << "\r\n";
 
 					// sending response string
-					connection.write(ss.str());
+					connectionPtr->write(ss.str());
 				}
 
 				virtual ~StreamingSession()
@@ -121,11 +123,6 @@ namespace slim
 				}
 
 			protected:
-				inline auto& getConnection()
-				{
-					return connection;
-				}
-
 				static auto parseClientID(std::string header)
 				{
 					auto result{std::optional<std::string>{std::nullopt}};
@@ -165,14 +162,14 @@ namespace slim
 				}
 
 			private:
-				ConnectionType&            connection;
-				unsigned int               samplingRate;
-				EncoderType                encoder;
-				std::unique_ptr<Chunk>     currentChunkPtr;
-				std::unique_ptr<Chunk>     nextChunkPtr;
-				util::ExpandableBuffer     buffer1;
-				util::ExpandableBuffer     buffer2;
-				std::optional<std::string> clientID{std::nullopt};
+				type_safe::object_ref<ConnectionType> connectionPtr;
+				unsigned int                          samplingRate;
+				EncoderType                           encoder;
+				util::ExpandableBuffer                buffer1;
+				util::ExpandableBuffer                buffer2;
+				std::unique_ptr<Chunk>                currentChunkPtr;
+				std::unique_ptr<Chunk>                nextChunkPtr;
+				std::optional<std::string>            clientID{std::nullopt};
 		};
 	}
 }
