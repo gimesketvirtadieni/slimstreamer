@@ -17,6 +17,7 @@
 #include <exception>
 #include <fstream>
 #include <g3log/logworker.hpp>
+#include <iostream>
 #include <memory>
 #include <string>
 #include <tuple>
