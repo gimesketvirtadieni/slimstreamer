@@ -27,7 +27,7 @@ CXX_OPTIONS          += -std=c++1z -c -O3 -g0 -fmessage-length=0 -pthread -Wall 
 CXX_FLAGS            += $(SYMBOLS) $(HEADERS) $(CXX_OPTIONS)
 
 LD_DIRECTORIES       += -L$(BASE_DIRECTORY)/dependencies/g3log/build
-LD_LIBRARIES         += -lasound -latomic -lg3logger -lpthread -lrt
+LD_LIBRARIES         += -lasound -latomic -lFLAC -lFLAC++ -lg3logger -lpthread -lrt
 LD_OPTIONS           += -s -static-libgcc -static-libstdc++
 LD_FLAGS             += $(LD_DIRECTORIES) $(LD_LIBRARIES) $(LD_OPTIONS)
 
