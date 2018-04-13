@@ -353,7 +353,7 @@ namespace slim
 						LOG(WARNING) << LABELS{"proto"} << "Current chunk transmition was skipped for " << counter << " client(s)";
 					}
 
-					LOG(DEBUG) << LABELS{"proto"} << "Delivered chunk all the clients (size=" << chunk.getBuffer().size() << ", clients=" << commandSessions.size() - counter << ")";
+					LOG(DEBUG) << LABELS{"proto"} << "Delivered chunk all the clients (size=" << chunk.getSize() << ", clients=" << commandSessions.size() - counter << ")";
 				}
 
 				auto findCommandSession(std::string clientID)

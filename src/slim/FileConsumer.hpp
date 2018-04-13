@@ -40,8 +40,8 @@ namespace slim
 
 			virtual bool consume(Chunk chunk) override
 			{
-				auto* data{chunk.getBuffer().data()};
-				auto  size{chunk.getBuffer().size()};
+				auto* data{chunk.getData()};
+				auto  size{chunk.getSize()};
 
 				encoder.encode(data, size);
 

@@ -81,7 +81,7 @@ namespace slim
 					if (samplingRate == chunk.getSamplingRate())
 					{
 						// saving chunk in a nextChunk object and initiating asynchronious processing
-						if (nextChunkPtr->getBuffer().size() > 0)
+						if (nextChunkPtr->getSize() > 0)
 						{
 							LOG(WARNING) << LABELS{"proto"} << "Chunk was skipped due to slow data transfer (client id=" << *clientID << ")";
 						}
@@ -140,21 +140,20 @@ namespace slim
 				void sendAsync()
 				{
 					// if there is an available chunk and there is no ongoing transfer
-					if (nextChunkPtr->getBuffer().size() > 0 && !currentChunkPtr->getBuffer().size())
+					if (nextChunkPtr->getSize() > 0 && !currentChunkPtr->getSize())
 					{
 						// swapping next and current chunk pointers which will allow submitting new chunks
 						std::swap(nextChunkPtr, currentChunkPtr);
 					}
 
 					// initiate data transfer if there is data available
-					auto& buffer{currentChunkPtr->getBuffer()};
-					if (buffer.size() > 0)
+					if (currentChunkPtr->getSize() > 0)
 					{
 						// removing transferred data from the buffer
-						buffer.shrinkLeft(encoder.encode(buffer.data(), buffer.size()));
+						currentChunkPtr->shrinkLeft(encoder.encode(currentChunkPtr->getData(), currentChunkPtr->getSize()));
 
 						// keep sending data if there is anything to send or there is next chunk pending
-						if (buffer.size() > 0 || nextChunkPtr->getBuffer().size() > 0)
+						if (currentChunkPtr->getSize() > 0 || nextChunkPtr->getSize() > 0)
 						{
 							sendAsync();
 						}

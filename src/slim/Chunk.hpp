@@ -33,15 +33,25 @@ namespace slim
 			Chunk(Chunk&& rhs) = default;
 			Chunk& operator=(Chunk&& rhs) = default;
 
-			// TODO: encapsulate buffer properly
-			inline auto& getBuffer()
+			inline auto* getData()
 			{
-				return buffer.get();
+				return buffer.get().data();
 			}
 
 			inline auto getSamplingRate()
 			{
 				return samplingRate;
+			}
+
+			inline auto getSize()
+			{
+				return buffer.get().size();
+			}
+
+			// TODO: it is used only in StreamingSession::sendAsync, try to avoid
+			inline auto shrinkLeft(std::size_t bytes)
+			{
+				return buffer.get().shrinkLeft(bytes);
 			}
 
 		private:
