@@ -16,12 +16,12 @@
 #include <chrono>
 #include <conwrap/ProcessorProxy.hpp>
 #include <cstddef>  // std::size_t
+#include <functional>
 #include <memory>
 #include <optional>
 #include <sstream>  // std::stringstream
 #include <string>
 #include <thread>
-#include <type_safe/reference.hpp>
 #include <unordered_map>
 #include <vector>
 
@@ -244,7 +244,7 @@ namespace slim
 					LOG(INFO) << LABELS{"proto"} << "New HTTP session request received (connection=" << &connection << ")";
 
 					// creating streaming session object
-					auto  streamingSessionPtr{std::make_unique<StreamingSessionType>(type_safe::object_ref<ConnectionType>{connection}, 2, samplingRate, 32)};
+					auto  streamingSessionPtr{std::make_unique<StreamingSessionType>(std::ref<ConnectionType>(connection), 2, samplingRate, 32)};
 					addSession(streamingSessions, connection, std::move(streamingSessionPtr));
 				}
 
@@ -279,7 +279,7 @@ namespace slim
 					ss << (++nextID);
 
 					// creating command session object
-					auto sessionPtr{std::make_unique<CommandSessionType>(type_safe::object_ref<ConnectionType>{connection}, ss.str(), gain)};
+					auto sessionPtr{std::make_unique<CommandSessionType>(std::ref<ConnectionType>(connection), ss.str(), gain)};
 
 					// enable streaming for this session if required
 					if (streaming)

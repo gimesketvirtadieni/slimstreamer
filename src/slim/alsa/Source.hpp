@@ -17,7 +17,6 @@
 #include <conwrap/ProcessorAsio.hpp>
 #include <functional>
 #include <memory>
-#include <type_safe/reference.hpp>
 
 #include "slim/alsa/Parameters.hpp"
 #include "slim/Chunk.hpp"
@@ -86,13 +85,13 @@ namespace slim
 					return producing.load(std::memory_order_acquire);
 				}
 
-				virtual bool produce(Consumer* consumerPtr) override
+				virtual bool produce(std::reference_wrapper<Consumer> consumer) override
 				{
 					// this call does NOT block if bounded queue (buffer) is empty
 					return queuePtr->dequeue([&](util::ExpandableBuffer& buffer)
 					{
 						// creating Chunk object which is a light weight wrapper around ExpandableBuffer with meta data about PCM stream details
-						return consumerPtr->consume(Chunk{type_safe::object_ref<util::ExpandableBuffer>{buffer}, parameters.getSamplingRate()});
+						return consumer.get().consume(Chunk{std::ref<util::ExpandableBuffer>(buffer), parameters.getSamplingRate()});
 					}
 					, [&]
 					{

@@ -16,6 +16,7 @@
 #include <cxxopts.hpp>
 #include <exception>
 #include <fstream>
+#include <functional>
 #include <g3log/logworker.hpp>
 #include <iostream>
 #include <memory>
@@ -45,6 +46,7 @@
 
 using ContainerBase = slim::ContainerBase;
 using Connection    = slim::conn::Connection<ContainerBase>;
+using Consumer      = slim::Consumer;
 using Server        = slim::conn::Server<ContainerBase>;
 using Callbacks     = slim::conn::Callbacks<ContainerBase>;
 using Encoder       = slim::flac::Encoder;
@@ -53,6 +55,7 @@ using Streamer      = slim::proto::Streamer<Connection, Encoder>;
 using Source        = slim::alsa::Source;
 using File          = slim::FileConsumer<Encoder>;
 using Pipeline      = slim::Pipeline;
+using Producer      = slim::Producer;
 using Scheduler     = slim::Scheduler;
 
 using Container     = slim::Container<Scheduler, Server, Server, Streamer>;
@@ -150,10 +153,10 @@ auto createPipelines(std::vector<std::unique_ptr<Source>>& sources, Streamer& st
 		//auto writerPtr{std::make_unique<slim::util::SyncStreamWriter>(std::move(streamPtr))};
 		//auto filePtr{std::make_unique<File>(std::move(writerPtr), 2, parameters.getSamplingRate(), 32)};
 
-		//pipelines.emplace_back(sourcePtr.get(), filePtr.get());
+		//pipelines.emplace_back(std::ref<Producer>(*sourcePtr), std::ref<Consumer>(*filePtr));
 		//files.push_back(std::move(filePtr));
 
-		pipelines.emplace_back(sourcePtr.get(), &streamer);
+		pipelines.emplace_back(std::ref<Producer>(*sourcePtr), std::ref<Consumer>(streamer));
 	}
 
 	return std::move(pipelines);

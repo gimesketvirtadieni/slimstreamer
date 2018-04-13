@@ -14,8 +14,8 @@
 
 #include <cstddef>   // std::size_t
 #include <cstdint>   // std::int..._t
+#include <functional>
 #include <string>
-#include <type_safe/reference.hpp>
 
 #include "slim/util/BufferedWriter.hpp"
 #include "slim/util/Writer.hpp"
@@ -28,7 +28,7 @@ namespace slim
 		class Encoder
 		{
 			public:
-				explicit Encoder(unsigned int c, unsigned int s, unsigned int b, type_safe::object_ref<util::Writer> w, bool h)
+				explicit Encoder(unsigned int c, unsigned int s, unsigned int b, std::reference_wrapper<util::Writer> w, bool h)
 				: channels{c}
 				, sampleRate{s}
 				, bitsPerSample{b}

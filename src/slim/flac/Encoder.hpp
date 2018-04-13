@@ -29,7 +29,7 @@ namespace slim
 		class Encoder : protected FLAC::Encoder::Stream
 		{
 			public:
-				explicit Encoder(unsigned int c, unsigned int s, unsigned int b, type_safe::object_ref<util::Writer> w, bool h)
+				explicit Encoder(unsigned int c, unsigned int s, unsigned int b, std::reference_wrapper<util::Writer> w, bool h)
 				: channels{c}
 				, sampleRate{s}
 				, bitsPerSample{b}

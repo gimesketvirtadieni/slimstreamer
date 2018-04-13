@@ -12,10 +12,10 @@
 
 #pragma once
 
+#include <functional>
 #include <optional>
 #include <sstream>  // std::stringstream
 #include <string>
-#include <type_safe/reference.hpp>
 
 #include "slim/Chunk.hpp"
 #include "slim/log/log.hpp"
@@ -30,14 +30,14 @@ namespace slim
 		class StreamingSession
 		{
 			public:
-				StreamingSession(type_safe::object_ref<ConnectionType> co, unsigned int channels, unsigned int sr, unsigned int bitsPerSample)
-				: connectionPtr{co}
+				StreamingSession(std::reference_wrapper<ConnectionType> co, unsigned int channels, unsigned int sr, unsigned int bitsPerSample)
+				: connection{co}
 				, samplingRate{sr}
-				, encoder{channels, samplingRate, bitsPerSample, type_safe::object_ref<util::Writer>{*connectionPtr}, false}
+				, encoder{channels, samplingRate, bitsPerSample, std::ref<util::Writer>(connection), false}
 				, buffer1{std::size_t{0}}
 				, buffer2{std::size_t{0}}
-				, currentChunkPtr{std::make_unique<Chunk>(type_safe::object_ref<util::ExpandableBuffer>{buffer1}, samplingRate)}
-				, nextChunkPtr{std::make_unique<Chunk>(type_safe::object_ref<util::ExpandableBuffer>{buffer2}, samplingRate)}
+				, currentChunkPtr{std::make_unique<Chunk>(std::ref<util::ExpandableBuffer>(buffer1), samplingRate)}
+				, nextChunkPtr{std::make_unique<Chunk>(std::ref<util::ExpandableBuffer>(buffer2), samplingRate)}
 				{
 					LOG(DEBUG) << LABELS{"proto"} << "HTTP session object was created (id=" << this << ")";
 
@@ -53,7 +53,7 @@ namespace slim
 					   << "\r\n";
 
 					// sending response string
-					connectionPtr->write(ss.str());
+					connection.get().write(ss.str());
 				}
 
 				virtual ~StreamingSession()
@@ -162,14 +162,14 @@ namespace slim
 				}
 
 			private:
-				type_safe::object_ref<ConnectionType> connectionPtr;
-				unsigned int                          samplingRate;
-				EncoderType                           encoder;
-				util::ExpandableBuffer                buffer1;
-				util::ExpandableBuffer                buffer2;
-				std::unique_ptr<Chunk>                currentChunkPtr;
-				std::unique_ptr<Chunk>                nextChunkPtr;
-				std::optional<std::string>            clientID{std::nullopt};
+				std::reference_wrapper<ConnectionType> connection;
+				unsigned int                           samplingRate;
+				EncoderType                            encoder;
+				util::ExpandableBuffer                 buffer1;
+				util::ExpandableBuffer                 buffer2;
+				std::unique_ptr<Chunk>                 currentChunkPtr;
+				std::unique_ptr<Chunk>                 nextChunkPtr;
+				std::optional<std::string>             clientID{std::nullopt};
 		};
 	}
 }

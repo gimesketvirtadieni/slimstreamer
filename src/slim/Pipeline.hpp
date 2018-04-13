@@ -14,6 +14,7 @@
 
 #include <chrono>
 #include <conwrap/ProcessorProxy.hpp>
+#include <functional>
 
 #include "slim/Chunk.hpp"
 #include "slim/Consumer.hpp"
@@ -27,9 +28,9 @@ namespace slim
 		using TimePoint = std::chrono::time_point<std::chrono::steady_clock>;
 
 		public:
-			Pipeline(Producer* p, Consumer* c)
-			: producerPtr{p}
-			, consumerPtr{c} {}
+			Pipeline(std::reference_wrapper<Producer> p, std::reference_wrapper<Consumer> c)
+			: producer{p}
+			, consumer{c} {}
 
 			// using Rule Of Zero
 		   ~Pipeline() = default;
@@ -48,7 +49,7 @@ namespace slim
 				}
 				else
 				{
-					result = producerPtr->isAvailable();
+					result = producer.get().isAvailable();
 					pauseUntil.reset();
 				}
 
@@ -57,7 +58,7 @@ namespace slim
 
 			inline auto isProducing()
 			{
-				return producerPtr->isProducing();
+				return producer.get().isProducing();
 			}
 
 			inline void pause(unsigned int millisec)
@@ -73,7 +74,7 @@ namespace slim
 				// processing chunks as long as destination is not deferring them AND max chunks per task is not reached AND there are chunks available
 				for (unsigned int count{5}; processed && count > 0 && isAvailable(); count--)
 				{
-					processed = producerPtr->produce(consumerPtr);
+					processed = producer.get().produce(consumer);
 				}
 
 				// returning TRUE if pipeline deferes processing
@@ -82,7 +83,7 @@ namespace slim
 
 			inline void start()
 			{
-				producerPtr->start([]
+				producer.get().start([]
 				{
 					LOG(ERROR) << LABELS{"slim"} << "Buffer overflow error: a chunk was skipped";
 				});
@@ -90,12 +91,12 @@ namespace slim
 
 			inline void stop(bool gracefully = true)
 			{
-				producerPtr->stop(gracefully);
+				producer.get().stop(gracefully);
 			}
 
 		private:
-			Producer*                producerPtr;
-			Consumer*                consumerPtr;
-			std::optional<TimePoint> pauseUntil{std::nullopt};
+			std::reference_wrapper<Producer> producer;
+			std::reference_wrapper<Consumer> consumer;
+			std::optional<TimePoint>         pauseUntil{std::nullopt};
 	};
 }

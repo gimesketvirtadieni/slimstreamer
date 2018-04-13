@@ -14,10 +14,10 @@
 
 #include <chrono>
 #include <cstddef>  // std::size_t
+#include <functional>
 #include <optional>
 #include <scope_guard.hpp>
 #include <string>
-#include <type_safe/reference.hpp>
 
 #include "slim/Exception.hpp"
 #include "slim/log/log.hpp"
@@ -43,8 +43,8 @@ namespace slim
 			using StreamingSessionType = StreamingSession<ConnectionType, EncoderType>;
 
 			public:
-				CommandSession(type_safe::object_ref<ConnectionType> co, std::string id, std::optional<unsigned int> g = {std::nullopt})
-				: connectionPtr{co}
+				CommandSession(std::reference_wrapper<ConnectionType> co, std::string id, std::optional<unsigned int> g = {std::nullopt})
+				: connection{co}
 				, clientID{id}
 				, gain{g}
 				, handlersMap
@@ -141,7 +141,7 @@ namespace slim
 					auto  command{CommandSTRM{CommandSelection::Time}};
 					auto  buffer{command.getBuffer()};
 					auto  size{command.getSize()};
-					auto& nativeSocket{connectionPtr->getNativeSocket()};
+					auto& nativeSocket{connection.get().getNativeSocket()};
 
 					if (nativeSocket.is_open())
 					{
@@ -308,23 +308,23 @@ namespace slim
 				template<typename CommandType>
 				inline void send(CommandType command)
 				{
-					connectionPtr->write(command.getBuffer(), command.getSize());
+					connection.get().write(command.getBuffer(), command.getSize());
 				}
 
 			private:
-				type_safe::object_ref<ConnectionType> connectionPtr;
-				std::string                           clientID;
-				std::optional<unsigned int>           gain;
-				HandlersMap                           handlersMap;
-				bool                                  streaming{false};
-				unsigned int                          streamingPort{0};
-				unsigned int                          samplingRate{0};
-				StreamingSessionType*                 streamingSessionPtr{nullptr};
-				bool                                  connectedReceived{false};
-				bool                                  responseReceived{false};
-				util::ExpandableBuffer                commandBuffer{std:size_t{0}, std:size_t{2048}};
-				std::optional<CommandHELO>            commandHELO{std::nullopt};
-				std::optional<TimePoint>              lastPingAt{std::nullopt};
+				std::reference_wrapper<ConnectionType> connection;
+				std::string                            clientID;
+				std::optional<unsigned int>            gain;
+				HandlersMap                            handlersMap;
+				bool                                   streaming{false};
+				unsigned int                           streamingPort{0};
+				unsigned int                           samplingRate{0};
+				StreamingSessionType*                  streamingSessionPtr{nullptr};
+				bool                                   connectedReceived{false};
+				bool                                   responseReceived{false};
+				util::ExpandableBuffer                 commandBuffer{std:size_t{0}, std:size_t{2048}};
+				std::optional<CommandHELO>             commandHELO{std::nullopt};
+				std::optional<TimePoint>               lastPingAt{std::nullopt};
 		};
 	}
 }

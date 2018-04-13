@@ -15,7 +15,6 @@
 #include <cstddef>  // std::size_t
 #include <functional>
 #include <string>
-#include <type_safe/reference.hpp>
 
 #include "slim/util/Writer.hpp"
 
@@ -28,8 +27,8 @@ namespace slim
 		class BufferedWriter : public Writer
 		{
 			public:
-				BufferedWriter(type_safe::object_ref<Writer> w)
-				: writerPtr{w} {}
+				BufferedWriter(std::reference_wrapper<Writer> w)
+				: writer{w} {}
 
 				virtual ~BufferedWriter() = default;
 				BufferedWriter(const BufferedWriter&) = delete;             // non-copyable
@@ -44,7 +43,7 @@ namespace slim
 
 				virtual void rewind(const std::streampos pos)
 				{
-					writerPtr->rewind(pos);
+					writer.get().rewind(pos);
 				}
 
 				// including write overloads
@@ -52,7 +51,7 @@ namespace slim
 
 				virtual std::size_t write(const void* data, const std::size_t size)
 				{
-					return writerPtr->write(data, size);
+					return writer.get().write(data, size);
 				}
 
 				// including writeAsync overloads
@@ -67,7 +66,7 @@ namespace slim
 						// no need for capacity adjustment as it is done by assign method
 						buffer.assign(data, size);
 
-						writerPtr->writeAsync(buffer.data(), buffer.size(), [c = callback, &b = buffer](auto& error, auto written)
+						writer.get().writeAsync(buffer.data(), buffer.size(), [c = callback, &b = buffer](auto& error, auto written)
 						{
 							// invoking callback
 							c(error, written);
@@ -97,7 +96,7 @@ namespace slim
 					return result;
 				}
 			private:
-				type_safe::object_ref<Writer>                     writerPtr;
+				std::reference_wrapper<Writer>                    writer;
 				std::array<util::ExpandableBuffer, TotalElements> buffers;
 		};
 	}

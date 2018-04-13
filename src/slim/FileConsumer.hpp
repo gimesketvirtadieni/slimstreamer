@@ -12,8 +12,8 @@
 
 #pragma once
 
+#include <functional>
 #include <memory>
-#include <type_safe/reference.hpp>
 
 #include "slim/Chunk.hpp"
 #include "slim/Consumer.hpp"
@@ -29,7 +29,7 @@ namespace slim
 		public:
 			FileConsumer(std::unique_ptr<util::Writer> w, unsigned int channels, unsigned int sampleRate, unsigned int bitsPerSample)
 			: writerPtr{std::move(w)}
-			, encoder{channels, sampleRate, bitsPerSample, type_safe::object_ref<util::Writer>{*writerPtr}, true}
+			, encoder{channels, sampleRate, bitsPerSample, std::ref<util::Writer>(*writerPtr), true}
 			, bytesPerFrame{channels * (bitsPerSample >> 3)} {}
 
 			virtual ~FileConsumer() = default;

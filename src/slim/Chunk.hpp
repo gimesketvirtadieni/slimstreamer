@@ -12,7 +12,7 @@
 
 #pragma once
 
-#include <type_safe/reference.hpp>
+#include <functional>
 
 #include "slim/util/ExpandableBuffer.hpp"
 
@@ -23,8 +23,8 @@ namespace slim
 	{
 		public:
 			// using Rule Of Zero
-			Chunk(type_safe::object_ref<util::ExpandableBuffer> b, unsigned int sr)
-			: bufferPtr{b}
+			Chunk(std::reference_wrapper<util::ExpandableBuffer> b, unsigned int sr)
+			: buffer{b}
 			, samplingRate{sr} {}
 
 		   ~Chunk() = default;
@@ -36,7 +36,7 @@ namespace slim
 			// TODO: encapsulate buffer properly
 			inline auto& getBuffer()
 			{
-				return *bufferPtr;
+				return buffer.get();
 			}
 
 			inline auto getSamplingRate()
@@ -45,7 +45,7 @@ namespace slim
 			}
 
 		private:
-			type_safe::object_ref<util::ExpandableBuffer> bufferPtr;
-			unsigned int                                  samplingRate;
+			std::reference_wrapper<util::ExpandableBuffer> buffer;
+			unsigned int                                   samplingRate;
 	};
 }
