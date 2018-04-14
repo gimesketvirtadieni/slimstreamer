@@ -41,8 +41,6 @@
 #include "slim/Scheduler.hpp"
 #include "slim/util/StreamWriter.hpp"
 
-#include "slim/util/BufferedWriter.hpp"
-
 
 using ContainerBase = slim::ContainerBase;
 using Connection    = slim::conn::Connection<ContainerBase>;

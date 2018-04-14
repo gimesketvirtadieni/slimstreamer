@@ -34,8 +34,6 @@ namespace slim
 				, bitsPerSample{b}
 				, bufferedWriter{w}
 				, headerRequired{h}
-				, bytesPerFrame{channels * (bitsPerSample >> 3)}
-				, byteRate{sampleRate * bytesPerFrame}
 				{
 					if (headerRequired)
 					{
@@ -79,12 +77,14 @@ namespace slim
 			protected:
 				void writeHeader(std::uint32_t size = 0)
 				{
-					const char chunkID[]     = {0x52, 0x49, 0x46, 0x46};
-					const char format[]      = {0x57, 0x41, 0x56, 0x45};
-					const char subchunk1ID[] = {0x66, 0x6D, 0x74, 0x20};
-					const char size1[]       = {0x10, 0x00, 0x00, 0x00};
-					const char format1[]     = {0x01, 0x00};  // PCM data = 0x01
-					const char subchunk2ID[] = {0x64, 0x61, 0x74, 0x61};
+					const unsigned int bytesPerFrame{channels * (bitsPerSample >> 3)};
+					const unsigned int byteRate{sampleRate * bytesPerFrame};
+					const char         chunkID[]     = {0x52, 0x49, 0x46, 0x46};
+					const char         format[]      = {0x57, 0x41, 0x56, 0x45};
+					const char         subchunk1ID[] = {0x66, 0x6D, 0x74, 0x20};
+					const char         size1[]       = {0x10, 0x00, 0x00, 0x00};
+					const char         format1[]     = {0x01, 0x00};  // PCM data = 0x01
+					const char         subchunk2ID[] = {0x64, 0x61, 0x74, 0x61};
 
 					// creating header string
 					std::stringstream ss;
@@ -122,8 +122,6 @@ namespace slim
 				// TODO: parametrize
 				util::BufferedWriter<10> bufferedWriter;
 				bool                     headerRequired;
-				unsigned int             bytesPerFrame;
-				unsigned int             byteRate;
 				std::streamsize          bytesWritten{0};
 		};
 	}

@@ -22,20 +22,32 @@ namespace slim
 	class Chunk
 	{
 		public:
-			// using Rule Of Zero
-			Chunk(std::reference_wrapper<util::ExpandableBuffer> b, unsigned int sr)
-			: buffer{b}
-			, samplingRate{sr} {}
+			Chunk(std::reference_wrapper<util::ExpandableBuffer> br, unsigned int sr, unsigned int c, unsigned int b)
+			: buffer{br}
+			, samplingRate{sr}
+			, channels{c}
+			, bitsPerSample{b} {}
 
+			// using Rule Of Zero
 		   ~Chunk() = default;
 			Chunk(const Chunk& rhs) = default;
 			Chunk& operator=(const Chunk& rhs) = default;
 			Chunk(Chunk&& rhs) = default;
 			Chunk& operator=(Chunk&& rhs) = default;
 
+			inline auto getChannels()
+			{
+				return channels;
+			}
+
 			inline auto* getData()
 			{
 				return buffer.get().data();
+			}
+
+			inline std::size_t getFrames()
+			{
+				return getSize() / (channels * (bitsPerSample >> 3));
 			}
 
 			inline auto getSamplingRate()
@@ -43,7 +55,7 @@ namespace slim
 				return samplingRate;
 			}
 
-			inline auto getSize()
+			inline std::size_t getSize()
 			{
 				return buffer.get().size();
 			}
@@ -51,5 +63,7 @@ namespace slim
 		private:
 			std::reference_wrapper<util::ExpandableBuffer> buffer;
 			unsigned int                                   samplingRate;
-	};
+			unsigned int                                   channels;
+			unsigned int                                   bitsPerSample;
+		};
 }

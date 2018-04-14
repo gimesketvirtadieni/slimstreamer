@@ -100,6 +100,7 @@ namespace slim
 					std::size_t         processedSize{commandBuffer.size()};
 					::util::scope_guard guard = [&]
 					{
+						// TODO: this is the only use of shrinkLeft, consider alternative
 						commandBuffer.shrinkLeft(processedSize);
 					};
 

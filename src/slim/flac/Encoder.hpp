@@ -34,8 +34,6 @@ namespace slim
 				, sampleRate{s}
 				, bitsPerSample{b}
 				, bufferedWriter{w}
-				, bytesPerFrame{channels * (bitsPerSample >> 3)}
-				, byteRate{sampleRate * bytesPerFrame}
 				{
 					auto ok{true};
 
@@ -170,8 +168,6 @@ namespace slim
 				unsigned int             bitsPerSample;
 				// TODO: parametrize
 				util::BufferedWriter<10> bufferedWriter;
-				unsigned int             bytesPerFrame;
-				unsigned int             byteRate;
 		};
 	}
 }

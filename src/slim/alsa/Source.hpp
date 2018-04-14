@@ -25,6 +25,8 @@
 #include "slim/util/ExpandableBuffer.hpp"
 #include "slim/util/RealTimeQueue.hpp"
 
+#include "slim/log/log.hpp"
+
 
 namespace slim
 {
@@ -49,7 +51,7 @@ namespace slim
 				, queuePtr{std::make_unique<util::RealTimeQueue<util::ExpandableBuffer>>(parameters.getQueueSize(), [&](util::ExpandableBuffer& buffer)
 				{
 					// last channel does not contain PCM data so it will be filtered out
-					buffer.capacity(p.getFramesPerChunk() * (p.getChannels() - 1) * (p.getBitDepth() >> 3));
+					buffer.capacity(p.getFramesPerChunk() * (p.getChannels() - 1) * (p.getBitsPerSample() >> 3));
 				})}
 				{
 					open();
@@ -91,7 +93,7 @@ namespace slim
 					return queuePtr->dequeue([&](util::ExpandableBuffer& buffer)
 					{
 						// creating Chunk object which is a light weight wrapper around ExpandableBuffer with meta data about PCM stream details
-						return consumer.get().consume(Chunk{std::ref<util::ExpandableBuffer>(buffer), parameters.getSamplingRate()});
+						return consumer.get().consume(Chunk{std::ref<util::ExpandableBuffer>(buffer), parameters.getSamplingRate(), parameters.getChannels() - 1, parameters.getBitsPerSample()});
 					}
 					, [&]
 					{

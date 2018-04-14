@@ -37,7 +37,7 @@ namespace slim
 		snd_pcm_sframes_t Source::containsData(unsigned char* buffer, snd_pcm_sframes_t frames)
 		{
 			auto offset{-1};
-			auto bytesPerFrame{parameters.getChannels() * (parameters.getBitDepth() >> 3)};
+			auto bytesPerFrame{parameters.getChannels() * (parameters.getBitsPerSample() >> 3)};
 
 			for (snd_pcm_sframes_t i = 0; i < frames && offset < 0; i++)
 			{
@@ -63,7 +63,7 @@ namespace slim
 
 		snd_pcm_sframes_t Source::copyData(unsigned char* srcBuffer, unsigned char* dstBuffer, snd_pcm_sframes_t frames)
 		{
-			auto bytesPerFrame{parameters.getChannels() * (parameters.getBitDepth() >> 3)};
+			auto bytesPerFrame{parameters.getChannels() * (parameters.getBitsPerSample() >> 3)};
 			auto framesCopied{snd_pcm_sframes_t{0}};
 
 			for (snd_pcm_sframes_t i = 0; i < frames; i++)
@@ -80,13 +80,13 @@ namespace slim
 				else if (value == StreamMarker::data && streaming)
 				{
 					// copying byte-by-byte and skipping the last channel
-					for (unsigned int j = 0; j < (bytesPerFrame - (parameters.getBitDepth() >> 3)); j++)
+					for (unsigned int j = 0; j < (bytesPerFrame - (parameters.getBitsPerSample() >> 3)); j++)
 					{
 						dstBuffer[j] = srcBuffer[i * bytesPerFrame + j];
 					}
 
 					// adjusting destination buffer pointer
-					dstBuffer += (parameters.getChannels() - 1) * (parameters.getBitDepth() >> 3);
+					dstBuffer += (parameters.getChannels() - 1) * (parameters.getBitsPerSample() >> 3);
 
 					// increasing destination frames counter
 					framesCopied++;
@@ -204,7 +204,7 @@ namespace slim
 		void Source::start(std::function<void()> overflowCallback)
 		{
 			auto          maxFrames     = parameters.getFramesPerChunk();
-			unsigned int  bytesPerFrame = parameters.getChannels() * (parameters.getBitDepth() >> 3);
+			unsigned int  bytesPerFrame = parameters.getChannels() * (parameters.getBitsPerSample() >> 3);
 			unsigned char srcBuffer[maxFrames * bytesPerFrame];
 
 			// start receiving data from ALSA
@@ -229,7 +229,7 @@ namespace slim
 						queuePtr->enqueue([&](util::ExpandableBuffer& buffer)
 						{
 							// setting new chunk size in bytes
-							buffer.size(copyData(srcBuffer + offset * bytesPerFrame, buffer.data(), frames - offset) * (parameters.getChannels() - 1) * (parameters.getBitDepth() >> 3));
+							buffer.size(copyData(srcBuffer + offset * bytesPerFrame, buffer.data(), frames - offset) * (parameters.getChannels() - 1) * (parameters.getBitsPerSample() >> 3));
 
 							// available is used to provide optimization for a scheduler submitting tasks to a processor
 							available.store(true, std::memory_order_release);

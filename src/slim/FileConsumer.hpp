@@ -29,8 +29,7 @@ namespace slim
 		public:
 			FileConsumer(std::unique_ptr<util::Writer> w, unsigned int channels, unsigned int sampleRate, unsigned int bitsPerSample)
 			: writerPtr{std::move(w)}
-			, encoder{channels, sampleRate, bitsPerSample, std::ref<util::Writer>(*writerPtr), true}
-			, bytesPerFrame{channels * (bitsPerSample >> 3)} {}
+			, encoder{channels, sampleRate, bitsPerSample, std::ref<util::Writer>(*writerPtr), true} {}
 
 			virtual ~FileConsumer() = default;
 			FileConsumer(const FileConsumer&) = delete;             // non-copyable
@@ -45,7 +44,7 @@ namespace slim
 
 				encoder.encode(data, size);
 
-				LOG(DEBUG) << LABELS{"slim"} << "Written " << (size / bytesPerFrame) << " frames";
+				LOG(DEBUG) << LABELS{"slim"} << "Written " << chunk.getFrames() << " frames";
 
 				// deferring chunk is irrelevant for a file
 				return true;
@@ -54,6 +53,5 @@ namespace slim
 		private:
 			std::unique_ptr<util::Writer> writerPtr;
 			EncoderType                   encoder;
-			unsigned int                  bytesPerFrame;
 	};
 }
