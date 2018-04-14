@@ -48,12 +48,6 @@ namespace slim
 				return buffer.get().size();
 			}
 
-			// TODO: it is used only in StreamingSession::sendAsync, try to avoid
-			inline auto shrinkLeft(std::size_t bytes)
-			{
-				return buffer.get().shrinkLeft(bytes);
-			}
-
 		private:
 			std::reference_wrapper<util::ExpandableBuffer> buffer;
 			unsigned int                                   samplingRate;

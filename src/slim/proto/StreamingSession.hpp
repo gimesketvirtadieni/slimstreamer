@@ -34,10 +34,6 @@ namespace slim
 				: connection{co}
 				, samplingRate{sr}
 				, encoder{channels, samplingRate, bitsPerSample, std::ref<util::Writer>(connection), false}
-				, buffer1{std::size_t{0}}
-				, buffer2{std::size_t{0}}
-				, currentChunkPtr{std::make_unique<Chunk>(std::ref<util::ExpandableBuffer>(buffer1), samplingRate)}
-				, nextChunkPtr{std::make_unique<Chunk>(std::ref<util::ExpandableBuffer>(buffer2), samplingRate)}
 				{
 					LOG(DEBUG) << LABELS{"proto"} << "HTTP session object was created (id=" << this << ")";
 
@@ -80,15 +76,8 @@ namespace slim
 				{
 					if (samplingRate == chunk.getSamplingRate())
 					{
-						// saving chunk in a nextChunk object and initiating asynchronious processing
-						if (nextChunkPtr->getSize() > 0)
-						{
-							LOG(WARNING) << LABELS{"proto"} << "Chunk was skipped due to slow data transfer (client id=" << *clientID << ")";
-						}
-						*nextChunkPtr = chunk;
-
-						// sending chunk asynchroniously
-						sendAsync();
+						// TODO: error handling
+						encoder.encode(chunk.getData(), chunk.getSize());
 					}
 					else
 					{
@@ -137,37 +126,10 @@ namespace slim
 					return result;
 				}
 
-				void sendAsync()
-				{
-					// if there is an available chunk and there is no ongoing transfer
-					if (nextChunkPtr->getSize() > 0 && !currentChunkPtr->getSize())
-					{
-						// swapping next and current chunk pointers which will allow submitting new chunks
-						std::swap(nextChunkPtr, currentChunkPtr);
-					}
-
-					// initiate data transfer if there is data available
-					if (currentChunkPtr->getSize() > 0)
-					{
-						// removing transferred data from the buffer
-						currentChunkPtr->shrinkLeft(encoder.encode(currentChunkPtr->getData(), currentChunkPtr->getSize()));
-
-						// keep sending data if there is anything to send or there is next chunk pending
-						if (currentChunkPtr->getSize() > 0 || nextChunkPtr->getSize() > 0)
-						{
-							sendAsync();
-						}
-					}
-				}
-
 			private:
 				std::reference_wrapper<ConnectionType> connection;
 				unsigned int                           samplingRate;
 				EncoderType                            encoder;
-				util::ExpandableBuffer                 buffer1;
-				util::ExpandableBuffer                 buffer2;
-				std::unique_ptr<Chunk>                 currentChunkPtr;
-				std::unique_ptr<Chunk>                 nextChunkPtr;
 				std::optional<std::string>             clientID{std::nullopt};
 		};
 	}
