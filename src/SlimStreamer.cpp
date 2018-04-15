@@ -255,7 +255,7 @@ int main(int argc, const char *argv[])
 			auto sources{createSources()};
 
 			// Callbacks objects 'glue' SlimProto Streamer with TCP Command Servers
-			auto streamerPtr{std::make_unique<Streamer>(httpPort, gain)};
+			auto streamerPtr{std::make_unique<Streamer>(httpPort, 2, 32, 32, gain)};
 			auto commandServerPtr{std::make_unique<Server>(slimprotoPort, maxClients, createCommandCallbacks(*streamerPtr))};
 			auto streamingServerPtr{std::make_unique<Server>(httpPort, maxClients, createStreamingCallbacks(*streamerPtr))};
 

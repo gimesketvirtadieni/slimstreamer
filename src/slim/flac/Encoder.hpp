@@ -29,10 +29,11 @@ namespace slim
 		class Encoder : protected FLAC::Encoder::Stream
 		{
 			public:
-				explicit Encoder(unsigned int c, unsigned int s, unsigned int b, std::reference_wrapper<util::Writer> w, bool h)
+				explicit Encoder(unsigned int c, unsigned int s, unsigned int bs, unsigned int bv, std::reference_wrapper<util::Writer> w, bool h)
 				: channels{c}
 				, sampleRate{s}
-				, bitsPerSample{b}
+				, bitsPerSample{bs}
+				, bitsPerValue{bv}
 				, bufferedWriter{w}
 				{
 					auto ok{true};
@@ -42,8 +43,19 @@ namespace slim
 					ok &= set_compression_level(8);
 					ok &= set_channels(channels);
 					ok &= set_sample_rate(sampleRate);
-					// TODO: FLAC does not support 32 bits per sample
-					ok &= set_bits_per_sample(24);
+
+					// FLAC encoding support max 24 bits per value
+					if (bitsPerValue > 24)
+					{
+						LOG(WARNING) << LABELS{"flac"} << "PCM data will be scaled to 24 bits values, which is max bit depth supported by FLAC";
+
+						downScale = true;
+						ok &= set_bits_per_sample(24);
+					}
+					else
+					{
+						ok &= set_bits_per_sample(bitsPerValue);
+					}
 
 					// choosing big enough number of expected samples for streaming purpose
 					ok &= set_total_samples_estimate(0xFFFFFFFF);
@@ -84,25 +96,20 @@ namespace slim
 					// do not feed encoder with more data if there is no room in transfer buffer
 					if (bufferedWriter.isBufferAvailable())
 					{
-						auto samples{size >> 2};
-						auto frames{samples >> 1};
+						std::size_t bytesPerSample{bitsPerSample >> 3};
+						std::size_t samples{size / bytesPerSample};
+						std::size_t frames{samples / channels};
 
-						// checking if only 24 bits are used for PCM data
-						auto scalingWarning{false};
-						for (std::size_t i = 0; i < size; i += 4)
+						// if values contain more than 24 bits then downscaling to 24 bits, which is max supported by FLAC
+						if (downScale)
 						{
-							if (data[i])
+							for (std::size_t i = 0; i < size; i += bytesPerSample)
 							{
-								// TODO: consider other place for this scaling to 24 bits
 								data[i] = 0;
-								if (!scalingWarning)
-								{
-									LOG(WARNING) << LABELS{"flac"} << "All 32-bits are used for PCM data, scaling to 24 bits as required for FLAC";
-									scalingWarning = true;
-								}
 							}
 						}
 
+						// TODO: generialize based on parameters (bitsPerFrame and bitsPerValue)
 						// coverting data S32_LE to S24_LE by shifting data by 1 byte
 						if (frames > 1 && !process_interleaved((const FLAC__int32*)(data + 1), frames - 1))
 						{
@@ -114,13 +121,13 @@ namespace slim
 						{
 							unsigned char lastFrame[8] =
 							{
-								data[samples * 4 - 7],
-								data[samples * 4 - 6],
-								data[samples * 4 - 5],
+								data[size - 7],
+								data[size - 6],
+								data[size - 5],
 								0,
-								data[samples * 4 - 3],
-								data[samples * 4 - 2],
-								data[samples * 4 - 1],
+								data[size - 3],
+								data[size - 2],
+								data[size - 1],
 								0
 							};
 
@@ -166,6 +173,8 @@ namespace slim
 				unsigned int             channels;
 				unsigned int             sampleRate;
 				unsigned int             bitsPerSample;
+				unsigned int             bitsPerValue;
+				bool                     downScale{false};
 				// TODO: parametrize
 				util::BufferedWriter<10> bufferedWriter;
 		};

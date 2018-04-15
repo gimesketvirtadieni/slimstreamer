@@ -28,10 +28,11 @@ namespace slim
 		class Encoder
 		{
 			public:
-				explicit Encoder(unsigned int c, unsigned int s, unsigned int b, std::reference_wrapper<util::Writer> w, bool h)
+				explicit Encoder(unsigned int c, unsigned int s, unsigned int bs, unsigned int bv, std::reference_wrapper<util::Writer> w, bool h)
 				: channels{c}
 				, sampleRate{s}
-				, bitsPerSample{b}
+				, bitsPerSample{bs}
+				, bitsPerValue{bv}
 				, bufferedWriter{w}
 				, headerRequired{h}
 				{
@@ -119,6 +120,7 @@ namespace slim
 				unsigned int             channels;
 				unsigned int             sampleRate;
 				unsigned int             bitsPerSample;
+				unsigned int             bitsPerValue;
 				// TODO: parametrize
 				util::BufferedWriter<10> bufferedWriter;
 				bool                     headerRequired;

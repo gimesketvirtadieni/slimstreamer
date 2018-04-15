@@ -30,10 +30,10 @@ namespace slim
 		class StreamingSession
 		{
 			public:
-				StreamingSession(std::reference_wrapper<ConnectionType> co, unsigned int channels, unsigned int sr, unsigned int bitsPerSample)
+				StreamingSession(std::reference_wrapper<ConnectionType> co, unsigned int ch, unsigned int sr, unsigned int bs, unsigned int bv)
 				: connection{co}
 				, samplingRate{sr}
-				, encoder{channels, samplingRate, bitsPerSample, std::ref<util::Writer>(connection), false}
+				, encoder{ch, sr, bs, bv, std::ref<util::Writer>(connection), false}
 				{
 					LOG(DEBUG) << LABELS{"proto"} << "HTTP session object was created (id=" << this << ")";
 

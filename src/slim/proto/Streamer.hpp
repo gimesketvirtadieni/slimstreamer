@@ -47,8 +47,11 @@ namespace slim
 			using StreamingSessionType = StreamingSession<ConnectionType, EncoderType>;
 
 			public:
-				Streamer(unsigned int sp, std::optional<unsigned int> g = std::nullopt)
+				Streamer(unsigned int sp, unsigned int ch, unsigned int bs, unsigned int bv, std::optional<unsigned int> g)
 				: streamingPort{sp}
+				, channels{ch}
+				, bitsPerSample{bs}
+				, bitsPerValue{bv}
 				, gain{g}
 				, timerThread{[&]
 				{
@@ -244,7 +247,7 @@ namespace slim
 					LOG(INFO) << LABELS{"proto"} << "New HTTP session request received (connection=" << &connection << ")";
 
 					// creating streaming session object
-					auto  streamingSessionPtr{std::make_unique<StreamingSessionType>(std::ref<ConnectionType>(connection), 2, samplingRate, 32)};
+					auto  streamingSessionPtr{std::make_unique<StreamingSessionType>(std::ref<ConnectionType>(connection), channels, samplingRate, bitsPerSample, bitsPerValue)};
 					addSession(streamingSessions, connection, std::move(streamingSessionPtr));
 				}
 
@@ -416,6 +419,9 @@ namespace slim
 
 			private:
 				unsigned int                            streamingPort;
+				unsigned int                            channels;
+				unsigned int                            bitsPerSample;
+				unsigned int                            bitsPerValue;
 				std::optional<unsigned int>             gain;
 				SessionsMap<CommandSessionType>         commandSessions;
 				SessionsMap<StreamingSessionType>       streamingSessions;
