@@ -17,8 +17,9 @@
 #include <functional>
 #include <string>
 
-#include "slim/util/BufferedWriter.hpp"
-#include "slim/util/Writer.hpp"
+#include "slim/log/log.hpp"
+#include "slim/util/AsyncWriter.hpp"
+#include "slim/util/BufferedAsyncWriter.hpp"
 
 
 namespace slim
@@ -28,7 +29,7 @@ namespace slim
 		class Encoder
 		{
 			public:
-				explicit Encoder(unsigned int c, unsigned int s, unsigned int bs, unsigned int bv, std::reference_wrapper<util::Writer> w, bool h)
+				explicit Encoder(unsigned int c, unsigned int s, unsigned int bs, unsigned int bv, std::reference_wrapper<util::AsyncWriter> w, bool h)
 				: channels{c}
 				, sampleRate{s}
 				, bitsPerSample{bs}
@@ -57,16 +58,19 @@ namespace slim
 
 				auto encode(unsigned char* data, const std::size_t size)
 				{
-					// TODO: error handling
-					bufferedWriter.writeAsync(data, size, [&](auto& error, auto written)
+					bufferedWriter.writeAsync(data, size, [&](auto error, auto written)
 					{
 						if (!error)
 						{
 							bytesWritten += size;
 						}
+						else
+						{
+							LOG(ERROR) << LABELS{"wave"} << "Error while encoded data transfer: " << error.message();
+						}
 					});
 
-					// TODO: get rid of
+					// TODO: required for FLAC encoder; get rid of
 					return size;
 				}
 
@@ -76,8 +80,9 @@ namespace slim
 				}
 
 			protected:
-				void writeHeader(std::uint32_t size = 0)
+				void writeHeader(std::size_t s = 0)
 				{
+					auto               size{static_cast<std::uint32_t>(s)};
 					const unsigned int bytesPerFrame{channels * (bitsPerSample >> 3)};
 					const unsigned int byteRate{sampleRate * bytesPerFrame};
 					const char         chunkID[]     = {0x52, 0x49, 0x46, 0x46};
@@ -107,7 +112,7 @@ namespace slim
 					bufferedWriter.rewind(0);
 
 					// no need to keep string to be sent as BufferedWriter uses its own buffer for async write
-					bufferedWriter.writeAsync(ss.str(), [&](auto& error, auto written)
+					bufferedWriter.writeAsync(ss.str(), [&](auto error, auto written)
 					{
 						if (!error)
 						{
@@ -117,14 +122,14 @@ namespace slim
 				}
 
 			private:
-				unsigned int             channels;
-				unsigned int             sampleRate;
-				unsigned int             bitsPerSample;
-				unsigned int             bitsPerValue;
+				unsigned int                  channels;
+				unsigned int                  sampleRate;
+				unsigned int                  bitsPerSample;
+				unsigned int                  bitsPerValue;
 				// TODO: parametrize
-				util::BufferedWriter<10> bufferedWriter;
-				bool                     headerRequired;
-				std::streamsize          bytesWritten{0};
+				util::BufferedAsyncWriter<10> bufferedWriter;
+				bool                          headerRequired;
+				std::size_t                   bytesWritten{0};
 		};
 	}
 }

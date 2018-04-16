@@ -18,7 +18,7 @@
 #include "slim/Chunk.hpp"
 #include "slim/Consumer.hpp"
 #include "slim/log/log.hpp"
-#include "slim/util/Writer.hpp"
+#include "slim/util/AsyncWriter.hpp"
 
 
 namespace slim
@@ -27,9 +27,9 @@ namespace slim
 	class FileConsumer : public Consumer
 	{
 		public:
-			FileConsumer(std::unique_ptr<util::Writer> w, unsigned int channels, unsigned int sampleRate, unsigned int bitsPerSample)
+			FileConsumer(std::unique_ptr<util::AsyncWriter> w, unsigned int channels, unsigned int sampleRate, unsigned int bitsPerSample, unsigned int bitsPerValue)
 			: writerPtr{std::move(w)}
-			, encoder{channels, sampleRate, bitsPerSample, std::ref<util::Writer>(*writerPtr), true} {}
+			, encoder{channels, sampleRate, bitsPerSample, bitsPerValue, std::ref<util::AsyncWriter>(*writerPtr), true} {}
 
 			virtual ~FileConsumer() = default;
 			FileConsumer(const FileConsumer&) = delete;             // non-copyable
@@ -51,7 +51,7 @@ namespace slim
 			}
 
 		private:
-			std::unique_ptr<util::Writer> writerPtr;
-			EncoderType                   encoder;
+			std::unique_ptr<util::AsyncWriter> writerPtr;
+			EncoderType                        encoder;
 	};
 }

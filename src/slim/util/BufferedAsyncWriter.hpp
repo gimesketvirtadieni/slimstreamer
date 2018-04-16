@@ -15,8 +15,9 @@
 #include <cstddef>  // std::size_t
 #include <functional>
 #include <string>
+#include <system_error>
 
-#include "slim/util/Writer.hpp"
+#include "slim/util/AsyncWriter.hpp"
 
 
 namespace slim
@@ -24,17 +25,17 @@ namespace slim
 	namespace util
 	{
 		template<std::size_t TotalElements>
-		class BufferedWriter : public Writer
+		class BufferedAsyncWriter : public AsyncWriter
 		{
 			public:
-				BufferedWriter(std::reference_wrapper<Writer> w)
+				BufferedAsyncWriter(std::reference_wrapper<AsyncWriter> w)
 				: writer{w} {}
 
-				virtual ~BufferedWriter() = default;
-				BufferedWriter(const BufferedWriter&) = delete;             // non-copyable
-				BufferedWriter& operator=(const BufferedWriter&) = delete;  // non-assignable
-				BufferedWriter(BufferedWriter&&) = delete;                  // non-movable
-				BufferedWriter& operator=(BufferedWriter&&) = delete;       // non-move-assinagle
+				virtual ~BufferedAsyncWriter() = default;
+				BufferedAsyncWriter(const BufferedAsyncWriter&) = delete;             // non-copyable
+				BufferedAsyncWriter& operator=(const BufferedAsyncWriter&) = delete;  // non-assignable
+				BufferedAsyncWriter(BufferedAsyncWriter&&) = delete;                  // non-movable
+				BufferedAsyncWriter& operator=(BufferedAsyncWriter&&) = delete;       // non-move-assinagle
 
 				inline bool isBufferAvailable()
 				{
@@ -47,7 +48,7 @@ namespace slim
 				}
 
 				// including write overloads
-				using Writer::write;
+				using AsyncWriter::write;
 
 				virtual std::size_t write(const void* data, const std::size_t size)
 				{
@@ -55,9 +56,9 @@ namespace slim
 				}
 
 				// including writeAsync overloads
-				using Writer::writeAsync;
+				using AsyncWriter::writeAsync;
 
-				virtual void writeAsync(const void* data, const std::size_t size, WriteCallback callback = [](auto&, auto) {}) override
+				virtual void writeAsync(const void* data, const std::size_t size, WriteCallback callback = [](auto, auto) {}) override
 				{
 					if (auto index{getFreeBufferIndex()}; index.has_value())
 					{
@@ -66,7 +67,7 @@ namespace slim
 						// no need for capacity adjustment as it is done by assign method
 						buffer.assign(data, size);
 
-						writer.get().writeAsync(buffer.data(), buffer.size(), [c = callback, &b = buffer](auto& error, auto written)
+						writer.get().writeAsync(buffer.data(), buffer.size(), [c = callback, &b = buffer](auto error, auto written)
 						{
 							// invoking callback
 							c(error, written);
@@ -75,7 +76,10 @@ namespace slim
 							b.size(0);
 						});
 					}
-					// TODO: handle cases when no buffer is available
+					else
+					{
+						callback(std::make_error_code(std::errc::no_buffer_space), 0);
+					}
 				}
 
 			protected:
@@ -96,7 +100,7 @@ namespace slim
 					return result;
 				}
 			private:
-				std::reference_wrapper<Writer>                    writer;
+				std::reference_wrapper<AsyncWriter>               writer;
 				std::array<util::ExpandableBuffer, TotalElements> buffers;
 		};
 	}

@@ -18,8 +18,8 @@
 #include <type_safe/reference.hpp>
 
 #include "slim/log/log.hpp"
-#include "slim/util/BufferedWriter.hpp"
-#include "slim/util/Writer.hpp"
+#include "slim/util/AsyncWriter.hpp"
+#include "slim/util/BufferedAsyncWriter.hpp"
 
 
 namespace slim
@@ -29,7 +29,7 @@ namespace slim
 		class Encoder : protected FLAC::Encoder::Stream
 		{
 			public:
-				explicit Encoder(unsigned int c, unsigned int s, unsigned int bs, unsigned int bv, std::reference_wrapper<util::Writer> w, bool h)
+				explicit Encoder(unsigned int c, unsigned int s, unsigned int bs, unsigned int bv, std::reference_wrapper<util::AsyncWriter> w, bool h)
 				: channels{c}
 				, sampleRate{s}
 				, bitsPerSample{bs}
@@ -156,27 +156,25 @@ namespace slim
 			protected:
 				virtual ::FLAC__StreamEncoderWriteStatus write_callback(const FLAC__byte* data, std::size_t size, unsigned samples, unsigned current_frame) override
 				{
-					if (bufferedWriter.isBufferAvailable())
+					bufferedWriter.writeAsync(data, size, [](auto error, auto written)
 					{
-						// TODO: handle errors properly
-						bufferedWriter.writeAsync(data, size);
-					}
-					else
-					{
-						LOG(WARNING) << LABELS{"flac"} << "Transfer buffer is full - skipping encoded chunk";
-					}
+						if (error)
+						{
+							LOG(ERROR) << LABELS{"flac"} << "Error while encoded data transfer: " << error.message();
+						}
+					});
 
 					return FLAC__STREAM_ENCODER_WRITE_STATUS_OK;
 				}
 
 			private:
-				unsigned int             channels;
-				unsigned int             sampleRate;
-				unsigned int             bitsPerSample;
-				unsigned int             bitsPerValue;
-				bool                     downScale{false};
+				unsigned int                  channels;
+				unsigned int                  sampleRate;
+				unsigned int                  bitsPerSample;
+				unsigned int                  bitsPerValue;
+				bool                          downScale{false};
 				// TODO: parametrize
-				util::BufferedWriter<10> bufferedWriter;
+				util::BufferedAsyncWriter<10> bufferedWriter;
 		};
 	}
 }

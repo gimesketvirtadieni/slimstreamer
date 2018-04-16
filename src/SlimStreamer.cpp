@@ -39,7 +39,7 @@
 #include "slim/Producer.hpp"
 #include "slim/proto/Streamer.hpp"
 #include "slim/Scheduler.hpp"
-#include "slim/util/StreamWriter.hpp"
+#include "slim/util/StreamAsyncWriter.hpp"
 
 
 using ContainerBase = slim::ContainerBase;
@@ -148,8 +148,8 @@ auto createPipelines(std::vector<std::unique_ptr<Source>>& sources, Streamer& st
 		auto parameters{sourcePtr->getParameters()};
 
 		//auto streamPtr{std::make_unique<std::ofstream>(std::to_string(parameters.getSamplingRate()) + ".flac", std::ios::binary)};
-		//auto writerPtr{std::make_unique<slim::util::SyncStreamWriter>(std::move(streamPtr))};
-		//auto filePtr{std::make_unique<File>(std::move(writerPtr), 2, parameters.getSamplingRate(), 32)};
+		//auto writerPtr{std::make_unique<slim::util::StreamAsyncWriter>(std::move(streamPtr))};
+		//auto filePtr{std::make_unique<File>(std::move(writerPtr), parameters.getChannels() - 1, parameters.getSamplingRate(), parameters.getBitsPerSample(), parameters.getBitsPerValue())};
 
 		//pipelines.emplace_back(std::ref<Producer>(*sourcePtr), std::ref<Consumer>(*filePtr));
 		//files.push_back(std::move(filePtr));
@@ -161,7 +161,7 @@ auto createPipelines(std::vector<std::unique_ptr<Source>>& sources, Streamer& st
 }
 
 
-auto createSources()
+auto createSources(slim::alsa::Parameters parameters)
 {
 	std::vector<std::tuple<unsigned int, std::string>> rates
 	{
@@ -180,7 +180,6 @@ auto createSources()
 		{192000, "hw:2,1,6"},
 	};
 
-	slim::alsa::Parameters               parameters{"", 3, SND_PCM_FORMAT_S32_LE, 0, 128, 0, 8};
 	unsigned int                         chunkDurationMilliSecond{100};
 	std::vector<std::unique_ptr<Source>> sources;
 
@@ -252,10 +251,11 @@ int main(int argc, const char *argv[])
 			}
 
 			// creating source objects stored in a vector
-			auto sources{createSources()};
+			slim::alsa::Parameters parameters{"", 3, SND_PCM_FORMAT_S32_LE, 0, 128, 0, 8};
+			auto sources{createSources(parameters)};
 
 			// Callbacks objects 'glue' SlimProto Streamer with TCP Command Servers
-			auto streamerPtr{std::make_unique<Streamer>(httpPort, 2, 32, 32, gain)};
+			auto streamerPtr{std::make_unique<Streamer>(httpPort, parameters.getChannels() - 1, parameters.getBitsPerSample(), parameters.getBitsPerValue(), gain)};
 			auto commandServerPtr{std::make_unique<Server>(slimprotoPort, maxClients, createCommandCallbacks(*streamerPtr))};
 			auto streamingServerPtr{std::make_unique<Server>(httpPort, maxClients, createStreamingCallbacks(*streamerPtr))};
 

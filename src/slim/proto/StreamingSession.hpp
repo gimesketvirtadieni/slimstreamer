@@ -19,6 +19,7 @@
 
 #include "slim/Chunk.hpp"
 #include "slim/log/log.hpp"
+#include "slim/util/AsyncWriter.hpp"
 #include "slim/util/ExpandableBuffer.hpp"
 
 
@@ -33,7 +34,7 @@ namespace slim
 				StreamingSession(std::reference_wrapper<ConnectionType> co, unsigned int ch, unsigned int sr, unsigned int bs, unsigned int bv)
 				: connection{co}
 				, samplingRate{sr}
-				, encoder{ch, sr, bs, bv, std::ref<util::Writer>(connection), false}
+				, encoder{ch, sr, bs, bv, std::ref<util::AsyncWriter>(connection), false}
 				{
 					LOG(DEBUG) << LABELS{"proto"} << "HTTP session object was created (id=" << this << ")";
 

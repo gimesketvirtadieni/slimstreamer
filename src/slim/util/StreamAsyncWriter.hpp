@@ -15,9 +15,10 @@
 #include <cstddef>  // std::size_t
 #include <functional>
 #include <ostream>
+#include <system_error>
 
+#include "slim/util/AsyncWriter.hpp"
 #include "slim/util/StreamBufferWithCallback.hpp"
-#include "slim/util/Writer.hpp"
 
 
 namespace slim
@@ -26,22 +27,22 @@ namespace slim
 	{
 		using StreamBuffer  = util::StreamBufferWithCallback<std::function<std::streamsize(const char*, const std::streamsize)>>;
 
-		class SyncStreamWriter : public Writer
+		class StreamAsyncWriter : public AsyncWriter
 		{
 			public:
-				SyncStreamWriter(std::unique_ptr<std::ostream> s)
+				StreamAsyncWriter(std::unique_ptr<std::ostream> s)
 				: streamBuffer{[](auto*, auto size) {return size;}}
 				, streamPtr{std::move(s)} {}
 
-				SyncStreamWriter(std::function<std::streamsize(const char*, const std::streamsize)> callback)
+				StreamAsyncWriter(std::function<std::streamsize(const char*, const std::streamsize)> callback)
 				: streamBuffer{callback}
 				, streamPtr{std::make_unique<std::ostream>(&streamBuffer)} {}
 
-				virtual ~SyncStreamWriter() = default;
-				SyncStreamWriter(const SyncStreamWriter&) = delete;             // non-copyable
-				SyncStreamWriter& operator=(const SyncStreamWriter&) = delete;  // non-assignable
-				SyncStreamWriter(SyncStreamWriter&&) = delete;                  // non-movable
-				SyncStreamWriter& operator=(SyncStreamWriter&&) = delete;       // non-move-assinagle
+				virtual ~StreamAsyncWriter() = default;
+				StreamAsyncWriter(const StreamAsyncWriter&) = delete;             // non-copyable
+				StreamAsyncWriter& operator=(const StreamAsyncWriter&) = delete;  // non-assignable
+				StreamAsyncWriter(StreamAsyncWriter&&) = delete;                  // non-movable
+				StreamAsyncWriter& operator=(StreamAsyncWriter&&) = delete;       // non-move-assinagle
 
 				virtual void rewind(const std::streampos pos) override
 				{
@@ -49,7 +50,7 @@ namespace slim
 				}
 
 				// including write overloads
-				using Writer::write;
+				using AsyncWriter::write;
 
 				virtual std::size_t write(const void* data, const std::size_t size) override
 				{
@@ -63,13 +64,20 @@ namespace slim
 				}
 
 				// including writeAsync overloads
-				using Writer::writeAsync;
+				using AsyncWriter::writeAsync;
 
-				virtual void writeAsync(const void* data, const std::size_t size, WriteCallback callback = [](auto&, auto) {}) override
+				virtual void writeAsync(const void* data, const std::size_t size, WriteCallback callback = [](auto, auto) {}) override
 				{
-					write(data, size);
-					// TODO: handle exceptions, it must be exception safe
-					callback(std::error_code(), size);
+					try
+					{
+						write(data, size);
+						callback(std::error_code(), size);
+					}
+					catch(const std::exception& error)
+					{
+						LOG(ERROR) << error.what();
+						callback(std::make_error_code(std::errc::io_error), 0);
+					}
 				}
 
 			private:

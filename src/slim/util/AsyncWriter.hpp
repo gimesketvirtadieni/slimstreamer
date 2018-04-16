@@ -21,12 +21,12 @@ namespace slim
 {
 	namespace util
 	{
-		using WriteCallback = std::function<void(const std::error_code&, const std::size_t)>;
+		using WriteCallback = std::function<void(const std::error_code, const std::size_t)>;
 
-		class Writer
+		class AsyncWriter
 		{
 			public:
-				virtual ~Writer() = default;
+				virtual ~AsyncWriter() = default;
 
 				virtual void rewind(const std::streampos pos) = 0;
 
@@ -37,12 +37,12 @@ namespace slim
 
 				virtual std::size_t write(const void* data, const std::size_t size) = 0;
 
-				virtual void writeAsync(std::string str, WriteCallback callback = [](auto&, auto) {})
+				virtual void writeAsync(std::string str, WriteCallback callback = [](auto, auto) {})
 				{
 					writeAsync(str.c_str(), str.length(), callback);
 				}
 
-				virtual void writeAsync(const void* data, const std::size_t size, WriteCallback callback = [](auto&, auto) {}) = 0;
+				virtual void writeAsync(const void* data, const std::size_t size, WriteCallback callback = [](auto, auto) {}) = 0;
 		};
 	}
 }

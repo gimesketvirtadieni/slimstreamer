@@ -210,9 +210,9 @@ namespace slim
 						{
 							auto clientID{session.getClientID()};
 
+							// processing request by a proper Streaming session mapped to this connection
 							session.onRequest(buffer, receivedSize);
 
-							// TODO: figure out a better alternative
 							// if it is the first data request from a client
 							if (!clientID.has_value())
 							{
@@ -222,6 +222,7 @@ namespace slim
 									throw slim::Exception("Could not get client ID from HTTP session");
 								}
 
+								// saving Streaming session reference in the relevant Command session
 								auto commandSessionPtr{findCommandSession(clientID.value())};
 								if (!commandSessionPtr.has_value())
 								{

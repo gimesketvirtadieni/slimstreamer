@@ -41,10 +41,14 @@ namespace slim
 				Parameters(Parameters&& rhs) = default;
 				Parameters& operator=(Parameters&& rhs) = default;
 
-				inline const unsigned int getBitsPerSample() const
+				inline const auto getBitsPerSample() const
 				{
-					// TODO: type conversion
-					return snd_pcm_format_physical_width(format);
+					return static_cast<unsigned int>(snd_pcm_format_physical_width(format));
+				}
+
+				inline const auto getBitsPerValue() const
+				{
+					return static_cast<unsigned int>(snd_pcm_format_width(format));
 				}
 
 				inline const unsigned int getChannels() const
