@@ -169,7 +169,7 @@ andrej@sandbox:~$ /usr/bin/squeezelite -n playername -o outputdevice -d all=debu
 ...
 ```
 
-That's it, injoy streaming ;)
+That's it, enjoy streaming ;)
 
 
 # Development Status
