@@ -15,7 +15,6 @@
 #include <cstddef>   // std::size_t
 #include <FLAC++/encoder.h>
 #include <string>
-#include <type_safe/reference.hpp>
 
 #include "slim/log/log.hpp"
 #include "slim/util/AsyncWriter.hpp"

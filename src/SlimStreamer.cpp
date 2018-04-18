@@ -94,7 +94,6 @@ void printLicenseInfo()
 	std::cout << "-> Logging library 'g3log' (Public Domain)" << std::endl;
 	std::cout << "-> Standalone version of 'asio' for networking (Boost Software License)" << std::endl;
 	std::cout << "-> Command line options parser 'cxxopts' (MIT)" << std::endl;
-	std::cout << "-> Zero overhead data types 'type_safe' (MIT)" << std::endl;
 	std::cout << "-> Scope guard library 'Boost.ScopeGuard' (Boost Software License 1.0)" << std::endl;
 	std::cout << "-> Unit testing library 'googletest' (BSD-3-Clause)" << std::endl;
 	std::cout << std::endl;
