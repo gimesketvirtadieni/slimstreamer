@@ -87,7 +87,7 @@ SlimStreamer is written in C++17 so it requires an adequate compiler (the comman
 
 ```
 sudo apt-get update
-sudo apt-get install git build-essential g++ cmake libasound2-dev libflac++-dev
+sudo apt-get install git build-essential g++ cmake libasound2-dev libflac++-dev zip unzip
 ```
 
 To validate if installed compiler supports C++17, use this command:
@@ -148,7 +148,7 @@ andrej@sandbox:~/slimstreamer/make$ ls
 ConsoleSink.o  Makefile  SinkFilter.o  SlimStreamer  SlimStreamer.o  Source.o
 ```
 
-Compilation process produces one binary executable file - SlimStreamer.
+Compilation process produces one executable file - SlimStreamer.
 
 
 # Running SlimStreamer
