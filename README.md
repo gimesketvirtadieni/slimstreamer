@@ -87,7 +87,7 @@ SlimStreamer is written in C++17 so it requires an adequate compiler (the comman
 
 ```
 sudo apt-get update
-sudo apt-get install git build-essential g++ cmake libasound2-dev flac++-dev
+sudo apt-get install git build-essential g++ cmake libasound2-dev libflac++-dev
 ```
 
 To validate if installed compiler supports C++17, use this command:
@@ -102,7 +102,7 @@ warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 If you got version 7.x (or above) installed, it will do for compiling SlimStreamer.
 However GCC version 7.x is not yet shipped by default for most Linux distributions.
-In other words you will see some lower version of the compiler, which leads to a question how you should upgrade it to version 7.x (which supports C++17).
+In other words, chances are high that a lower version of the compiler will be present, which leads to a question how you should upgrade it to version 7.x (which supports C++17).
 Here you go:
 
 ```
@@ -133,61 +133,20 @@ It will download all the source code needed for compiling SlimStreamer.
 The last two lines are required only if you want to get all the branches into your local repo.
 
 
-2. Compiling dependencies
+2. Compiling SlimStreamer
 
-SlimStreamer uses number of dependencies however most of them are provided in header files, so they do not need to be compiled separately.
-The only dependency that needs to be compiled separately is a logger library.
-To compile the logger library, one should do like following (from a 'slimstreamer' directory):
-
+Assuming all required packages are installed, compilation step is as simple as that:
 ```
-cd dependencies
-cd g3log
-ls
-```
-
-The output should look similar to:
-
-```
-andrej@sandbox:~/slimstreamer/dependencies/g3log$ ls
-3rdParty      build        CleanAll.cmake  CPackLists.txt  GenerateMacroDefinitionsFile.cmake  Options.cmake    scripts  sublime.formatting  test_performance
-API.markdown  Build.cmake  CMakeLists.txt  example         LICENSE                             README.markdown  src      test_main           test_unit
-```
-
-Now the actual compilation steps for the logger library:
-
-```
-mkdir build
-cd build
-cmake -DCMAKE_BUILD_TYPE=Release -DUSE_DYNAMIC_LOGGING_LEVELS=ON -DG3_SHARED_LIB=OFF -DADD_FATAL_EXAMPLE=OFF ..
-make
-ls
-```
-
-The output should look similar to:
-
-```
-andrej@sandbox:~/slimstreamer/dependencies/g3log/build$ ls
-CMakeCache.txt        CMakeFiles           cmake_install.cmake  CPackConfig.cmake  CPackSourceConfig.cmake  g3log-FATAL-choice
-g3log-FATAL-contract  g3log-FATAL-sigsegv  include              libg3logger.a      Makefile
-```
-
-
-3. Compiling SlimStreamer itself
-
-```
-cd ../../..
 cd make
-make
-ls
+../scripts/compile -d
 ```
 
-If compilation succeeded then the output should look like following:
+If compilation succeeded then the current directory should look like following:
 
 ```
 andrej@sandbox:~/slimstreamer/make$ ls
-Makefile  SlimStreamer
+ConsoleSink.o  Makefile  SinkFilter.o  SlimStreamer  SlimStreamer.o  Source.o
 ```
-
 
 Compilation process produces one binary executable file - SlimStreamer.
 
@@ -195,11 +154,11 @@ Compilation process produces one binary executable file - SlimStreamer.
 # Running SlimStreamer
 
 To stream music to Squeezebox players, they need to be "directed" to use SlimStreamer (instead of LMS).
-This should be done by providing hostname and port (3484) to all players so they can connect to SlimStreamer.
+This should be done by providing hostname and port (3483) to all players so they can connect to SlimStreamer.
 If you are using squeezelite, a command (-s parameter defines a server to connect to) may look like following (should be run on a host with an attached DAC; a server running SlimStreamer does not required a 'physical' DAC attached):
 
 ```
-andrej@sandbox:~$ /usr/bin/squeezelite -n playername -o outputdevice -d all=debug -s slimstreamerhost:3484
+andrej@sandbox:~$ /usr/bin/squeezelite -n playername -o outputdevice -d all=debug -s slimstreamerhost:3483
 [01:50:16.200439] stream_init:290 init stream
 [01:50:16.200635] stream_init:291 streambuf size: 2097152
 [01:50:16.202250] output_init_alsa:817 init output
