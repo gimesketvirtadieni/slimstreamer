@@ -1,0 +1,54 @@
+#!/bin/bash
+
+SLIMSTREAMER_DIR=..
+G3LOG_DIR=${SLIMSTREAMER_DIR}/dependencies/g3log
+
+compile () {
+
+  # compiling dependencies if requested
+  if [ "$1" == "YES" ]; then
+    mkdir ${G3LOG_DIR}/build 2> /dev/null
+    cmake -DCMAKE_BUILD_TYPE=Release -DUSE_DYNAMIC_LOGGING_LEVELS=ON -DG3_SHARED_LIB=OFF -DADD_FATAL_EXAMPLE=OFF -DCMAKE_CXX_COMPILER=g++-7 -B${G3LOG_DIR}/build -H${G3LOG_DIR}
+    make --directory=${G3LOG_DIR}/build
+  fi
+
+  #compiling SlimStreamer
+  make
+
+  # zipping binary
+  if [ "$2" == "YES" ]; then
+    VERSION=`git describe --dirty --always --tags`
+    ARCH=`uname -m`
+    zip SlimStreamer_${VERSION}_${ARCH}.zip SlimStreamer
+  fi
+}
+
+
+DEPENDENCIES=NO
+ZIP=NO
+POSITIONAL=()
+while [[ $# -gt 0 ]]
+do
+key="$1"
+
+case $key in
+    -d|--dependencies)
+    DEPENDENCIES=YES
+    shift # past argument
+    ;;
+    -z|--zip)
+    ZIP=YES
+    shift # past argument
+    ;;
+    --default)
+    shift # past argument
+    ;;
+    *)    # unknown option
+    POSITIONAL+=("$1") # save it in an array for later
+    shift # past argument
+    ;;
+esac
+done
+set -- "${POSITIONAL[@]}" # restore positional parameters
+
+compile ${DEPENDENCIES} ${ZIP}
