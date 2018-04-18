@@ -8,7 +8,7 @@ compile () {
   # compiling dependencies if requested
   if [ "$1" == "YES" ]; then
     mkdir ${G3LOG_DIR}/build 2> /dev/null
-    cmake -DCMAKE_BUILD_TYPE=Release -DUSE_DYNAMIC_LOGGING_LEVELS=ON -DG3_SHARED_LIB=OFF -DADD_FATAL_EXAMPLE=OFF -DCMAKE_CXX_COMPILER=g++-7 -B${G3LOG_DIR}/build -H${G3LOG_DIR}
+    cmake -DCMAKE_BUILD_TYPE=Release -DUSE_DYNAMIC_LOGGING_LEVELS=ON -DG3_SHARED_LIB=OFF -DADD_FATAL_EXAMPLE=OFF -DCMAKE_CXX_COMPILER=g++ -B${G3LOG_DIR}/build -H${G3LOG_DIR}
     make --directory=${G3LOG_DIR}/build
   fi
 

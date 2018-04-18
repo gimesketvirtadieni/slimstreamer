@@ -23,7 +23,7 @@ SYMBOLS              += -DVERSION='"$(VERSION)"'
 SYMBOLS              += -DSCOPE_GUARD_STANDALONE
 EXECUTABLE           ?= SlimStreamer
 
-CXX                  ?= g++-7
+CXX                  ?= g++
 CXX_OPTIONS          += -std=c++1z -c -O3 -g0 -fmessage-length=0 -pthread -Wall -Wnon-virtual-dtor -Woverloaded-virtual
 
 # adding extra option for ARM platforms to get rid of GCC notes about ABI changes
