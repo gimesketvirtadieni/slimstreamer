@@ -16,6 +16,3 @@
 [submodule "dependencies/scope_guard"]
 	path = dependencies/scope_guard
 	url = https://github.com/gimesketvirtadieni/boost.scope_guard.git
-[submodule "dependencies/type_safe"]
-	path = dependencies/type_safe
-	url = https://github.com/foonathan/type_safe
