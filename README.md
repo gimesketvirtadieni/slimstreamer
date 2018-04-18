@@ -158,7 +158,7 @@ Now the actual compilation steps for the logger library:
 ```
 mkdir build
 cd build
-cmake -DCMAKE_BUILD_TYPE=Release -DUSE_DYNAMIC_LOGGING_LEVELS=ON -DG3_SHARED_LIB=OFF ..
+cmake -DCMAKE_BUILD_TYPE=Release -DUSE_DYNAMIC_LOGGING_LEVELS=ON -DG3_SHARED_LIB=OFF -DADD_FATAL_EXAMPLE=OFF ..
 make
 ls
 ```
