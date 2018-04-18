@@ -323,7 +323,7 @@ namespace slim
 				StreamingSessionType*                  streamingSessionPtr{nullptr};
 				bool                                   connectedReceived{false};
 				bool                                   responseReceived{false};
-				util::ExpandableBuffer                 commandBuffer{std:size_t{0}, std:size_t{2048}};
+				util::ExpandableBuffer                 commandBuffer{std::size_t{0}, std::size_t{2048}};
 				std::optional<CommandHELO>             commandHELO{std::nullopt};
 				std::optional<TimePoint>               lastPingAt{std::nullopt};
 		};
