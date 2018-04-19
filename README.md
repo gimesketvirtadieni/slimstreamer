@@ -77,19 +77,20 @@ andrej@sandbox:~/$ ./SlimStreamer
 
 # Alright, I think I can handle building SlimStreamer myself
 
-Although building SlimStreamer is a straightforward procedure, there are few caveats to be awear.
-The description below explains each step along with its purpose.
+Although building SlimStreamer is a straightforward procedure, it requires all prerequisites to be installed.
+The description below explains compilation procedure in details.
 
 
 ## Required prerequisites
 
-SlimStreamer is written in C++17 so it requires an adequate compiler (the commands below also installs ALSA headers required for using ALSA API):
+SlimStreamer is written in C++17 so it requires an adequate compiler (the commands below also installs other prerequisites like ALSA headers, etc.):
 
 ```
 sudo apt-get update
 sudo apt-get install git build-essential g++ cmake libasound2-dev libflac++-dev zip unzip
 ```
 
+Unzip and zip programs are used only by compilation script when ```-z``` paramter is provided (it is used for making a release)
 To validate if installed compiler supports C++17, use this command:
 
 ```
@@ -119,7 +120,7 @@ After upgrading GCC, you should get a similar output as above when issuing a com
 
 ## Compiling SlimStreamer
 
-Building SlimStreamer is done in three steps:
+To compile SlimStreamer one should do like following:
 
 1. Obtaining source code
 
@@ -136,11 +137,14 @@ The last two lines are required only if you want to get all the branches into yo
 2. Compiling SlimStreamer
 
 Assuming all required packages are installed, compilation step is as simple as that:
+
 ```
 cd make
 ../scripts/compile -d
 ```
 
+```-d``` parameter is used to tell compilation script to build dependences as well (like g3logger).
+Building dependencies is required for the first time; later compilation script may be used without ```-d``` parameter.
 If compilation succeeded then the current directory should look like following:
 
 ```
@@ -174,15 +178,16 @@ That's it, enjoy streaming ;)
 
 # Development Status
 
-SlimStreamer works and can be used for alpha testing, however the development is still ongoing:  
+SlimStreamer works end-to-end and it is fairly stable hence can be used for beta testing, however the development is still ongoing:  
   * Capture-and-deliver PCM data to SlimStreamer in a bit-perfect way is done
-  * TCP server (running on 3484 port) required for serving SlimProto commands is implemented (although only few commands are supported for now)
+  * TCP server (running on 3483 port) required for serving SlimProto commands is implemented
   * SlimProto players are able to connect to SlimStreamer (although tested only with squeezelite)
-  * TCP server (running on 9001 port), required for streaming PCM data, works
-  * HTTP streaming functionality works
-  * Streaming functionality supports multiple sampling rates
+  * TCP server (running on 9000 port), required for streaming PCM data is done
+  * Streaming functionality works
+  * Support for multiple sampling rates is done
+  * Transcoding 'raw' PCM data to lossless format (FLAC) is done (it decreases amount of used network bandwidth by 2,5 times)
+  * SlimProto auto-discovery is still missing
   * Streams synchronization is still missing
-  * Streaming data should be encoded in lossless way (to prevent from sending 'raw' PCM data over the network)
   * There are many 'shortcuts' left in the codebase so in many ways it is still requires maturing
 
 Any feedback and comments are much appreciated!
