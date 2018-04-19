@@ -77,20 +77,20 @@ andrej@sandbox:~/$ ./SlimStreamer
 
 # Alright, I think I can handle building SlimStreamer myself
 
-Although building SlimStreamer is a straightforward procedure, it requires all prerequisites to be installed.
+Although building SlimStreamer is a straightforward procedure, it requires that all the prerequisites to be installed.
 The description below explains compilation procedure in details.
 
 
 ## Required prerequisites
 
-SlimStreamer is written in C++17 so it requires an adequate compiler (the commands below also installs other prerequisites like ALSA headers, etc.):
+SlimStreamer is written in C++17 so an adequate GCC compiler must be available (the commands below also installs other prerequisites like ALSA headers, etc.):
 
 ```
 sudo apt-get update
 sudo apt-get install git build-essential g++ cmake libasound2-dev libflac++-dev zip unzip
 ```
 
-Unzip and zip programs are used only by compilation script when ```-z``` paramter is provided (it is used for making a release)
+Unzip and zip programs are used only by compilation script when ```-z``` paramter is provided (it is used for making a release).
 To validate if installed compiler supports C++17, use this command:
 
 ```
@@ -122,7 +122,7 @@ After upgrading GCC, you should get a similar output as above when issuing a com
 
 To compile SlimStreamer one should do like following:
 
-1. Obtaining source code
+1. Obtain the source code
 
 ```
 git clone --recurse-submodules https://github.com/gimesketvirtadieni/slimstreamer.git
@@ -143,8 +143,8 @@ cd make
 ../scripts/compile -d
 ```
 
-```-d``` parameter is used to tell compilation script to build dependences as well (like g3logger).
-Building dependencies is required for the first time; later compilation script may be used without ```-d``` parameter.
+```-d``` parameter is used to tell the compilation script to build dependences as well (like g3logger).
+Building dependencies is required only once; the compilation script may be used without ```-d``` parameter later.
 If compilation succeeded then the current directory should look like following:
 
 ```
@@ -152,14 +152,14 @@ andrej@sandbox:~/slimstreamer/make$ ls
 ConsoleSink.o  Makefile  SinkFilter.o  SlimStreamer  SlimStreamer.o  Source.o
 ```
 
-Compilation process produces one executable file - SlimStreamer.
+Compilation process produces one executable file - SlimStreamer (the rest of the files are not needed to run it).
 
 
 # Running SlimStreamer
 
 To stream music to Squeezebox players, they need to be "directed" to use SlimStreamer (instead of LMS).
 This should be done by providing hostname and port (3483) to all players so they can connect to SlimStreamer.
-If you are using squeezelite, a command (-s parameter defines a server to connect to) may look like following (should be run on a host with an attached DAC; a server running SlimStreamer does not required a 'physical' DAC attached):
+If you are using squeezelite, a command (```-s``` parameter defines a server to connect to) may look like following (should be run on a host with an attached DAC; a server running SlimStreamer does not required a 'physical' DAC attached):
 
 ```
 andrej@sandbox:~$ /usr/bin/squeezelite -n playername -o outputdevice -d all=debug -s slimstreamerhost:3483
