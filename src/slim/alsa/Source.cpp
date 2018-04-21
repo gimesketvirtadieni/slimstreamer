@@ -10,7 +10,6 @@
  * Author: gimesketvirtadieni at gmail dot com (Andrej Kislovskij)
  */
 
-#include <functional>
 #include <scope_guard.hpp>
 #include <string>
 

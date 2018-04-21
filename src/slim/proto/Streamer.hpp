@@ -247,9 +247,18 @@ namespace slim
 				{
 					LOG(INFO) << LABELS{"proto"} << "New HTTP session request received (connection=" << &connection << ")";
 
-					// creating streaming session object
-					auto  streamingSessionPtr{std::make_unique<StreamingSessionType>(std::ref<ConnectionType>(connection), channels, samplingRate, bitsPerSample, bitsPerValue)};
-					addSession(streamingSessions, connection, std::move(streamingSessionPtr));
+					// StreamingSession constructor may throw
+					try
+					{
+						// creating streaming session object
+						auto streamingSessionPtr{std::make_unique<StreamingSessionType>(std::ref<ConnectionType>(connection), channels, samplingRate, bitsPerSample, bitsPerValue)};
+						addSession(streamingSessions, connection, std::move(streamingSessionPtr));
+					}
+					catch (const slim::Exception& error)
+					{
+						// TODO: relevant CommandSession should be closed
+						LOG(ERROR) << "Error while creating StreamingSession: " << error;
+					}
 				}
 
 				void onSlimProtoClose(ConnectionType& connection)
@@ -354,10 +363,12 @@ namespace slim
 					// if there are command sessions without relevant HTTP session
 					if (counter > 0)
 					{
-						LOG(WARNING) << LABELS{"proto"} << "Current chunk transmition was skipped for " << counter << " client(s)";
+						LOG(WARNING) << LABELS{"proto"} << "A chunk was not delivered to " << counter << " client(s)";
 					}
-
-					LOG(DEBUG) << LABELS{"proto"} << "Delivered chunk all the clients (size=" << chunk.getSize() << ", clients=" << commandSessions.size() - counter << ")";
+					else
+					{
+						LOG(DEBUG) << LABELS{"proto"} << "A chunk was delivered (clients=" << commandSessions.size() - counter << ", size=" << chunk.getSize() << ")";
+					}
 				}
 
 				auto findCommandSession(std::string clientID)

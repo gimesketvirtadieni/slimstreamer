@@ -35,43 +35,57 @@ namespace slim
 				, bitsPerValue{bv}
 				, bufferedWriter{w}
 				{
-					auto ok{true};
+					// do not validate FLAC encoded stream if it produces the same result
+					if (!set_verify(false))
+					{
+						throw Exception("Could not disable FLAC stream verification");
+					}
 
-					// do not validate whether the stream is bit-perfect to the original PCM data
-					ok &= set_verify(false);
-					ok &= set_compression_level(8);
-					ok &= set_channels(channels);
-					ok &= set_sample_rate(sampleRate);
+					// setting maximum possible compression level
+					if (set_compression_level(8))
+					{
+						throw Exception("Could not set compression level");
+					}
+
+					// setting amount of channels
+					if (set_channels(channels))
+					{
+						throw Exception("Could not set amount of channels");
+					}
+
+					// setting sampling rate
+					if (set_sample_rate(sampleRate))
+					{
+						throw Exception("Could not set sampling rate");
+					}
 
 					// FLAC encoding support max 24 bits per value
-					if (bitsPerValue > 24)
+					auto b{bitsPerValue};
+					if (b > 24)
 					{
 						LOG(WARNING) << LABELS{"flac"} << "PCM data will be scaled to 24 bits values, which is max bit depth supported by FLAC";
 
+						b         = 24;
 						downScale = true;
-						ok &= set_bits_per_sample(24);
 					}
-					else
+
+					// setting sampling rate
+					if (set_bits_per_sample(b))
 					{
-						ok &= set_bits_per_sample(bitsPerValue);
+						throw Exception("Could not set bits per sample");
 					}
 
 					// choosing big enough number of expected samples for streaming purpose
-					ok &= set_total_samples_estimate(0xFFFFFFFF);
-
-					if (ok)
+					if (set_total_samples_estimate(0xFFFFFFFF))
 					{
-						auto init_status{init()};
-						if(init_status != FLAC__STREAM_ENCODER_INIT_STATUS_OK)
-						{
-							LOG(ERROR) << LABELS{"flac"} << FLAC__StreamEncoderInitStatusString[init_status];
-							ok = false;
-						}
+						throw Exception("Could not set estimated amount of samples");
 					}
 
-					if (!ok)
+					// initializing FLAC encoder
+					auto init_status{init()};
+					if (init_status != FLAC__STREAM_ENCODER_INIT_STATUS_OK)
 					{
-						LOG(ERROR) << LABELS{"flac"} << "Encoder initialization error";
+						throw Exception(FLAC__StreamEncoderInitStatusString[init_status]);
 					}
 				}
 
