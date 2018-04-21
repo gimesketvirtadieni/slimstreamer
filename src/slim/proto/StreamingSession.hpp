@@ -31,9 +31,10 @@ namespace slim
 		class StreamingSession
 		{
 			public:
-				StreamingSession(std::reference_wrapper<ConnectionType> co, unsigned int ch, unsigned int sr, unsigned int bs, unsigned int bv)
+				StreamingSession(std::reference_wrapper<ConnectionType> co, unsigned int ch, unsigned int sr, unsigned int bs, unsigned int bv, std::string id)
 				: connection{co}
 				, samplingRate{sr}
+				, clientID{id}
 				, encoder{ch, sr, bs, bv, std::ref<util::AsyncWriter>(connection), false}
 				{
 					LOG(DEBUG) << LABELS{"proto"} << "HTTP session object was created (id=" << this << ")";
@@ -102,17 +103,8 @@ namespace slim
 					{
 						throw slim::Exception("Wrong method provided");
 					}
-
-					clientID = parseClientID({(char*)buffer, size});
-					if (!clientID.has_value())
-					{
-						throw slim::Exception("Missing client ID in HTTP request");
-					}
-
-					LOG(INFO) << LABELS{"proto"} << "Client ID was parsed from HTTP request (clientID=" << clientID.value() << ")";
 				}
 
-			protected:
 				static auto parseClientID(std::string header)
 				{
 					auto result{std::optional<std::string>{std::nullopt}};
@@ -130,8 +122,8 @@ namespace slim
 			private:
 				std::reference_wrapper<ConnectionType> connection;
 				unsigned int                           samplingRate;
+				std::optional<std::string>             clientID;
 				EncoderType                            encoder;
-				std::optional<std::string>             clientID{std::nullopt};
 		};
 	}
 }

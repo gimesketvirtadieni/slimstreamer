@@ -42,7 +42,7 @@ namespace slim
 					}
 
 					// setting maximum possible compression level
-					if (!set_compression_level(8))
+					if (set_compression_level(8))
 					{
 						throw Exception("Could not set compression level");
 					}

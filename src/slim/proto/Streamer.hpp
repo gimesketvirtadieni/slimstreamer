@@ -187,12 +187,12 @@ namespace slim
 							auto commandSession{findCommandSession(clientID.value())};
 							if (commandSession.has_value())
 							{
-								// reseting HTTP session in its relevant SlimProto session
+								// resetting HTTP session in its relevant SlimProto session
 								commandSession.value()->setStreamingSession(nullptr);
 							}
 							else
 							{
-								LOG(WARNING) << LABELS{"proto"} << "Could not find SlimProto session object by client ID (clientID=" << clientID.value() << ")";
+								LOG(WARNING) << LABELS{"proto"} << "Could not find SlimProto session by client ID (clientID=" << clientID.value() << ")";
 							}
 						}
 					}
@@ -208,37 +208,38 @@ namespace slim
 					{
 						if (!applyToSession(streamingSessions, connection, [&](StreamingSessionType& session)
 						{
-							auto clientID{session.getClientID()};
-
 							// processing request by a proper Streaming session mapped to this connection
 							session.onRequest(buffer, receivedSize);
-
-							// if it is the first data request from a client
-							if (!clientID.has_value())
-							{
-								clientID = session.getClientID();
-								if (!clientID.has_value())
-								{
-									throw slim::Exception("Could not get client ID from HTTP session");
-								}
-
-								// saving Streaming session reference in the relevant Command session
-								auto commandSessionPtr{findCommandSession(clientID.value())};
-								if (!commandSessionPtr.has_value())
-								{
-									throw slim::Exception("Could not correlate provided client ID with a valid SlimProto session");
-								}
-
-								commandSessionPtr.value()->setStreamingSession(&session);
-							}
 						}))
 						{
-							throw slim::Exception("Could not find HTTP session object");
+							// parsing client ID
+							auto clientID = StreamingSessionType::parseClientID(std::string{(char*)buffer, receivedSize});
+							if (!clientID.has_value())
+							{
+								throw slim::Exception("Missing client ID in streaming session request");
+							}
+
+							LOG(INFO) << LABELS{"proto"} << "Client ID was parsed (clientID=" << clientID.value() << ")";
+
+							// creating streaming session object
+							auto streamingSessionPtr{std::make_unique<StreamingSessionType>(std::ref<ConnectionType>(connection), channels, samplingRate, bitsPerSample, bitsPerValue, clientID.value())};
+
+							// saving Streaming session reference in the relevant Command session
+							auto commandSessionPtr{findCommandSession(clientID.value())};
+							if (!commandSessionPtr.has_value())
+							{
+								throw slim::Exception("Could not correlate provided client ID with a valid SlimProto session");
+							}
+							// TODO: use std::reference_wrapper
+							commandSessionPtr.value()->setStreamingSession(streamingSessionPtr.get());
+
+							// saving Streaming session as a part of this Streamer
+							addSession(streamingSessions, connection, std::move(streamingSessionPtr));
 						}
 					}
 					catch (const slim::Exception& error)
 					{
-						LOG(ERROR) << LABELS{"proto"} << "Incorrect HTTP session request: " << error.what();
+						LOG(ERROR) << LABELS{"proto"} << "Error while processing streaming session request: " << error;
 						connection.stop();
 					}
 				}
@@ -246,19 +247,6 @@ namespace slim
 				void onHTTPOpen(ConnectionType& connection)
 				{
 					LOG(INFO) << LABELS{"proto"} << "New HTTP session request received (connection=" << &connection << ")";
-
-					// StreamingSession constructor may throw
-					try
-					{
-						// creating streaming session object
-						auto streamingSessionPtr{std::make_unique<StreamingSessionType>(std::ref<ConnectionType>(connection), channels, samplingRate, bitsPerSample, bitsPerValue)};
-						addSession(streamingSessions, connection, std::move(streamingSessionPtr));
-					}
-					catch (const slim::Exception& error)
-					{
-						// TODO: relevant CommandSession should be closed
-						LOG(ERROR) << "Error while creating StreamingSession: " << error;
-					}
 				}
 
 				void onSlimProtoClose(ConnectionType& connection)
