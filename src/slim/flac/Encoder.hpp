@@ -42,19 +42,19 @@ namespace slim
 					}
 
 					// setting maximum possible compression level
-					if (set_compression_level(8))
+					if (!set_compression_level(8))
 					{
 						throw Exception("Could not set compression level");
 					}
 
 					// setting amount of channels
-					if (set_channels(channels))
+					if (!set_channels(channels))
 					{
 						throw Exception("Could not set amount of channels");
 					}
 
 					// setting sampling rate
-					if (set_sample_rate(sampleRate))
+					if (!set_sample_rate(sampleRate))
 					{
 						throw Exception("Could not set sampling rate");
 					}
@@ -70,13 +70,13 @@ namespace slim
 					}
 
 					// setting sampling rate
-					if (set_bits_per_sample(b))
+					if (!set_bits_per_sample(b))
 					{
 						throw Exception("Could not set bits per sample");
 					}
 
 					// choosing big enough number of expected samples for streaming purpose
-					if (set_total_samples_estimate(0xFFFFFFFF))
+					if (!set_total_samples_estimate(0xFFFFFFFF))
 					{
 						throw Exception("Could not set estimated amount of samples");
 					}
