@@ -230,7 +230,6 @@ namespace slim
 							{
 								throw slim::Exception("Could not correlate provided client ID with a valid SlimProto session");
 							}
-							// TODO: use std::reference_wrapper
 							commandSessionPtr.value()->setStreamingSession(streamingSessionPtr.get());
 
 							// saving Streaming session as a part of this Streamer
