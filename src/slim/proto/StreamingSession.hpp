@@ -78,7 +78,6 @@ namespace slim
 				{
 					if (samplingRate == chunk.getSamplingRate())
 					{
-						// TODO: error handling
 						encoder.encode(chunk.getData(), chunk.getSize());
 					}
 					else
@@ -122,7 +121,7 @@ namespace slim
 			private:
 				std::reference_wrapper<ConnectionType> connection;
 				unsigned int                           samplingRate;
-				std::optional<std::string>             clientID;
+				std::string                            clientID;
 				EncoderType                            encoder;
 		};
 	}
