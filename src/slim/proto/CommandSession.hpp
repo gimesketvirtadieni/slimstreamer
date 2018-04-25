@@ -91,22 +91,20 @@ namespace slim
 
 				inline void onRequest(unsigned char* buffer, std::size_t size)
 				{
-					//LOG(DEBUG) << LABELS{"proto"} << "SlimProto onRequest size=" << size;
-
 					// adding data to the buffer
 					commandBuffer.append(buffer, size);
 
-					// removing processed data from the buffer in exception safe way
-					std::size_t         processedSize{commandBuffer.size()};
-					::util::scope_guard guard = [&]
-					{
-						// TODO: this is the only use of shrinkLeft, consider alternative
-						commandBuffer.shrinkLeft(processedSize);
-					};
-
+					std::size_t processedSize{commandBuffer.size()};
 					std::size_t keySize{4};
 					if (processedSize > keySize)
 					{
+						// removing processed data from the buffer in an exception safe way
+						::util::scope_guard guard = [&]
+						{
+							// TODO: this is the only use of shrinkLeft, consider alternative
+							commandBuffer.shrinkLeft(processedSize);
+						};
+
 						std::string s{(char*)commandBuffer.data(), keySize};
 						auto found{handlersMap.find(s)};
 
@@ -124,16 +122,8 @@ namespace slim
 						{
 							LOG(DEBUG) << LABELS{"proto"} << "Unsupported SlimProto command received (header='" << s << "')";
 
-							//for (unsigned int i = 0; i < size; i++)
-							//{
-							//	LOG(DEBUG) << (unsigned int)buffer[i] << " " << buffer[i];
-							//}
+							processedSize = commandBuffer.size();
 						}
-					}
-					else
-					{
-						// it will keep buffer unchanged
-						processedSize = 0;
 					}
 				}
 
