@@ -182,18 +182,15 @@ namespace slim
 					{
 						// if there is a relevant SlimProto connection found
 						auto clientID{streamingSessionPtr->getClientID()};
-						if (clientID.has_value())
+						auto commandSession{findCommandSession(clientID)};
+						if (commandSession.has_value())
 						{
-							auto commandSession{findCommandSession(clientID.value())};
-							if (commandSession.has_value())
-							{
-								// resetting HTTP session in its relevant SlimProto session
-								commandSession.value()->setStreamingSession(nullptr);
-							}
-							else
-							{
-								LOG(WARNING) << LABELS{"proto"} << "Could not find SlimProto session by client ID (clientID=" << clientID.value() << ")";
-							}
+							// resetting HTTP session in its relevant SlimProto session
+							commandSession.value()->setStreamingSession(nullptr);
+						}
+						else
+						{
+							LOG(WARNING) << LABELS{"proto"} << "Could not find SlimProto session by client ID (clientID=" << clientID << ")";
 						}
 					}
 					else
@@ -238,7 +235,7 @@ namespace slim
 					}
 					catch (const slim::Exception& error)
 					{
-						LOG(ERROR) << LABELS{"proto"} << "Error while processing streaming session request: " << error;
+						LOG(ERROR) << LABELS{"proto"} << "Error while streaming: " << error;
 						connection.stop();
 					}
 				}
