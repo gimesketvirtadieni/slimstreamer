@@ -56,22 +56,27 @@ namespace slim
 				Encoder(Encoder&&) = delete;                  // non-movable
 				Encoder& operator=(Encoder&&) = delete;       // non-assign-movable
 
-				auto encode(unsigned char* data, const std::size_t size)
+				void encode(unsigned char* data, const std::size_t size)
 				{
-					bufferedWriter.writeAsync(data, size, [&](auto error, auto written)
+					// do not feed encoder with more data if there is no room in transfer buffer
+					if (bufferedWriter.isBufferAvailable())
 					{
-						if (!error)
+						bufferedWriter.writeAsync(data, size, [&](auto error, auto written)
 						{
-							bytesWritten += size;
-						}
-						else
-						{
-							LOG(ERROR) << LABELS{"wave"} << "Error while encoded data transfer: " << error.message();
-						}
-					});
-
-					// TODO: required for FLAC encoder; get rid of
-					return size;
+							if (!error)
+							{
+								bytesWritten += size;
+							}
+							else
+							{
+								LOG(ERROR) << LABELS{"wave"} << "Error while transferring encoded data: " << error.message();
+							}
+						});
+					}
+					else
+					{
+						LOG(WARNING) << LABELS{"flac"} << "Transfer buffer is full - skipping PCM chunk";
+					}
 				}
 
 				auto getMIME()

@@ -42,7 +42,7 @@ namespace slim
 					}
 
 					// setting maximum possible compression level
-					if (set_compression_level(8))
+					if (!set_compression_level(8))
 					{
 						throw Exception("Could not set compression level");
 					}
@@ -57,6 +57,12 @@ namespace slim
 					if (!set_sample_rate(sampleRate))
 					{
 						throw Exception("Could not set sampling rate");
+					}
+
+					// FLAC encoding support max 24 bits per value
+					if (bitsPerSample != 32)
+					{
+						throw Exception("Format with 32 bits per sample is only supported");
 					}
 
 					// FLAC encoding support max 24 bits per value
@@ -102,63 +108,52 @@ namespace slim
 				Encoder(Encoder&&) = delete;                  // non-movable
 				Encoder& operator=(Encoder&&) = delete;       // non-assign-movable
 
-				auto encode(unsigned char* data, const std::size_t size)
+				void encode(unsigned char* data, const std::size_t size)
 				{
-					std::size_t encoded{0};
-
 					// do not feed encoder with more data if there is no room in transfer buffer
 					if (bufferedWriter.isBufferAvailable())
 					{
-						std::size_t bytesPerSample{bitsPerSample >> 3};
-						std::size_t samples{size / bytesPerSample};
-						std::size_t frames{samples / channels};
+						std::size_t sampleSize{bitsPerSample >> 3};
+						std::size_t frameSize{sampleSize * channels};
+						std::size_t frames{size / frameSize};
 
 						// if values contain more than 24 bits then downscaling to 24 bits, which is max supported by FLAC
 						if (downScale)
 						{
-							for (std::size_t i = 0; i < size; i += bytesPerSample)
+							for (std::size_t i = 0; i < size; i += sampleSize)
 							{
 								data[i] = 0;
 							}
 						}
 
-						// TODO: generialize based on parameters (bitsPerFrame and bitsPerValue)
 						// coverting data S32_LE to S24_LE by shifting data by 1 byte
 						if (frames > 1 && !process_interleaved((const FLAC__int32*)(data + 1), frames - 1))
 						{
-							LOG(ERROR) << LABELS{"flac"} << get_state().as_cstring();
+							LOG(ERROR) << LABELS{"flac"} << "Error while encoding: " << get_state().as_cstring();
 						}
 
-						// handling the last frame separately; requred due to data shift
+						// handling the last frame separately; shifting the last frame data by one byte
 						if (frames > 0)
 						{
-							unsigned char lastFrame[8] =
-							{
-								data[size - 7],
-								data[size - 6],
-								data[size - 5],
-								0,
-								data[size - 3],
-								data[size - 2],
-								data[size - 1],
-								0
-							};
+							unsigned char  frame[frameSize];
+							unsigned char* lastFrame{data + size - frameSize};
 
-							if (!process_interleaved((const FLAC__int32*)lastFrame, 1))
+							for (auto i{frameSize - 1}; i > 0; i--)
 							{
-								LOG(ERROR) << LABELS{"flac"} << get_state().as_cstring();
+								frame[i - 1] = lastFrame[i];
+							}
+							frame[frameSize - 1] = 0;
+
+							if (!process_interleaved((const FLAC__int32*)frame, 1))
+							{
+								LOG(ERROR) << LABELS{"flac"} << "Error while encoding: " << get_state().as_cstring();
 							}
 						}
-
-						// notifing the caller about amount of data processed
-						encoded = size;
 					}
 					else
 					{
 						LOG(WARNING) << LABELS{"flac"} << "Transfer buffer is full - skipping PCM chunk";
 					}
-
-					return encoded;
 				}
 
 				auto getMIME()
@@ -173,7 +168,7 @@ namespace slim
 					{
 						if (error)
 						{
-							LOG(ERROR) << LABELS{"flac"} << "Error while encoded data transfer: " << error.message();
+							LOG(ERROR) << LABELS{"flac"} << "Error while transferring encoded data: " << error.message();
 						}
 					});
 
