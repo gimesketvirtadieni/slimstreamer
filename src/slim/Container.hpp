@@ -13,6 +13,7 @@
 #pragma once
 
 #include <conwrap/ProcessorAsioProxy.hpp>
+#include <functional>
 #include <memory>
 
 #include "slim/ContainerBase.hpp"
@@ -48,11 +49,11 @@ namespace slim
 				streamerPtr->setProcessorProxy(p);
 			}
 
-			virtual void start() override
+			virtual void start(std::function<void()> overflowCallback = [] {}) override
 			{
 				commandServerPtr->start();
 				streamingServerPtr->start();
-				schedulerPtr->start();
+				schedulerPtr->start(std::move(overflowCallback));
 			}
 
 			virtual void stop() override

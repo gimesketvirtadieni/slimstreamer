@@ -18,10 +18,8 @@ namespace slim
 	class ContainerBase
 	{
 		public:
-			ContainerBase()
-			: processorProxyPtr{nullptr} {}
-
 			// using Rule Of Zero
+			ContainerBase() = default;
 			virtual ~ContainerBase() = default;
 			ContainerBase(const ContainerBase&) = delete;             // non-copyable
 			ContainerBase& operator=(const ContainerBase&) = delete;  // non-assignable
@@ -33,10 +31,10 @@ namespace slim
 				processorProxyPtr = p;
 			}
 
-			virtual void start() = 0;
+			virtual void start(std::function<void()> overflowCallback = [] {}) = 0;
 			virtual void stop() = 0;
 
 		private:
-			conwrap::ProcessorAsioProxy<ContainerBase>* processorProxyPtr;
+			conwrap::ProcessorAsioProxy<ContainerBase>* processorProxyPtr{nullptr};
 	};
 }

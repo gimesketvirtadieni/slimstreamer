@@ -39,6 +39,12 @@ namespace slim
 			Pipeline(Pipeline&& rhs) = default;
 			Pipeline& operator=(Pipeline&& rhs) = default;
 
+			inline auto& getProducer()
+			{
+				return producer.get();
+			}
+
+			// TODO: more to Source class
 			inline auto isAvailable()
 			{
 				bool result;
@@ -54,11 +60,6 @@ namespace slim
 				}
 
 				return result;
-			}
-
-			inline auto isProducing()
-			{
-				return producer.get().isProducing();
 			}
 
 			inline void pause(unsigned int millisec)
@@ -79,19 +80,6 @@ namespace slim
 
 				// returning TRUE if pipeline deferes processing
 				return !processed;
-			}
-
-			inline void start()
-			{
-				producer.get().start([]
-				{
-					LOG(ERROR) << LABELS{"slim"} << "Buffer overflow error: a chunk was skipped";
-				});
-			}
-
-			inline void stop(bool gracefully = true)
-			{
-				producer.get().stop(gracefully);
 			}
 
 		private:

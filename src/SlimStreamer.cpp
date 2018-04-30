@@ -275,13 +275,16 @@ int main(int argc, const char *argv[])
 
 			// start streaming
 			LOG(INFO) << "Starting SlimStreamer...";
-			auto startStatus = processorAsio.process([](auto context) -> bool
+			if (processorAsio.process([](auto context) -> bool
 			{
 				auto started{false};
 
 				try
 				{
-					context.getResource()->start();
+					context.getResource()->start([]
+					{
+						LOG(ERROR) << LABELS{"slim"} << "Buffer overflow error: a chunk was skipped";
+					});
 					started = true;
 				}
 				catch (const std::exception& error)
@@ -294,8 +297,7 @@ int main(int argc, const char *argv[])
 				}
 
 				return started;
-			});
-			if (startStatus.get())
+			}).get())
 			{
 				LOG(INFO) << "SlimStreamer was started";
 

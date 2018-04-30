@@ -206,18 +206,29 @@ namespace slim
 			unsigned int  bytesPerFrame = parameters.getChannels() * (parameters.getBitsPerSample() >> 3);
 			unsigned char srcBuffer[maxFrames * bytesPerFrame];
 
-			// start receiving data from ALSA
-			auto result = snd_pcm_start(handlePtr);
-			if (result < 0)
 			{
-				throw Exception(formatError("Cannot start using audio device", result));
+				std::lock_guard<std::mutex> lockGuard{lock};
+
+				if (producing)
+				{
+					throw Exception(formatError("Audio device was already started"));
+				}
+
+				// start receiving data from ALSA
+				auto result = snd_pcm_start(handlePtr);
+				if (result < 0)
+				{
+					throw Exception(formatError("Cannot start using audio device", result));
+				}
+				producing = true;
 			}
 
+
 			// everything inside this loop (except overflowCallback) must be real-time safe: no memory allocation, no logging, etc.
-			for (producing.store(true, std::memory_order_release); producing.load(std::memory_order_acquire);)
+			for (snd_pcm_sframes_t frames{0}; frames >= 0;)
 			{
 				// this call will block until buffer is filled or PCM stream state is changed
-				snd_pcm_sframes_t frames = snd_pcm_readi(handlePtr, srcBuffer, maxFrames);
+				snd_pcm_readi(handlePtr, srcBuffer, maxFrames);
 
 				if (frames > 0)
 				{
@@ -242,37 +253,48 @@ namespace slim
 						});
 					}
 				}
-				else if (frames < 0 && !restore(frames))
+				else if (frames < 0 && restore(frames))
 				{
-					// signaling this loop to exit gracefully
-					producing.store(false, std::memory_order_release);
-
-					// if error code is unexpected then breaking this loop (-EBADFD is returned when stopProducing method was called)
-					if (frames != -EBADFD)
-					{
-						throw Exception(formatError("Unexpected error while reading PCM data", frames));
-					}
+					// error was recovered so keep processing
+					frames = 0;
 				}
+			}
+
+			// if error code is unexpected then breaking this loop (-EBADFD is returned when stop method is called)
+			if (frames != -EBADFD)
+			{
+				LOG(ERROR) << LABELS{"alsa"} << formatError("Unexpected error while reading PCM data", frames);
+			}
+
+			// changing state to 'not producing'
+			{
+				std::lock_guard<std::mutex> lockGuard{lock};
+				producing = false;
 			}
 		}
 
 
 		void Source::stop(bool gracefully)
 		{
-			int result;
+			std::lock_guard<std::mutex> lockGuard{lock};
+			if (!producing)
+			{
+				throw Exception(formatError("Audio device is not started"));
+			}
 
+			int result;
 			if (gracefully)
 			{
 				if ((result = snd_pcm_drain(handlePtr)) < 0)
 				{
-					throw Exception(formatError("Error while stopping PCM stream gracefully", result));
+					LOG(ERROR) << LABELS{"alsa"} << formatError("Error while stopping PCM stream gracefully", result);
 				}
 			}
 			else
 			{
 				if ((result = snd_pcm_drop(handlePtr)) < 0)
 				{
-					throw Exception(formatError("Error while stopping PCM stream unconditionally", result));
+					LOG(ERROR) << LABELS{"alsa"} << formatError("Error while stopping PCM stream unconditionally", result);
 				}
 			}
 		}

@@ -38,22 +38,30 @@ namespace slim
 		template<typename ConnectionType, typename EncoderType>
 		class CommandSession
 		{
-			using HandlersMap          = std::unordered_map<std::string, std::function<std::size_t(unsigned char*, std::size_t)>>;
+			using CommandHandlersMap   = std::unordered_map<std::string, std::function<std::size_t(unsigned char*, std::size_t)>>;
+			using EventHandlersMap     = std::unordered_map<std::string, std::function<void()>>;
 			using TimePoint            = std::chrono::time_point<std::chrono::steady_clock>;
 			using StreamingSessionType = StreamingSession<ConnectionType, EncoderType>;
 
 			public:
-				CommandSession(std::reference_wrapper<ConnectionType> co, std::string id, std::optional<unsigned int> g = {std::nullopt})
+				CommandSession(std::reference_wrapper<ConnectionType> co, std::string id, std::optional<unsigned int> g)
 				: connection{co}
 				, clientID{id}
 				, gain{g}
-				, handlersMap
+				, commandHandlers
 				{
-					{"DSCO", [&](auto* buffer, auto size) {return onDSCO(buffer, size);}},
+					{"DSCO", 0},
 					{"HELO", [&](auto* buffer, auto size) {return onHELO(buffer, size);}},
-					{"RESP", [&](auto* buffer, auto size) {return onRESP(buffer, size);}},
-					{"SETD", [&](auto* buffer, auto size) {return onSETD(buffer, size);}},
+					{"RESP", 0},
+					{"SETD", 0},
 					{"STAT", [&](auto* buffer, auto size) {return onSTAT(buffer, size);}},
+				}
+				, eventHandlers
+				{
+					{"STMc", [&] {onSTMc();}},
+					{"STMf", 0},
+					{"STMo", 0},
+					{"STMt", 0},
 				}
 				{
 					LOG(DEBUG) << LABELS{"proto"} << "SlimProto session object was created (id=" << this << ")";
@@ -106,9 +114,8 @@ namespace slim
 						};
 
 						std::string s{(char*)commandBuffer.data(), keySize};
-						auto found{handlersMap.find(s)};
-
-						if (found != handlersMap.end())
+						auto found{commandHandlers.find(s)};
+						if (found != commandHandlers.end())
 						{
 							// making sure session HELO is the first command provided by a client
 							if (!commandHELO.has_value() && (*found).first.compare("HELO"))
@@ -116,7 +123,22 @@ namespace slim
 								throw slim::Exception("Did not receive HELO command");
 							}
 
-							processedSize = (*found).second(commandBuffer.data(), commandBuffer.size());
+							// if there is enough data to process this message
+							auto b{commandBuffer.data()};
+							auto s{commandBuffer.size()};
+							if (Command<char>::isEnoughData(b, s))
+							{
+								if ((*found).second)
+								{
+									processedSize = (*found).second(b, s);
+								}
+								else
+								{
+									// this is a dummy command processing routine
+									LOG(INFO) << LABELS{"proto"} << (*found).first << " command received";
+									processedSize = s;
+								}
+							}
 						}
 						else
 						{
@@ -165,19 +187,15 @@ namespace slim
 
 				inline void setStreamingSession(StreamingSessionType* s)
 				{
-					if (s)
+					streamingSessionPtr = s;
+					if (!s)
 					{
-						streamingSessionPtr = s;
-					}
-					else
-					{
-						streamingSessionPtr = nullptr;
-						connectedReceived   = false;
-						responseReceived    = false;
+						connectedReceived = false;
+						responseReceived  = false;
 					}
 				}
 
-				void stream(unsigned int p, unsigned int r)
+				inline void stream(unsigned int p, unsigned int r)
 				{
 					// TODO: it's never set back to false
 					streaming     = true;
@@ -192,78 +210,25 @@ namespace slim
 				}
 
 			protected:
-				inline auto onDSCO(unsigned char* buffer, std::size_t size)
-				{
-					std::size_t result{0};
-
-					// if there is enough data to process this message
-					if (Command<char>::isEnoughData(buffer, size))
-					{
-						LOG(DEBUG) << LABELS{"proto"} << "DSCO command received";
-
-						// TODO: processing is missing
-						result = size;
-					}
-
-					return result;
-				}
-
 				inline auto onHELO(unsigned char* buffer, std::size_t size)
 				{
 					std::size_t result{0};
 
-					// if there is enough data to process this message
-					if (Command<char>::isEnoughData(buffer, size))
+					LOG(INFO) << LABELS{"proto"} << "HELO command received";
+
+					// deserializing HELO command
+					commandHELO = CommandHELO{buffer, size};
+					result      = commandHELO.value().getSize();
+
+					send(CommandSTRM{CommandSelection::Stop});
+					send(CommandSETD{DeviceID::RequestName});
+					send(CommandSETD{DeviceID::Squeezebox3});
+					send(CommandAUDE{true, true});
+					send(CommandAUDG{gain});
+
+					if (streaming)
 					{
-						LOG(INFO) << LABELS{"proto"} << "HELO command received";
-
-						// deserializing HELO command
-						commandHELO = CommandHELO{buffer, size};
-						result      = commandHELO.value().getSize();
-
-						send(CommandSTRM{CommandSelection::Stop});
-						send(CommandSETD{DeviceID::RequestName});
-						send(CommandSETD{DeviceID::Squeezebox3});
-						send(CommandAUDE{true, true});
-						send(CommandAUDG{gain});
-
-						if (streaming)
-						{
-							send(CommandSTRM{CommandSelection::Start, streamingPort, samplingRate, clientID});
-						}
-					}
-
-					return result;
-				}
-
-				inline auto onRESP(unsigned char* buffer, std::size_t size)
-				{
-					std::size_t result{0};
-
-					// if there is enough data to process this message
-					if (Command<char>::isEnoughData(buffer, size))
-					{
-						LOG(DEBUG) << LABELS{"proto"} << "RESP command received";
-
-						// TODO: processing is missing
-						result           = size;
-						responseReceived = true;
-					}
-
-					return result;
-				}
-
-				inline auto onSETD(unsigned char* buffer, std::size_t size)
-				{
-					std::size_t result{0};
-
-					// if there is enough data to process this message
-					if (Command<char>::isEnoughData(buffer, size))
-					{
-						LOG(DEBUG) << LABELS{"proto"} << "SETD command received";
-
-						// TODO: processing is missing
-						result = size;
+						send(CommandSTRM{CommandSelection::Start, streamingPort, samplingRate, clientID});
 					}
 
 					return result;
@@ -273,27 +238,31 @@ namespace slim
 				{
 					std::size_t result{0};
 
-					// if there is enough data to process this message
-					if (Command<char>::isEnoughData(buffer, size))
-					{
-						// deserializing STAT command
-						auto commandSTAT{CommandSTAT{buffer, size}};
-						result = commandSTAT.getSize();
+					// deserializing STAT command
+					auto commandSTAT{CommandSTAT{buffer, size}};
+					result = commandSTAT.getSize();
 
-						// TODO: handle other STAT events
-						auto event{commandSTAT.getEvent()};
-						if (!event.compare("STMc"))
+					auto event{commandSTAT.getEvent()};
+					auto found{eventHandlers.find(event)};
+					if (found != eventHandlers.end())
+					{
+						LOG(DEBUG) << LABELS{"proto"} << event << " event received";
+						if ((*found).second)
 						{
-							LOG(DEBUG) << LABELS{"proto"} << "STMc command received";
-							connectedReceived = true;
+							(*found).second();
 						}
-						else
-						{
-							LOG(DEBUG) << LABELS{"proto"} << event << " command received";
-						}
+					}
+					else
+					{
+						LOG(DEBUG) << LABELS{"proto"} << "Unsupported STAT event received: " << event;
 					}
 
 					return result;
+				}
+
+				inline void onSTMc()
+				{
+					connectedReceived = true;
 				}
 
 				template<typename CommandType>
@@ -306,7 +275,8 @@ namespace slim
 				std::reference_wrapper<ConnectionType> connection;
 				std::string                            clientID;
 				std::optional<unsigned int>            gain;
-				HandlersMap                            handlersMap;
+				CommandHandlersMap                     commandHandlers;
+				EventHandlersMap                       eventHandlers;
 				bool                                   streaming{false};
 				unsigned int                           streamingPort{0};
 				unsigned int                           samplingRate{0};

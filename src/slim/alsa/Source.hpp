@@ -17,6 +17,7 @@
 #include <conwrap/ProcessorAsio.hpp>
 #include <functional>
 #include <memory>
+#include <mutex>
 
 #include "slim/alsa/Parameters.hpp"
 #include "slim/Chunk.hpp"
@@ -59,8 +60,8 @@ namespace slim
 
 				virtual ~Source()
 				{
-					// TODO: it is not safe; a synchronisation with start must be introduced
-					if (producing.load(std::memory_order_acquire))
+					// no need to use compare_exchange_strong as destructor can be called only once
+					if (producing)
 					{
 						stop();
 					}
@@ -84,7 +85,7 @@ namespace slim
 
 				virtual bool isProducing() override
 				{
-					return producing.load(std::memory_order_acquire);
+					return producing;
 				}
 
 				virtual bool produce(std::reference_wrapper<Consumer> consumer) override
@@ -109,9 +110,9 @@ namespace slim
 				snd_pcm_sframes_t containsData(unsigned char* buffer, snd_pcm_sframes_t frames);
 				snd_pcm_sframes_t copyData(unsigned char* srcBuffer, unsigned char* dstBuffer, snd_pcm_sframes_t frames);
 
-				inline auto formatError(std::string message, int error)
+				inline auto formatError(std::string message, int error = 0)
 				{
-					return message + ": name='" + parameters.getDeviceName() + "' error='" + snd_strerror(error) + "'";
+					return message + ": name='" + parameters.getDeviceName() + (error != 0 ? std::string{"' error='"} + snd_strerror(error) + "'" : "");
 				}
 
 				void open();
@@ -120,7 +121,8 @@ namespace slim
 			private:
 				Parameters        parameters;
 				snd_pcm_t*        handlePtr;
-				std::atomic<bool> producing;
+				std::mutex        lock;
+				volatile bool     producing;
 				std::atomic<bool> available;
 				bool              streaming;
 				std::unique_ptr<util::RealTimeQueue<util::ExpandableBuffer>> queuePtr;

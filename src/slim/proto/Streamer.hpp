@@ -182,7 +182,7 @@ namespace slim
 					{
 						// if there is a relevant SlimProto connection found
 						auto clientID{streamingSessionPtr->getClientID()};
-						auto commandSession{findCommandSession(clientID)};
+						auto commandSession{findSessionByID(commandSessions, clientID)};
 						if (commandSession.has_value())
 						{
 							// resetting HTTP session in its relevant SlimProto session
@@ -222,7 +222,7 @@ namespace slim
 							auto streamingSessionPtr{std::make_unique<StreamingSessionType>(std::ref<ConnectionType>(connection), channels, samplingRate, bitsPerSample, bitsPerValue, clientID.value())};
 
 							// saving Streaming session reference in the relevant Command session
-							auto commandSessionPtr{findCommandSession(clientID.value())};
+							auto commandSessionPtr{findSessionByID(commandSessions, clientID.value())};
 							if (!commandSessionPtr.has_value())
 							{
 								throw slim::Exception("Could not correlate provided client ID with a valid SlimProto session");
@@ -236,6 +236,16 @@ namespace slim
 					catch (const slim::Exception& error)
 					{
 						LOG(ERROR) << LABELS{"proto"} << "Error while streaming: " << error;
+
+						// TODO: work in progress
+						//applyToSession(commandSessions, connection, [&](CommandSessionType& commandSession)
+						//{
+						//	auto streamingSessionPtr{findSessionByID(streamingSessions, commandSession.getClientID())};
+						//	if (streamingSessionPtr.value())
+						//	{
+						//	}
+						//});
+
 						connection.stop();
 					}
 				}
@@ -355,10 +365,11 @@ namespace slim
 					}
 				}
 
-				auto findCommandSession(std::string clientID)
+				template<typename SessionType>
+				auto findSessionByID(SessionsMap<SessionType>& sessions,  std::string clientID)
 				{
-					auto result{std::optional<CommandSessionType*>{std::nullopt}};
-					auto found{std::find_if(commandSessions.begin(), commandSessions.end(), [&](auto& entry) -> bool
+					auto result{std::optional<SessionType*>{std::nullopt}};
+					auto found{std::find_if(sessions.begin(), sessions.end(), [&](auto& entry) -> bool
 					{
 						auto found{false};
 
@@ -370,9 +381,9 @@ namespace slim
 						return found;
 					})};
 
-					if (found != commandSessions.end())
+					if (found != sessions.end())
 					{
-						result.emplace((*found).second.get());
+						result = (*found).second.get();
 					}
 
 					return result;

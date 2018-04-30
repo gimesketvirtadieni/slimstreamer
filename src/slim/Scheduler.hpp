@@ -13,11 +13,13 @@
 #pragma once
 
 #include <conwrap/ProcessorProxy.hpp>
+#include <functional>
 #include <memory>
 #include <thread>
 #include <vector>
 
 #include "slim/ContainerBase.hpp"
+#include "slim/log/log.hpp"
 #include "slim/Pipeline.hpp"
 
 
@@ -48,11 +50,11 @@ namespace slim
 				processorProxyPtr = p;
 			}
 
-			void start()
+			void start(std::function<void()> overflowCallback = [] {})
 			{
 				for (auto& pipeline : pipelines)
 				{
-					// starting producer thread
+					// starting PCM data producer thread for Real-Time processing
 					std::thread producerThread
 					{
 						[&]
@@ -61,11 +63,11 @@ namespace slim
 
 							try
 							{
-								pipeline.start();
+								pipeline.getProducer().start(std::move(overflowCallback));
 							}
 							catch (const slim::Exception& error)
 							{
-								LOG(ERROR) << LABELS{"slim"} << "Error while starting a pipeline: " << error;
+								LOG(ERROR) << LABELS{"slim"} << "Error in producer thread: " << error;
 							}
 
 							LOG(DEBUG) << LABELS{"slim"} << "PCM data capture thread was stopped (id=" << std::this_thread::get_id() << ")";
@@ -73,7 +75,7 @@ namespace slim
 					};
 
 					// making sure it is up and running before creating a consumer
-					while(producerThread.joinable() && !pipeline.isProducing())
+					while (producerThread.joinable() && !pipeline.getProducer().isProducing())
 					{
 						std::this_thread::sleep_for(std::chrono::milliseconds{10});
 					}
@@ -99,7 +101,7 @@ namespace slim
 
 							for (auto& pipeline : pipelines)
 							{
-								auto p{pipeline.isProducing()};
+								auto p{pipeline.getProducer().isProducing()};
 								auto a{pipeline.isAvailable()};
 
 								// if there is PCM available then submitting a task to the processor
@@ -150,7 +152,7 @@ namespace slim
 				{
 					try
 					{
-						pipeline.stop(gracefully);
+						pipeline.getProducer().stop(gracefully);
 					}
 					catch (const slim::Exception& error)
 					{
