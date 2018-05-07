@@ -75,7 +75,7 @@ namespace slim
 					};
 
 					// making sure it is up and running before creating a consumer
-					while (producerThread.joinable() && !pipeline.getProducer().isProducing())
+					while (producerThread.joinable() && !pipeline.getProducer().isRunning())
 					{
 						std::this_thread::sleep_for(std::chrono::milliseconds{10});
 					}
@@ -94,18 +94,18 @@ namespace slim
 						// signalling sheduler when consumer is fully ready
 						consumerStarted = true;
 
-						for(auto producing{true}, available{true}; producing;)
+						for(auto running{true}, available{true}; running;)
 						{
-							producing = false;
+							running   = false;
 							available = false;
 
 							for (auto& pipeline : pipelines)
 							{
-								auto p{pipeline.getProducer().isProducing()};
+								auto r{pipeline.getProducer().isRunning()};
 								auto a{pipeline.isAvailable()};
 
 								// if there is PCM available then submitting a task to the processor
-								if (p && a)
+								if (r && a)
 								{
 									processorProxyPtr->process([&]
 									{
@@ -119,7 +119,7 @@ namespace slim
 								}
 
 								// using pipeline status to determine whether to sleep or to exit
-								producing |= p;
+								running   |= r;
 								available |= a;
 							}
 

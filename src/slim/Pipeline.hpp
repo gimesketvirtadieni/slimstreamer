@@ -44,7 +44,7 @@ namespace slim
 				return producer.get();
 			}
 
-			// TODO: more to Source class
+			// TODO: move to Source class
 			inline auto isAvailable()
 			{
 				bool result;

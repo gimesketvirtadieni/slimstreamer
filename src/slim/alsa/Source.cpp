@@ -150,8 +150,6 @@ namespace slim
 			{
 				throw Exception(formatError("Cannot set period size", result));
 			}
-
-			// TODO: parametrize
 			else if ((result = snd_pcm_hw_params_set_periods(handlePtr, hardwarePtr, parameters.getPeriods(), 0)) < 0)
 			{
 				throw Exception(formatError("Cannot set periods count", result));
@@ -173,7 +171,7 @@ namespace slim
 				throw Exception(formatError("Cannot set minimum available count", result));
 			}
 
-			// start threshold is irrelevant for capturing PCM so just setting to 1
+			// start threshold is irrelevant for capturing PCM so setting it to 1
 			else if ((result = snd_pcm_sw_params_set_start_threshold(handlePtr, softwarePtr, 1U)) < 0)
 			{
 				throw Exception(formatError("Cannot set start threshold", result));
@@ -181,6 +179,12 @@ namespace slim
 			else if ((result = snd_pcm_sw_params(handlePtr, softwarePtr)) < 0)
 			{
 				throw Exception(formatError("Cannot set software parameters", result));
+			}
+
+			// start receiving data from ALSA
+			else if ((result = snd_pcm_start(handlePtr)) < 0)
+			{
+				throw Exception(formatError("Cannot start using audio device", result));
 			}
 		}
 
@@ -206,45 +210,41 @@ namespace slim
 			unsigned int  bytesPerFrame = parameters.getChannels() * (parameters.getBitsPerSample() >> 3);
 			unsigned char srcBuffer[maxFrames * bytesPerFrame];
 
+			// making sure 'running' state is not changed
 			{
 				std::lock_guard<std::mutex> lockGuard{lock};
-
-				if (producing)
+				if (running)
 				{
 					throw Exception(formatError("Audio device was already started"));
 				}
 
-				// start receiving data from ALSA
-				auto result = snd_pcm_start(handlePtr);
-				if (result < 0)
-				{
-					throw Exception(formatError("Cannot start using audio device", result));
-				}
-				producing = true;
+				// open ALSA device
+				open();
+				running = true;
 			}
 
-
 			// everything inside this loop (except overflowCallback) must be real-time safe: no memory allocation, no logging, etc.
-			for (snd_pcm_sframes_t frames{0}; frames >= 0;)
+			snd_pcm_sframes_t result{0};
+			while (result >= 0)
 			{
 				// this call will block until buffer is filled or PCM stream state is changed
-				snd_pcm_readi(handlePtr, srcBuffer, maxFrames);
+				result = snd_pcm_readi(handlePtr, srcBuffer, maxFrames);
 
-				if (frames > 0)
+				if (result > 0)
 				{
-					auto offset = containsData(srcBuffer, frames);
+					auto offset = containsData(srcBuffer, result);
 					if (offset >= 0)
 					{
-						// reading PCM data directly into the queue
+						// enqueue received PCM data so that not Real-Time safe code can process it
 						queuePtr->enqueue([&](util::ExpandableBuffer& buffer)
 						{
-							// setting new chunk size in bytes
-							buffer.size(copyData(srcBuffer + offset * bytesPerFrame, buffer.data(), frames - offset) * (parameters.getChannels() - 1) * (parameters.getBitsPerSample() >> 3));
+							// copying data and setting new chunk size in bytes
+							buffer.size(copyData(srcBuffer + offset * bytesPerFrame, buffer.data(), result - offset) * (parameters.getChannels() - 1) * (parameters.getBitsPerSample() >> 3));
 
 							// available is used to provide optimization for a scheduler submitting tasks to a processor
 							available.store(true, std::memory_order_release);
 
-							// adding chunk to a queue always succeeds as data is available
+							// always true as source buffer contains data
 							return true;
 						}, [&]
 						{
@@ -253,49 +253,59 @@ namespace slim
 						});
 					}
 				}
-				else if (frames < 0 && restore(frames))
+				else if (result < 0 && restore(result))
 				{
 					// error was recovered so keep processing
-					frames = 0;
+					result = 0;
 				}
 			}
 
 			// if error code is unexpected then breaking this loop (-EBADFD is returned when stop method is called)
-			if (frames != -EBADFD)
+			if (result != -EBADFD)
 			{
-				LOG(ERROR) << LABELS{"alsa"} << formatError("Unexpected error while reading PCM data", frames);
+				LOG(ERROR) << LABELS{"alsa"} << formatError("Unexpected error while reading PCM data", result);
 			}
 
-			// changing state to 'not producing'
+			// changing state to 'not started'
 			{
 				std::lock_guard<std::mutex> lockGuard{lock};
-				producing = false;
+
+				// closing ALSA device
+				close();
+				running = false;
 			}
 		}
 
 
 		void Source::stop(bool gracefully)
 		{
-			std::lock_guard<std::mutex> lockGuard{lock};
-			if (!producing)
+			// issuing a request to stop receiving PCM data
 			{
-				throw Exception(formatError("Audio device is not started"));
+				std::lock_guard<std::mutex> lockGuard{lock};
+				if (running)
+				{
+					int result;
+					if (gracefully)
+					{
+						if ((result = snd_pcm_drain(handlePtr)) < 0)
+						{
+							LOG(ERROR) << LABELS{"alsa"} << formatError("Error while stopping PCM stream gracefully", result);
+						}
+					}
+					else
+					{
+						if ((result = snd_pcm_drop(handlePtr)) < 0)
+						{
+							LOG(ERROR) << LABELS{"alsa"} << formatError("Error while stopping PCM stream unconditionally", result);
+						}
+					}
+				}
 			}
 
-			int result;
-			if (gracefully)
+			// waiting for this ALSA device to stop receiving PCM data
+			while (isRunning())
 			{
-				if ((result = snd_pcm_drain(handlePtr)) < 0)
-				{
-					LOG(ERROR) << LABELS{"alsa"} << formatError("Error while stopping PCM stream gracefully", result);
-				}
-			}
-			else
-			{
-				if ((result = snd_pcm_drop(handlePtr)) < 0)
-				{
-					LOG(ERROR) << LABELS{"alsa"} << formatError("Error while stopping PCM stream unconditionally", result);
-				}
+				std::this_thread::sleep_for(std::chrono::milliseconds{10});
 			}
 		}
 	}

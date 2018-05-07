@@ -45,27 +45,16 @@ namespace slim
 			public:
 				Source(Parameters p)
 				: parameters{p}
-				, handlePtr{nullptr}
-				, producing{false}
-				, available{false}
-				, streaming{true}
 				, queuePtr{std::make_unique<util::RealTimeQueue<util::ExpandableBuffer>>(parameters.getQueueSize(), [&](util::ExpandableBuffer& buffer)
 				{
 					// last channel does not contain PCM data so it will be filtered out
 					buffer.capacity(p.getFramesPerChunk() * (p.getChannels() - 1) * (p.getBitsPerSample() >> 3));
-				})}
-				{
-					open();
-				}
+				})} {}
 
 				virtual ~Source()
 				{
-					// no need to use compare_exchange_strong as destructor can be called only once
-					if (producing)
-					{
-						stop();
-					}
-					close();
+					// it is safe to call stop method multiple times
+					stop();
 				}
 
 				Source(const Source&) = delete;             // non-copyable
@@ -83,9 +72,9 @@ namespace slim
 					return available.load(std::memory_order_acquire);
 				}
 
-				virtual bool isProducing() override
+				virtual bool isRunning() override
 				{
-					return producing;
+					return running;
 				}
 
 				virtual bool produce(std::reference_wrapper<Consumer> consumer) override
@@ -120,11 +109,11 @@ namespace slim
 
 			private:
 				Parameters        parameters;
-				snd_pcm_t*        handlePtr;
+				snd_pcm_t*        handlePtr{nullptr};
 				std::mutex        lock;
-				volatile bool     producing;
-				std::atomic<bool> available;
-				bool              streaming;
+				volatile bool     running{false};
+				std::atomic<bool> available{false};
+				bool              streaming{true};
 				std::unique_ptr<util::RealTimeQueue<util::ExpandableBuffer>> queuePtr;
 		};
 	}

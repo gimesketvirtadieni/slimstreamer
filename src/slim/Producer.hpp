@@ -24,7 +24,7 @@ namespace slim
 		public:
 			virtual     ~Producer() = default;
 			virtual bool isAvailable() = 0;
-			virtual bool isProducing() = 0;
+			virtual bool isRunning() = 0;
 			virtual bool produce(std::reference_wrapper<Consumer>) = 0;
 			virtual void start(std::function<void()> = [] {}) = 0;
 			virtual void stop(bool gracefully = true) = 0;
