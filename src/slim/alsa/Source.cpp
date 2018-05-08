@@ -36,7 +36,7 @@ namespace slim
 		snd_pcm_sframes_t Source::containsData(unsigned char* buffer, snd_pcm_sframes_t frames)
 		{
 			auto offset{-1};
-			auto bytesPerFrame{parameters.getChannels() * (parameters.getBitsPerSample() >> 3)};
+			auto bytesPerFrame{parameters.getTotalChannels() * (parameters.getBitsPerSample() >> 3)};
 
 			for (snd_pcm_sframes_t i = 0; i < frames && offset < 0; i++)
 			{
@@ -62,7 +62,7 @@ namespace slim
 
 		snd_pcm_sframes_t Source::copyData(unsigned char* srcBuffer, unsigned char* dstBuffer, snd_pcm_sframes_t frames)
 		{
-			auto bytesPerFrame{parameters.getChannels() * (parameters.getBitsPerSample() >> 3)};
+			auto bytesPerFrame{parameters.getTotalChannels() * (parameters.getBitsPerSample() >> 3)};
 			auto framesCopied{snd_pcm_sframes_t{0}};
 
 			for (snd_pcm_sframes_t i = 0; i < frames; i++)
@@ -85,7 +85,7 @@ namespace slim
 					}
 
 					// adjusting destination buffer pointer
-					dstBuffer += (parameters.getChannels() - 1) * (parameters.getBitsPerSample() >> 3);
+					dstBuffer += parameters.getLogicalChannels() * (parameters.getBitsPerSample() >> 3);
 
 					// increasing destination frames counter
 					framesCopied++;
@@ -142,7 +142,7 @@ namespace slim
 			{
 				throw Exception(formatError("Cannot set sample rate", result));
 			}
-			else if ((result = snd_pcm_hw_params_set_channels(handlePtr, hardwarePtr, parameters.getChannels())) < 0)
+			else if ((result = snd_pcm_hw_params_set_channels(handlePtr, hardwarePtr, parameters.getTotalChannels())) < 0)
 			{
 				throw Exception(formatError("Cannot set channel count", result));
 			}
@@ -207,7 +207,7 @@ namespace slim
 		void Source::start(std::function<void()> overflowCallback)
 		{
 			auto          maxFrames     = parameters.getFramesPerChunk();
-			unsigned int  bytesPerFrame = parameters.getChannels() * (parameters.getBitsPerSample() >> 3);
+			unsigned int  bytesPerFrame = parameters.getTotalChannels() * (parameters.getBitsPerSample() >> 3);
 			unsigned char srcBuffer[maxFrames * bytesPerFrame];
 
 			// making sure 'running' state is not changed
@@ -239,7 +239,7 @@ namespace slim
 						queuePtr->enqueue([&](util::ExpandableBuffer& buffer)
 						{
 							// copying data and setting new chunk size in bytes
-							buffer.size(copyData(srcBuffer + offset * bytesPerFrame, buffer.data(), result - offset) * (parameters.getChannels() - 1) * (parameters.getBitsPerSample() >> 3));
+							buffer.size(copyData(srcBuffer + offset * bytesPerFrame, buffer.data(), result - offset) * parameters.getLogicalChannels() * (parameters.getBitsPerSample() >> 3));
 
 							// available is used to provide optimization for a scheduler submitting tasks to a processor
 							available.store(true, std::memory_order_release);

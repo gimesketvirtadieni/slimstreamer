@@ -51,7 +51,12 @@ namespace slim
 					return static_cast<unsigned int>(snd_pcm_format_width(format));
 				}
 
-				inline const unsigned int getChannels() const
+				inline const unsigned int getLogicalChannels() const
+				{
+					return channels - 1;
+				}
+
+				inline const unsigned int getTotalChannels() const
 				{
 					return channels;
 				}
