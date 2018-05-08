@@ -14,10 +14,12 @@
 
 #include <alsa/asoundlib.h>
 #include <atomic>
+#include <chrono>
 #include <conwrap/ProcessorAsio.hpp>
 #include <functional>
 #include <memory>
 #include <mutex>
+#include <optional>
 
 #include "slim/alsa/Parameters.hpp"
 #include "slim/Chunk.hpp"
@@ -25,8 +27,6 @@
 #include "slim/Producer.hpp"
 #include "slim/util/ExpandableBuffer.hpp"
 #include "slim/util/RealTimeQueue.hpp"
-
-#include "slim/log/log.hpp"
 
 
 namespace slim
@@ -42,6 +42,8 @@ namespace slim
 
 		class Source : public Producer
 		{
+			using TimePoint = std::chrono::time_point<std::chrono::steady_clock>;
+
 			public:
 				Source(Parameters p)
 				: parameters{p}
@@ -69,12 +71,29 @@ namespace slim
 
 				virtual bool isAvailable() override
 				{
-					return available.load(std::memory_order_acquire);
+					bool result;
+
+					if (pauseUntil.has_value() && pauseUntil.value() > std::chrono::steady_clock::now())
+					{
+						result = false;
+					}
+					else
+					{
+						result = available.load(std::memory_order_acquire);
+						pauseUntil.reset();
+					}
+
+					return result;
 				}
 
 				virtual bool isRunning() override
 				{
 					return running;
+				}
+
+				virtual void pause(unsigned int millisec) override
+				{
+					pauseUntil = std::chrono::steady_clock::now() + std::chrono::milliseconds{millisec};
 				}
 
 				virtual bool produce(std::reference_wrapper<Consumer> consumer) override
@@ -108,13 +127,14 @@ namespace slim
 				bool restore(snd_pcm_sframes_t error);
 
 			private:
-				Parameters        parameters;
-				snd_pcm_t*        handlePtr{nullptr};
-				std::mutex        lock;
-				volatile bool     running{false};
-				std::atomic<bool> available{false};
-				bool              streaming{true};
+				Parameters                                                   parameters;
 				std::unique_ptr<util::RealTimeQueue<util::ExpandableBuffer>> queuePtr;
+				snd_pcm_t*                                                   handlePtr{nullptr};
+				volatile bool                                                running{false};
+				std::atomic<bool>                                            available{false};
+				bool                                                         streaming{true};
+				std::optional<TimePoint>                                     pauseUntil{std::nullopt};
+				std::mutex                                                   lock;
 		};
 	}
 }

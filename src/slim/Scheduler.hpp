@@ -102,7 +102,7 @@ namespace slim
 							for (auto& pipeline : pipelines)
 							{
 								auto r{pipeline.getProducer().isRunning()};
-								auto a{pipeline.isAvailable()};
+								auto a{pipeline.getProducer().isAvailable()};
 
 								// if there is PCM available then submitting a task to the processor
 								if (r && a)
@@ -113,7 +113,7 @@ namespace slim
 										if (pipeline.processQuantum())
 										{
 											// TODO: cruise control should be implemented
-											pipeline.pause(50);
+											pipeline.getProducer().pause(50);
 										}
 									});
 								}

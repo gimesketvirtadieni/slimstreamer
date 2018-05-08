@@ -44,38 +44,15 @@ namespace slim
 				return producer.get();
 			}
 
-			// TODO: move to Source class
-			inline auto isAvailable()
-			{
-				bool result;
-
-				if (pauseUntil.has_value() && pauseUntil.value() > std::chrono::steady_clock::now())
-				{
-					result = false;
-				}
-				else
-				{
-					result = producer.get().isAvailable();
-					pauseUntil.reset();
-				}
-
-				return result;
-			}
-
-			inline void pause(unsigned int millisec)
-			{
-				pauseUntil = std::chrono::steady_clock::now() + std::chrono::milliseconds{millisec};
-			}
-
 			inline bool processQuantum()
 			{
 				auto processed{true};
 
 				// TODO: calculate total chunks per processing quantum
 				// processing chunks as long as destination is not deferring them AND max chunks per task is not reached AND there are chunks available
-				for (unsigned int count{5}; processed && count > 0 && isAvailable(); count--)
+				for (unsigned int count{5}; processed && count > 0 && getProducer().isAvailable(); count--)
 				{
-					processed = producer.get().produce(consumer);
+					processed = getProducer().produce(consumer);
 				}
 
 				// returning TRUE if pipeline deferes processing
