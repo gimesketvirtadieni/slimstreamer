@@ -107,13 +107,21 @@ namespace slim
 								// if there is PCM available then submitting a task to the processor
 								if (r && a)
 								{
-									processorProxyPtr->process([&]
+									processorProxyPtr->process([&producer = pipeline.getProducer(), &consumer = pipeline.getConsumer()]
 									{
-										// if pipeline defers processing then pause it for some period
-										if (pipeline.processQuantum())
+										// TODO: calculate total chunks per processing quantum
+										// processing chunks as long as destination is not deferring them AND max chunks per task is not reached AND there are chunks available
+										auto processed{true};
+										for (unsigned int count{5}; processed && count > 0 && producer.isAvailable(); count--)
+										{
+											processed = producer.produce(consumer);
+										}
+
+										// if processing was defered then pausing it for some period
+										if (!processed)
 										{
 											// TODO: cruise control should be implemented
-											pipeline.getProducer().pause(50);
+											producer.pause(50);
 										}
 									});
 								}

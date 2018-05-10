@@ -39,24 +39,14 @@ namespace slim
 			Pipeline(Pipeline&& rhs) = default;
 			Pipeline& operator=(Pipeline&& rhs) = default;
 
+			inline auto& getConsumer()
+			{
+				return consumer.get();
+			}
+
 			inline auto& getProducer()
 			{
 				return producer.get();
-			}
-
-			inline bool processQuantum()
-			{
-				auto processed{true};
-
-				// TODO: calculate total chunks per processing quantum
-				// processing chunks as long as destination is not deferring them AND max chunks per task is not reached AND there are chunks available
-				for (unsigned int count{5}; processed && count > 0 && getProducer().isAvailable(); count--)
-				{
-					processed = getProducer().produce(consumer);
-				}
-
-				// returning TRUE if pipeline deferes processing
-				return !processed;
 			}
 
 		private:
