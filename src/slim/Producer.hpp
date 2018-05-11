@@ -26,7 +26,7 @@ namespace slim
 			virtual bool isAvailable() = 0;
 			virtual bool isRunning() = 0;
 			virtual void pause(unsigned int millisec) = 0;
-			virtual bool produce(std::reference_wrapper<Consumer>) = 0;
+			virtual bool produce(Consumer&) = 0;
 			virtual void start(std::function<void()> = [] {}) = 0;
 			virtual void stop(bool gracefully = true) = 0;
 	};
