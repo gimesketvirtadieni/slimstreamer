@@ -96,13 +96,13 @@ namespace slim
 					pauseUntil = std::chrono::steady_clock::now() + std::chrono::milliseconds{millisec};
 				}
 
-				virtual bool produce(std::reference_wrapper<Consumer> consumer) override
+				virtual bool produce(Consumer& consumer) override
 				{
 					// this call does NOT block if bounded queue (buffer) is empty
 					return queuePtr->dequeue([&](util::ExpandableBuffer& buffer)
 					{
 						// creating Chunk object which is a light weight wrapper around ExpandableBuffer with meta data about PCM stream details
-						return consumer.get().consume(Chunk{std::ref<util::ExpandableBuffer>(buffer), parameters.getSamplingRate(), parameters.getLogicalChannels(), parameters.getBitsPerSample()});
+						return consumer.consume(Chunk{std::ref<util::ExpandableBuffer>(buffer), parameters.getSamplingRate(), parameters.getLogicalChannels(), parameters.getBitsPerSample()});
 					}
 					, [&]
 					{
