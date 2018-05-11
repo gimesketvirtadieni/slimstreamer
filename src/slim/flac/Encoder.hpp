@@ -176,13 +176,13 @@ namespace slim
 				}
 
 			private:
-				unsigned int                  channels;
-				unsigned int                  sampleRate;
-				unsigned int                  bitsPerSample;
-				unsigned int                  bitsPerValue;
-				bool                          downScale{false};
+				unsigned int                   channels;
+				unsigned int                   sampleRate;
+				unsigned int                   bitsPerSample;
+				unsigned int                   bitsPerValue;
+				bool                           downScale{false};
 				// TODO: parametrize
-				util::BufferedAsyncWriter<10> bufferedWriter;
+				util::BufferedAsyncWriter<128> bufferedWriter;
 		};
 	}
 }
