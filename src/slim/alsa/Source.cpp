@@ -242,7 +242,7 @@ namespace slim
 							buffer.size(copyData(srcBuffer + offset * bytesPerFrame, buffer.data(), result - offset) * parameters.getLogicalChannels() * (parameters.getBitsPerSample() >> 3));
 
 							// available is used to provide optimization for a scheduler submitting tasks to a processor
-							available.store(true, std::memory_order_release);
+							available = true;
 
 							// always true as source buffer contains data
 							return true;

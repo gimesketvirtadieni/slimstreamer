@@ -13,7 +13,6 @@
 #pragma once
 
 #include <alsa/asoundlib.h>
-#include <atomic>
 #include <chrono>
 #include <conwrap/ProcessorAsio.hpp>
 #include <functional>
@@ -56,7 +55,7 @@ namespace slim
 				virtual ~Source()
 				{
 					// it is safe to call stop method multiple times
-					stop();
+					stop(false);
 				}
 
 				Source(const Source&) = delete;             // non-copyable
@@ -79,7 +78,7 @@ namespace slim
 					}
 					else
 					{
-						result = available.load(std::memory_order_acquire);
+						result = available;
 						pauseUntil.reset();
 					}
 
@@ -106,7 +105,7 @@ namespace slim
 					}
 					, [&]
 					{
-						available.store(false, std::memory_order_release);
+						available = false;
 					});
 				}
 
@@ -131,10 +130,10 @@ namespace slim
 				std::unique_ptr<util::RealTimeQueue<util::ExpandableBuffer>> queuePtr;
 				snd_pcm_t*                                                   handlePtr{nullptr};
 				volatile bool                                                running{false};
-				std::atomic<bool>                                            available{false};
+				volatile bool                                                available{false};
 				bool                                                         streaming{true};
-				std::optional<TimePoint>                                     pauseUntil{std::nullopt};
 				std::mutex                                                   lock;
+				std::optional<TimePoint>                                     pauseUntil{std::nullopt};
 		};
 	}
 }
