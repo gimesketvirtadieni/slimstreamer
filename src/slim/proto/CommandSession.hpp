@@ -61,7 +61,8 @@ namespace slim
 					{"STMc", [&] {onSTMc();}},
 					{"STMf", 0},
 					{"STMo", 0},
-					{"STMt", 0},
+					{"STMs", 0},
+					{"STMt", [&] {onSTMt();}},
 				}
 				{
 					LOG(DEBUG) << LABELS{"proto"} << "SlimProto session object was created (id=" << this << ")";
@@ -238,11 +239,11 @@ namespace slim
 				{
 					std::size_t result{0};
 
-					// deserializing STAT command
-					auto commandSTAT{CommandSTAT{buffer, size}};
-					result = commandSTAT.getSize();
+					// deserializing STAT command and saving in this object
+					commandSTAT = CommandSTAT{buffer, size};
+					result      = commandSTAT.value().getSize();
 
-					auto event{commandSTAT.getEvent()};
+					auto event{commandSTAT.value().getEvent()};
 					auto found{eventHandlers.find(event)};
 					if (found != eventHandlers.end())
 					{
@@ -265,6 +266,15 @@ namespace slim
 					connectedReceived = true;
 				}
 
+				inline void onSTMt()
+				{
+					//LOG(DEBUG) << LABELS{"proto"} << "elapsed=" << ntohl(commandSTAT.value().stat.elapsedSeconds) << " " << ntohl(commandSTAT.value().stat.elapsedMilliseconds);
+					//LOG(DEBUG) << LABELS{"proto"} << "out buf size=" << ntohl(commandSTAT.value().stat.outputBufferSize);
+					//LOG(DEBUG) << LABELS{"proto"} << "out buf used=" << ntohl(commandSTAT.value().stat.outputBufferFullness);
+					//LOG(DEBUG) << LABELS{"proto"} << "str buf size=" << ntohl(commandSTAT.value().stat.streamBufferSize);
+					//LOG(DEBUG) << LABELS{"proto"} << "str buf used=" << ntohl(commandSTAT.value().stat.streamBufferFullness);
+				}
+
 				template<typename CommandType>
 				inline void send(CommandType command)
 				{
@@ -285,6 +295,7 @@ namespace slim
 				bool                                   responseReceived{false};
 				util::ExpandableBuffer                 commandBuffer{std::size_t{0}, std::size_t{2048}};
 				std::optional<CommandHELO>             commandHELO{std::nullopt};
+				std::optional<CommandSTAT>             commandSTAT{std::nullopt};
 				std::optional<TimePoint>               lastPingAt{std::nullopt};
 		};
 	}
