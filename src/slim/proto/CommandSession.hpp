@@ -152,44 +152,45 @@ namespace slim
 
 				inline void ping()
 				{
-					auto  command{CommandSTRM{CommandSelection::Time}};
-					auto  buffer{command.getBuffer()};
-					auto  size{command.getSize()};
 					auto& nativeSocket{connection.get().getNativeSocket()};
 
 					if (nativeSocket.is_open())
 					{
-						auto asioBuffer{asio::buffer(buffer, size)};
+						auto        command{CommandSTRM{CommandSelection::Time}};
+						auto        buffer{command.getBuffer()};
+						auto        size{command.getSize()};
+						std::size_t sent{0};
+						int         result{0};
 
-						// saving previous time; will be restored in case of an error
-						auto tmp{lastPingAt};
+						// restoring the last ping time value in case of an error or exception
+						auto onError = [&, tmp = lastPingAt]
+						{
+							lastPingAt = tmp;
+						};
+						::util::scope_guard_failure onExceptionGuard{onError};
 
 						// saving ping time as close as possible to the moment of sending data out
 						lastPingAt = std::chrono::steady_clock::now();
 
-						// sending first part
-						auto sent{nativeSocket.send(asioBuffer)};
-
-						// sending remainder (it almost never happens)
-						while (sent > 0 && sent < size)
+						// sending 'ping' command as close as possing to capturing local time
+						while (result >= 0 && sent < size)
 						{
-							auto s{nativeSocket.send(asio::buffer(&buffer[sent], size - sent))};
-							if (s > 0)
-							{
-								s += sent;
-							}
-							sent = s;
+							result  = nativeSocket.send(asio::buffer(buffer + sent, size - sent));
+							sent   += (result >= 0 ? result : 0);
 						}
 
-						// restoring the last ping time value in case of an error
-						lastPingAt = tmp;
+						// handling send error
+						if (result < 0)
+						{
+							onError();
+						}
 					}
 				}
 
 				inline void setStreamingSession(StreamingSessionType* s)
 				{
 					streamingSessionPtr = s;
-					if (!s)
+					if (!streamingSessionPtr)
 					{
 						connectedReceived = false;
 						responseReceived  = false;
