@@ -22,15 +22,16 @@
 
 namespace slim
 {
-	template<typename SchedulerType, typename CommandServerType, typename StreamingServerType, typename StreamerType>
+	template<typename StreamerType, typename CommandServerType, typename StreamingServerType, typename DiscoveryServerType, typename SchedulerType>
 	class Container : public ContainerBase
 	{
 		public:
-			Container(std::unique_ptr<SchedulerType> sc, std::unique_ptr<CommandServerType> cse, std::unique_ptr<StreamingServerType> sse, std::unique_ptr<StreamerType> st)
-			: schedulerPtr{std::move(sc)}
+			Container(std::unique_ptr<StreamerType> st, std::unique_ptr<CommandServerType> cse, std::unique_ptr<StreamingServerType> sse, std::unique_ptr<DiscoveryServerType> dse, std::unique_ptr<SchedulerType> sc)
+			: streamerPtr{std::move(st)}
 			, commandServerPtr{std::move(cse)}
 			, streamingServerPtr{std::move(sse)}
-			, streamerPtr{std::move(st)} {}
+			, discoveryServerPtr{std::move(dse)}
+			, schedulerPtr{std::move(sc)} {}
 
 			// using Rule Of Zero
 			virtual ~Container() = default;
@@ -43,30 +44,34 @@ namespace slim
 			virtual void setProcessorProxy(conwrap::ProcessorAsioProxy<ContainerBase>* p) override
 			{
 				ContainerBase::setProcessorProxy(p);
+				streamerPtr->setProcessorProxy(p);
 				commandServerPtr->setProcessorProxy(p);
 				streamingServerPtr->setProcessorProxy(p);
+				discoveryServerPtr->setProcessorProxy(p);
 				schedulerPtr->setProcessorProxy(p);
-				streamerPtr->setProcessorProxy(p);
 			}
 
 			virtual void start(std::function<void()> overflowCallback = [] {}) override
 			{
 				commandServerPtr->start();
 				streamingServerPtr->start();
+				discoveryServerPtr->start();
 				schedulerPtr->start(std::move(overflowCallback));
 			}
 
 			virtual void stop() override
 			{
 				schedulerPtr->stop();
-				commandServerPtr->stop();
+				discoveryServerPtr->stop();
 				streamingServerPtr->stop();
+				commandServerPtr->stop();
 			}
 
 		private:
-			std::unique_ptr<SchedulerType>       schedulerPtr;
+			std::unique_ptr<StreamerType>        streamerPtr;
 			std::unique_ptr<CommandServerType>   commandServerPtr;
 			std::unique_ptr<StreamingServerType> streamingServerPtr;
-			std::unique_ptr<StreamerType>        streamerPtr;
+			std::unique_ptr<DiscoveryServerType> discoveryServerPtr;
+			std::unique_ptr<SchedulerType>       schedulerPtr;
 	};
 }

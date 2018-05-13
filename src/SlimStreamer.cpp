@@ -27,6 +27,7 @@
 #include "slim/alsa/Parameters.hpp"
 #include "slim/alsa/Source.hpp"
 #include "slim/conn/Callbacks.hpp"
+#include "slim/conn/DiscoveryServer.hpp"
 #include "slim/conn/Server.hpp"
 #include "slim/Consumer.hpp"
 #include "slim/Container.hpp"
@@ -42,13 +43,14 @@
 #include "slim/util/StreamAsyncWriter.hpp"
 
 
-using ContainerBase = slim::ContainerBase;
-using Connection    = slim::conn::Connection<ContainerBase>;
-using Consumer      = slim::Consumer;
-using Server        = slim::conn::Server<ContainerBase>;
-using Callbacks     = slim::conn::Callbacks<ContainerBase>;
-using Encoder       = slim::flac::Encoder;
-using Streamer      = slim::proto::Streamer<Connection, Encoder>;
+using ContainerBase   = slim::ContainerBase;
+using Connection      = slim::conn::Connection<ContainerBase>;
+using Consumer        = slim::Consumer;
+using Server          = slim::conn::Server<ContainerBase>;
+using DiscoveryServer = slim::conn::DiscoveryServer<ContainerBase>;
+using Callbacks       = slim::conn::Callbacks<ContainerBase>;
+using Encoder         = slim::flac::Encoder;
+using Streamer        = slim::proto::Streamer<Connection, Encoder>;
 
 using Source        = slim::alsa::Source;
 using File          = slim::FileConsumer<Encoder>;
@@ -56,7 +58,7 @@ using Pipeline      = slim::Pipeline;
 using Producer      = slim::Producer;
 using Scheduler     = slim::Scheduler;
 
-using Container     = slim::Container<Scheduler, Server, Server, Streamer>;
+using Container     = slim::Container<Streamer, Server, Server, DiscoveryServer, Scheduler>;
 
 
 static volatile bool running = true;
@@ -257,6 +259,7 @@ int main(int argc, const char *argv[])
 			auto streamerPtr{std::make_unique<Streamer>(httpPort, parameters.getLogicalChannels(), parameters.getBitsPerSample(), parameters.getBitsPerValue(), gain)};
 			auto commandServerPtr{std::make_unique<Server>(slimprotoPort, maxClients, createCommandCallbacks(*streamerPtr))};
 			auto streamingServerPtr{std::make_unique<Server>(httpPort, maxClients, createStreamingCallbacks(*streamerPtr))};
+			auto discoveryServerPtr{std::make_unique<DiscoveryServer>(3483)};
 
 			// creating a container for files objects
 			std::vector<std::unique_ptr<File>> files;
@@ -269,7 +272,7 @@ int main(int argc, const char *argv[])
 			{
 				std::unique_ptr<ContainerBase>
 				{
-					new Container(std::move(schedulerPtr), std::move(commandServerPtr), std::move(streamingServerPtr), std::move(streamerPtr))
+					new Container(std::move(streamerPtr), std::move(commandServerPtr), std::move(streamingServerPtr), std::move(discoveryServerPtr), std::move(schedulerPtr))
 				}
 			};
 
