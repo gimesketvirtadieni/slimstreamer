@@ -12,7 +12,7 @@
 
 #pragma once
 
-#include <slim/conn/Connection.hpp>
+#include "slim/conn/Connection.hpp"
 
 
 namespace slim
@@ -20,7 +20,6 @@ namespace slim
 	namespace conn
 	{
 		template<typename ContainerType>
-		using Callbacks    = CallbacksBase<Connection<ContainerType>>;
-		using UDPCallbacks = CallbacksBase<void>;
+		using Callbacks = CallbacksBase<Connection<ContainerType>>;
 	}
 }

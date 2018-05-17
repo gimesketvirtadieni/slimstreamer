@@ -28,6 +28,7 @@
 #include "slim/alsa/Source.hpp"
 #include "slim/conn/Callbacks.hpp"
 #include "slim/conn/Server.hpp"
+#include "slim/conn/UDPCallbacks.hpp"
 #include "slim/conn/UDPServer.hpp"
 #include "slim/Consumer.hpp"
 #include "slim/Container.hpp"
@@ -49,7 +50,7 @@ using Consumer      = slim::Consumer;
 using Server        = slim::conn::Server<ContainerBase>;
 using UDPServer     = slim::conn::UDPServer<ContainerBase>;
 using Callbacks     = slim::conn::Callbacks<ContainerBase>;
-using UDPCallbacks  = slim::conn::UDPCallbacks;
+using UDPCallbacks  = slim::conn::UDPCallbacks<ContainerBase>;
 using Encoder       = slim::flac::Encoder;
 using Streamer      = slim::proto::Streamer<Connection, Encoder>;
 
@@ -126,17 +127,17 @@ auto createCommandCallbacks(Streamer& streamer)
 auto createDiscoveryCallbacks()
 {
 	return std::move(UDPCallbacks{}
-		.setStartCallback([&]
+		.setDataCallback([&](auto& server, unsigned char* buffer, const std::size_t size)
+		{
+			LOG(INFO) << LABELS{"conn"} << "UDP DATA!!!";
+		})
+		.setStartCallback([&](auto& server)
 		{
 			LOG(INFO) << LABELS{"conn"} << "Start Callback";
 		})
-		.setStopCallback([&]
+		.setStopCallback([&](auto& server)
 		{
 			LOG(INFO) << LABELS{"conn"} << "Stop Callback";
-		})
-		.setDataCallback([&](unsigned char* buffer, const std::size_t size)
-		{
-			LOG(INFO) << LABELS{"conn"} << "UDP DATA!!!";
 		}));
 }
 

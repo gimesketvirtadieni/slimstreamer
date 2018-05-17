@@ -15,11 +15,12 @@
 #include <asio.hpp>
 #include <conwrap/ProcessorAsioProxy.hpp>
 
-#include "slim/conn/Callbacks.hpp"
+#include "slim/conn/UDPCallbacks.hpp"
 #include "slim/log/log.hpp"
 
 // TODO: refactor
 #define  BUFFER_SIZE 1
+
 
 namespace slim
 {
@@ -29,7 +30,7 @@ namespace slim
 		class UDPServer
 		{
 			public:
-				UDPServer(unsigned int p, UDPCallbacks c)
+				UDPServer(unsigned int p, UDPCallbacks<ContainerType> c)
 				: port{p}
 				, callbacks{std::move(c)}
 				{
@@ -59,7 +60,7 @@ namespace slim
 					openSocket();
 
 					// calling start callback and changing state of this object to 'started'
-					callbacks.getStartCallback()();
+					callbacks.getStartCallback()(*this);
 					started = true;
 
 					LOG(INFO) << LABELS{"conn"} << "UDP server was started (id=" << this << ")";
@@ -73,7 +74,7 @@ namespace slim
 					closeSocket();
 
 					// calling stop callback and changing state of this object to '!started'
-					callbacks.getStopCallback()();
+					callbacks.getStopCallback()(*this);
 					started = false;
 
 					LOG(INFO) << LABELS{"conn"} << "UDP server was stopped (id=" << this << ", port=" << port << ")";
@@ -100,7 +101,7 @@ namespace slim
 					if (!error)
 					{
 						// processing received data
-						callbacks.getDataCallback()(buffer, size);
+						callbacks.getDataCallback()(*this, buffer, size);
 
 						// keep receiving data
 						receiveData();
@@ -146,7 +147,7 @@ namespace slim
 
 			private:
 				unsigned int                                port;
-				UDPCallbacks                                callbacks;
+				UDPCallbacks<ContainerType>                 callbacks;
 				bool                                        started{false};
 				conwrap::ProcessorAsioProxy<ContainerType>* processorProxyPtr;
 				std::unique_ptr<asio::ip::udp::socket>      socketPtr;
