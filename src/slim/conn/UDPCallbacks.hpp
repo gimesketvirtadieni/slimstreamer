@@ -17,7 +17,7 @@ namespace slim
 {
 	namespace conn
 	{
-		// forward declaration required to prevent loops in including headers
+		// forward declaration required to prevent from loops in including headers
 		template <typename ContainerType>
 		class UDPServer;
 

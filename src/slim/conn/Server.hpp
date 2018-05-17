@@ -15,8 +15,6 @@
 #include <asio.hpp>
 #include <conwrap/ProcessorAsioProxy.hpp>
 #include <cstddef>  // std::size_t
-#include <slim/conn/CallbacksBase.hpp>
-#include <slim/conn/Connection.hpp>
 #include <memory>
 #include <vector>
 
