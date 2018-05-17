@@ -27,8 +27,8 @@
 #include "slim/alsa/Parameters.hpp"
 #include "slim/alsa/Source.hpp"
 #include "slim/conn/Callbacks.hpp"
-#include "slim/conn/DiscoveryServer.hpp"
 #include "slim/conn/Server.hpp"
+#include "slim/conn/UDPServer.hpp"
 #include "slim/Consumer.hpp"
 #include "slim/Container.hpp"
 #include "slim/Exception.hpp"
@@ -43,14 +43,15 @@
 #include "slim/util/StreamAsyncWriter.hpp"
 
 
-using ContainerBase   = slim::ContainerBase;
-using Connection      = slim::conn::Connection<ContainerBase>;
-using Consumer        = slim::Consumer;
-using Server          = slim::conn::Server<ContainerBase>;
-using DiscoveryServer = slim::conn::DiscoveryServer<ContainerBase>;
-using Callbacks       = slim::conn::Callbacks<ContainerBase>;
-using Encoder         = slim::flac::Encoder;
-using Streamer        = slim::proto::Streamer<Connection, Encoder>;
+using ContainerBase = slim::ContainerBase;
+using Connection    = slim::conn::Connection<ContainerBase>;
+using Consumer      = slim::Consumer;
+using Server        = slim::conn::Server<ContainerBase>;
+using UDPServer     = slim::conn::UDPServer<ContainerBase>;
+using Callbacks     = slim::conn::Callbacks<ContainerBase>;
+using UDPCallbacks  = slim::conn::UDPCallbacks;
+using Encoder       = slim::flac::Encoder;
+using Streamer      = slim::proto::Streamer<Connection, Encoder>;
 
 using Source        = slim::alsa::Source;
 using File          = slim::FileConsumer<Encoder>;
@@ -58,7 +59,7 @@ using Pipeline      = slim::Pipeline;
 using Producer      = slim::Producer;
 using Scheduler     = slim::Scheduler;
 
-using Container     = slim::Container<Streamer, Server, Server, DiscoveryServer, Scheduler>;
+using Container     = slim::Container<Streamer, Server, Server, UDPServer, Scheduler>;
 
 
 static volatile bool running = true;
@@ -122,20 +123,20 @@ auto createCommandCallbacks(Streamer& streamer)
 }
 
 
-auto createStreamingCallbacks(Streamer& streamer)
+auto createDiscoveryCallbacks()
 {
-	return std::move(Callbacks{}
-		.setOpenCallback([&](auto& connection)
+	return std::move(UDPCallbacks{}
+		.setStartCallback([&]
 		{
-			streamer.onHTTPOpen(connection);
+			LOG(INFO) << LABELS{"conn"} << "Start Callback";
 		})
-		.setDataCallback([&](auto& connection, unsigned char* buffer, const std::size_t size)
+		.setStopCallback([&]
 		{
-			streamer.onHTTPData(connection, buffer, size);
+			LOG(INFO) << LABELS{"conn"} << "Stop Callback";
 		})
-		.setCloseCallback([&](auto& connection)
+		.setDataCallback([&](unsigned char* buffer, const std::size_t size)
 		{
-			streamer.onHTTPClose(connection);
+			LOG(INFO) << LABELS{"conn"} << "UDP DATA!!!";
 		}));
 }
 
@@ -199,6 +200,24 @@ auto createSources(slim::alsa::Parameters parameters)
 }
 
 
+auto createStreamingCallbacks(Streamer& streamer)
+{
+	return std::move(Callbacks{}
+		.setOpenCallback([&](auto& connection)
+		{
+			streamer.onHTTPOpen(connection);
+		})
+		.setDataCallback([&](auto& connection, unsigned char* buffer, const std::size_t size)
+		{
+			streamer.onHTTPData(connection, buffer, size);
+		})
+		.setCloseCallback([&](auto& connection)
+		{
+			streamer.onHTTPClose(connection);
+		}));
+}
+
+
 int main(int argc, const char *argv[])
 {
 	// initializing log and adding custom sink
@@ -259,7 +278,7 @@ int main(int argc, const char *argv[])
 			auto streamerPtr{std::make_unique<Streamer>(httpPort, parameters.getLogicalChannels(), parameters.getBitsPerSample(), parameters.getBitsPerValue(), gain)};
 			auto commandServerPtr{std::make_unique<Server>(slimprotoPort, maxClients, createCommandCallbacks(*streamerPtr))};
 			auto streamingServerPtr{std::make_unique<Server>(httpPort, maxClients, createStreamingCallbacks(*streamerPtr))};
-			auto discoveryServerPtr{std::make_unique<DiscoveryServer>(3483)};
+			auto discoveryServerPtr{std::make_unique<UDPServer>(3483, createDiscoveryCallbacks())};
 
 			// creating a container for files objects
 			std::vector<std::unique_ptr<File>> files;

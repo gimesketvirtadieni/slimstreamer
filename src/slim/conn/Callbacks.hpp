@@ -20,6 +20,7 @@ namespace slim
 	namespace conn
 	{
 		template<typename ContainerType>
-		using Callbacks = CallbacksBase<Connection<ContainerType>>;
+		using Callbacks    = CallbacksBase<Connection<ContainerType>>;
+		using UDPCallbacks = CallbacksBase<void>;
 	}
 }

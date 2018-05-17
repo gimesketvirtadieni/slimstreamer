@@ -130,5 +130,78 @@ namespace slim
 				std::function<void(ConnectionType&)>                                    closeCallback{[](auto& connection) {}};
 				std::function<void(ConnectionType&)>                                    stopCallback{[](auto& connection) {}};
 		};
+
+		template<>
+		class CallbacksBase<void>
+		{
+			public:
+				CallbacksBase() = default;
+
+				// using Rule Of Zero
+			   ~CallbacksBase() = default;
+				CallbacksBase(const CallbacksBase&) = delete;             // non-copyable
+				CallbacksBase& operator=(const CallbacksBase&) = delete;  // non-assignable
+				CallbacksBase(CallbacksBase&& rhs) = default;
+				CallbacksBase& operator=(CallbacksBase&& rhs) = default;
+
+				inline auto& getDataCallback()
+				{
+					return dataCallback;
+				}
+
+				inline auto& getStartCallback()
+				{
+					return startCallback;
+				}
+
+				inline auto& getStopCallback()
+				{
+					return stopCallback;
+				}
+
+				inline auto& setDataCallback(std::function<void(unsigned char*, const std::size_t)> c)
+				{
+					if (c)
+					{
+						dataCallback = std::move(c);
+					}
+					else
+					{
+						dataCallback = [](unsigned char* buffer, const std::size_t size) {};
+					}
+					return (*this);
+				}
+
+				inline auto& setStartCallback(std::function<void()> c)
+				{
+					if (c)
+					{
+						startCallback = std::move(c);
+					}
+					else
+					{
+						startCallback = [] {};
+					}
+					return (*this);
+				}
+
+				inline auto& setStopCallback(std::function<void()> c)
+				{
+					if (c)
+					{
+						stopCallback = std::move(c);
+					}
+					else
+					{
+						stopCallback = [] {};
+					}
+					return (*this);
+				}
+
+			private:
+				std::function<void()>                                  startCallback{[] {}};
+				std::function<void(unsigned char*, const std::size_t)> dataCallback{[](auto* buffer, auto size) {}};
+				std::function<void()>                                  stopCallback{[]() {}};
+		};
 	}
 }
