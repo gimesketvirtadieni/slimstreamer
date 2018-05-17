@@ -140,7 +140,7 @@ namespace slim
 					connectionPtr->start(*acceptorPtr);
 
 					// required to return to the caller
-					auto c = connectionPtr.get();
+					auto* c = connectionPtr.get();
 
 					// adding connection to the connection vector
 					connections.push_back(std::move(connectionPtr));
@@ -185,10 +185,10 @@ namespace slim
 						acceptorPtr->cancel();
 						acceptorPtr->close();
 
+						LOG(INFO) << LABELS{"conn"} << "Acceptor was stopped (id=" << acceptorPtr.get() << ", port=" << port << ")";
+
 						// acceptor is not captured by handlers so it is safe to delete it
 						acceptorPtr.reset();
-
-						LOG(INFO) << LABELS{"conn"} << "Acceptor was stopped (id=" << acceptorPtr.get() << ", port=" << port << ")";
 					}
 				}
 
