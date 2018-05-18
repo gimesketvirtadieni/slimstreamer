@@ -27,7 +27,7 @@
 #include "slim/alsa/Parameters.hpp"
 #include "slim/alsa/Source.hpp"
 #include "slim/conn/Callbacks.hpp"
-#include "slim/conn/Server.hpp"
+#include "slim/conn/TCPServer.hpp"
 #include "slim/conn/UDPCallbacks.hpp"
 #include "slim/conn/UDPServer.hpp"
 #include "slim/Consumer.hpp"
@@ -47,7 +47,7 @@
 using ContainerBase = slim::ContainerBase;
 using Connection    = slim::conn::Connection<ContainerBase>;
 using Consumer      = slim::Consumer;
-using Server        = slim::conn::Server<ContainerBase>;
+using TCPServer     = slim::conn::TCPServer<ContainerBase>;
 using UDPServer     = slim::conn::UDPServer<ContainerBase>;
 using Callbacks     = slim::conn::Callbacks<ContainerBase>;
 using UDPCallbacks  = slim::conn::UDPCallbacks<ContainerBase>;
@@ -60,7 +60,7 @@ using Pipeline      = slim::Pipeline;
 using Producer      = slim::Producer;
 using Scheduler     = slim::Scheduler;
 
-using Container     = slim::Container<Streamer, Server, Server, UDPServer, Scheduler>;
+using Container     = slim::Container<Streamer, TCPServer, TCPServer, UDPServer, Scheduler>;
 
 
 static volatile bool running = true;
@@ -280,8 +280,8 @@ int main(int argc, const char *argv[])
 
 			// Callbacks objects 'glue' SlimProto Streamer with TCP Command Servers
 			auto streamerPtr{std::make_unique<Streamer>(httpPort, parameters.getLogicalChannels(), parameters.getBitsPerSample(), parameters.getBitsPerValue(), gain)};
-			auto commandServerPtr{std::make_unique<Server>(slimprotoPort, maxClients, createCommandCallbacks(*streamerPtr))};
-			auto streamingServerPtr{std::make_unique<Server>(httpPort, maxClients, createStreamingCallbacks(*streamerPtr))};
+			auto commandServerPtr{std::make_unique<TCPServer>(slimprotoPort, maxClients, createCommandCallbacks(*streamerPtr))};
+			auto streamingServerPtr{std::make_unique<TCPServer>(httpPort, maxClients, createStreamingCallbacks(*streamerPtr))};
 			auto discoveryServerPtr{std::make_unique<UDPServer>(3483, std::move(createDiscoveryCallbacks()))};
 
 			// creating a container for files objects

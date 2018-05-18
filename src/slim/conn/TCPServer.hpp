@@ -28,10 +28,10 @@ namespace slim
 	namespace conn
 	{
 		template <typename ContainerType>
-		class Server
+		class TCPServer
 		{
 			public:
-				Server(unsigned int p, unsigned int m, Callbacks<ContainerType> c)
+				TCPServer(unsigned int p, unsigned int m, Callbacks<ContainerType> c)
 				: port{p}
 				, maxConnections{m}
 				, callbacks
@@ -84,15 +84,15 @@ namespace slim
 					LOG(DEBUG) << LABELS{"conn"} << "TCP server object was created (id=" << this << ")";
 				}
 
-				~Server()
+			   ~TCPServer()
 				{
 					LOG(DEBUG) << LABELS{"conn"} << "TCP server object was deleted (id=" << this << ")";
 				}
 
-				Server(const Server&) = delete;             // non-copyable
-				Server& operator=(const Server&) = delete;  // non-assignable
-				Server(Server&& rhs) = delete;              // non-movable
-				Server& operator=(Server&& rhs) = delete;   // non-movable-assinable
+				TCPServer(const TCPServer&) = delete;             // non-copyable
+				TCPServer& operator=(const TCPServer&) = delete;  // non-assignable
+				TCPServer(TCPServer&& rhs) = delete;              // non-movable
+				TCPServer& operator=(TCPServer&& rhs) = delete;   // non-movable-assinable
 
 				void setProcessorProxy(conwrap::ProcessorAsioProxy<ContainerType>* p)
 				{
