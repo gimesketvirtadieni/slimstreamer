@@ -31,56 +31,54 @@ namespace slim
 		class TCPServer
 		{
 			public:
-				TCPServer(unsigned int p, unsigned int m, Callbacks<ContainerType> c)
+				TCPServer(unsigned int p, unsigned int m, std::unique_ptr<Callbacks<ContainerType>> c)
 				: port{p}
 				, maxConnections{m}
-				, callbacks
-				{
-					std::move(Callbacks<ContainerType>{}
-						.setStartCallback(std::move(c.getStartCallback()))
-						.setOpenCallback(std::move([&, openCallback = std::move(c.getOpenCallback())](auto& connection)
-						{
-							openCallback(connection);
-
-							// for whatever / unknown reason std::count_if returns signed!!! result, hence a type cast is required
-							auto foundTotal{std::count_if(connections.begin(), connections.end(), [&](auto& connectionPtr)
-							{
-								return connectionPtr->isOpen();
-							})};
-
-							// registering a new connection if capacity allows so new requests can be accepted
-							if (foundTotal <= 0 || static_cast<unsigned int>(foundTotal) < maxConnections)
-							{
-								addConnection();
-							}
-							else
-							{
-								LOG(WARNING) << LABELS{"conn"} << "Limit of active connections was reached (id=" << this << ", connections=" << connections.size() << " max=" << maxConnections << ")";
-								stopAcceptor();
-							}
-						}))
-						.setDataCallback(std::move(c.getDataCallback()))
-						.setCloseCallback(std::move(c.getCloseCallback()))
-						.setStopCallback(std::move([&, stopCallback = std::move(c.getStopCallback())](auto& connection)
-						{
-							stopCallback(connection);
-
-							// connection cannot be removed at this moment as this method is called by the connection which is being removed
-							processorProxyPtr->process([&]
-							{
-								removeConnection(connection);
-
-								// starting acceptor if required and adding new connection to accept client requests
-								if (started && !acceptorPtr)
-								{
-									startAcceptor();
-									addConnection();
-								}
-							});
-						})))
-				}
+				, callbacksPtr{std::make_unique<Callbacks<ContainerType>>()}
 				, started{false}
 				{
+					callbacksPtr->setStartCallback(std::move(c->getStartCallback()));
+					callbacksPtr->setOpenCallback(std::move([&, openCallback = std::move(c->getOpenCallback())](auto& connection)
+					{
+						openCallback(connection);
+
+						// for whatever / unknown reason std::count_if returns signed!!! result, hence a type cast is required
+						auto foundTotal{std::count_if(connections.begin(), connections.end(), [&](auto& connectionPtr)
+						{
+							return connectionPtr->isOpen();
+						})};
+
+						// registering a new connection if capacity allows so new requests can be accepted
+						if (foundTotal <= 0 || static_cast<unsigned int>(foundTotal) < maxConnections)
+						{
+							addConnection();
+						}
+						else
+						{
+							LOG(WARNING) << LABELS{"conn"} << "Limit of active connections was reached (id=" << this << ", connections=" << connections.size() << " max=" << maxConnections << ")";
+							stopAcceptor();
+						}
+					}));
+					callbacksPtr->setDataCallback(std::move(c->getDataCallback()));
+					callbacksPtr->setCloseCallback(std::move(c->getCloseCallback()));
+					callbacksPtr->setStopCallback(std::move([&, stopCallback = std::move(c->getStopCallback())](auto& connection)
+					{
+						stopCallback(connection);
+
+						// connection cannot be removed at this moment as this method is called by the connection which is being removed
+						processorProxyPtr->process([&]
+						{
+							removeConnection(connection);
+
+							// starting acceptor if required and adding new connection to accept client requests
+							if (started && !acceptorPtr)
+							{
+								startAcceptor();
+								addConnection();
+							}
+						});
+					}));
+
 					LOG(DEBUG) << LABELS{"conn"} << "TCP server object was created (id=" << this << ")";
 				}
 
@@ -132,7 +130,7 @@ namespace slim
 				auto& addConnection()
 				{
 					// creating new connection
-					auto connectionPtr{std::make_unique<Connection<ContainerType>>(processorProxyPtr, callbacks)};
+					auto connectionPtr{std::make_unique<Connection<ContainerType>>(processorProxyPtr, *callbacksPtr.get())};
 
 					// start accepting connection
 					connectionPtr->start(*acceptorPtr);
@@ -193,7 +191,7 @@ namespace slim
 			private:
 				unsigned int                                            port;
 				unsigned int                                            maxConnections;
-				Callbacks<ContainerType>                                callbacks;
+				std::unique_ptr<Callbacks<ContainerType>>               callbacksPtr;
 				bool                                                    started;
 				conwrap::ProcessorAsioProxy<ContainerType>*             processorProxyPtr;
 				std::unique_ptr<asio::ip::tcp::acceptor>                acceptorPtr;

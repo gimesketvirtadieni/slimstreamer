@@ -108,19 +108,22 @@ void printLicenseInfo()
 
 auto createCommandCallbacks(Streamer& streamer)
 {
-	return std::move(Callbacks{}
-		.setOpenCallback([&](auto& connection)
-		{
-			streamer.onSlimProtoOpen(connection);
-		})
-		.setDataCallback([&](auto& connection, unsigned char* buffer, const std::size_t size)
-		{
-			streamer.onSlimProtoData(connection, buffer, size);
-		})
-		.setCloseCallback([&](auto& connection)
-		{
-			streamer.onSlimProtoClose(connection);
-		}));
+	auto callbacksPtr{std::make_unique<Callbacks>()};
+
+	callbacksPtr->setOpenCallback([&](auto& connection)
+	{
+		streamer.onSlimProtoOpen(connection);
+	});
+	callbacksPtr->setDataCallback([&](auto& connection, unsigned char* buffer, const std::size_t size)
+	{
+		streamer.onSlimProtoData(connection, buffer, size);
+	});
+	callbacksPtr->setCloseCallback([&](auto& connection)
+	{
+		streamer.onSlimProtoClose(connection);
+	});
+
+	return std::move(callbacksPtr);
 }
 
 
@@ -206,19 +209,22 @@ auto createSources(slim::alsa::Parameters parameters)
 
 auto createStreamingCallbacks(Streamer& streamer)
 {
-	return std::move(Callbacks{}
-		.setOpenCallback([&](auto& connection)
-		{
-			streamer.onHTTPOpen(connection);
-		})
-		.setDataCallback([&](auto& connection, unsigned char* buffer, const std::size_t size)
-		{
-			streamer.onHTTPData(connection, buffer, size);
-		})
-		.setCloseCallback([&](auto& connection)
-		{
-			streamer.onHTTPClose(connection);
-		}));
+	auto callbacksPtr{std::make_unique<Callbacks>()};
+
+	callbacksPtr->setOpenCallback([&](auto& connection)
+	{
+		streamer.onHTTPOpen(connection);
+	});
+	callbacksPtr->setDataCallback([&](auto& connection, unsigned char* buffer, const std::size_t size)
+	{
+		streamer.onHTTPData(connection, buffer, size);
+	});
+	callbacksPtr->setCloseCallback([&](auto& connection)
+	{
+		streamer.onHTTPClose(connection);
+	});
+
+	return std::move(callbacksPtr);
 }
 
 
@@ -280,8 +286,8 @@ int main(int argc, const char *argv[])
 
 			// Callbacks objects 'glue' SlimProto Streamer with TCP Command Servers
 			auto streamerPtr{std::make_unique<Streamer>(httpPort, parameters.getLogicalChannels(), parameters.getBitsPerSample(), parameters.getBitsPerValue(), gain)};
-			auto commandServerPtr{std::make_unique<TCPServer>(slimprotoPort, maxClients, createCommandCallbacks(*streamerPtr))};
-			auto streamingServerPtr{std::make_unique<TCPServer>(httpPort, maxClients, createStreamingCallbacks(*streamerPtr))};
+			auto commandServerPtr{std::make_unique<TCPServer>(slimprotoPort, maxClients, std::move(createCommandCallbacks(*streamerPtr)))};
+			auto streamingServerPtr{std::make_unique<TCPServer>(httpPort, maxClients, std::move(createStreamingCallbacks(*streamerPtr)))};
 			auto discoveryServerPtr{std::make_unique<UDPServer>(3483, std::move(createDiscoveryCallbacks()))};
 
 			// creating a container for files objects
