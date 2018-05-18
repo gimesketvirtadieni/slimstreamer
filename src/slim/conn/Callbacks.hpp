@@ -12,6 +12,7 @@
 
 #pragma once
 
+#include "slim/conn/CallbacksBase.hpp"
 #include "slim/conn/Connection.hpp"
 
 

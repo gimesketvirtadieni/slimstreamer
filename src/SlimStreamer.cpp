@@ -126,19 +126,22 @@ auto createCommandCallbacks(Streamer& streamer)
 
 auto createDiscoveryCallbacks()
 {
-	return std::move(UDPCallbacks{}
-		.setDataCallback([&](auto& server, unsigned char* buffer, const std::size_t size)
-		{
-			LOG(INFO) << LABELS{"conn"} << "UDP DATA!!!";
-		})
-		.setStartCallback([&](auto& server)
-		{
-			LOG(INFO) << LABELS{"conn"} << "Start Callback";
-		})
-		.setStopCallback([&](auto& server)
-		{
-			LOG(INFO) << LABELS{"conn"} << "Stop Callback";
-		}));
+	auto callbacksPtr{std::make_unique<UDPCallbacks>()};
+
+	callbacksPtr->setDataCallback([&](auto& server, unsigned char* buffer, const std::size_t size)
+	{
+		LOG(INFO) << LABELS{"conn"} << "UDP DATA!!!";
+	});
+	callbacksPtr->setStartCallback([&](auto& server)
+	{
+		LOG(INFO) << LABELS{"conn"} << "Start Callback";
+	});
+	callbacksPtr->setStopCallback([&](auto& server)
+	{
+		LOG(INFO) << LABELS{"conn"} << "Stop Callback";
+	});
+
+	return std::move(callbacksPtr);
 }
 
 
@@ -279,7 +282,7 @@ int main(int argc, const char *argv[])
 			auto streamerPtr{std::make_unique<Streamer>(httpPort, parameters.getLogicalChannels(), parameters.getBitsPerSample(), parameters.getBitsPerValue(), gain)};
 			auto commandServerPtr{std::make_unique<Server>(slimprotoPort, maxClients, createCommandCallbacks(*streamerPtr))};
 			auto streamingServerPtr{std::make_unique<Server>(httpPort, maxClients, createStreamingCallbacks(*streamerPtr))};
-			auto discoveryServerPtr{std::make_unique<UDPServer>(3483, createDiscoveryCallbacks())};
+			auto discoveryServerPtr{std::make_unique<UDPServer>(3483, std::move(createDiscoveryCallbacks()))};
 
 			// creating a container for files objects
 			std::vector<std::unique_ptr<File>> files;

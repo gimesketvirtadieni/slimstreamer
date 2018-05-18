@@ -14,8 +14,9 @@
 
 #include <asio.hpp>
 #include <conwrap/ProcessorAsioProxy.hpp>
+#include <memory>
 
-#include "slim/conn/UDPCallbacks.hpp"
+#include "slim/conn/UDPCallbacksBase.hpp"
 #include "slim/log/log.hpp"
 
 // TODO: refactor
@@ -30,9 +31,9 @@ namespace slim
 		class UDPServer
 		{
 			public:
-				UDPServer(unsigned int p, UDPCallbacks<ContainerType> c)
+				UDPServer(unsigned int p, std::unique_ptr<UDPCallbacksBase<UDPServer<ContainerType>>> c)
 				: port{p}
-				, callbacks{std::move(c)}
+				, callbacksPtr{std::move(c)}
 				{
 					LOG(DEBUG) << LABELS{"conn"} << "UDP server object was created (id=" << this << ")";
 				}
@@ -60,7 +61,7 @@ namespace slim
 					openSocket();
 
 					// calling start callback and changing state of this object to 'started'
-					callbacks.getStartCallback()(*this);
+					callbacksPtr->getStartCallback()(*this);
 					started = true;
 
 					LOG(INFO) << LABELS{"conn"} << "UDP server was started (id=" << this << ")";
@@ -74,7 +75,7 @@ namespace slim
 					closeSocket();
 
 					// calling stop callback and changing state of this object to '!started'
-					callbacks.getStopCallback()(*this);
+					callbacksPtr->getStopCallback()(*this);
 					started = false;
 
 					LOG(INFO) << LABELS{"conn"} << "UDP server was stopped (id=" << this << ", port=" << port << ")";
@@ -101,7 +102,7 @@ namespace slim
 					if (!error)
 					{
 						// processing received data
-						callbacks.getDataCallback()(*this, buffer, size);
+						callbacksPtr->getDataCallback()(*this, buffer, size);
 
 						// keep receiving data
 						receiveData();
@@ -146,13 +147,13 @@ namespace slim
 				}
 
 			private:
-				unsigned int                                port;
-				UDPCallbacks<ContainerType>                 callbacks;
-				bool                                        started{false};
-				conwrap::ProcessorAsioProxy<ContainerType>* processorProxyPtr;
-				std::unique_ptr<asio::ip::udp::socket>      socketPtr;
-				asio::ip::udp::endpoint                     endpoint;
-				unsigned char                               buffer[BUFFER_SIZE];
+				unsigned int                                 port;
+				std::unique_ptr<UDPCallbacksBase<UDPServer>> callbacksPtr;
+				bool                                         started{false};
+				conwrap::ProcessorAsioProxy<ContainerType>*  processorProxyPtr;
+				std::unique_ptr<asio::ip::udp::socket>       socketPtr;
+				asio::ip::udp::endpoint                      endpoint;
+				unsigned char                                buffer[BUFFER_SIZE];
 		};
 	}
 }
