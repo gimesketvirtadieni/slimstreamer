@@ -156,14 +156,14 @@ auto createPipelines(std::vector<std::unique_ptr<Source>>& sources, Streamer& st
 	{
 		auto parameters{sourcePtr->getParameters()};
 
-		auto streamPtr{std::make_unique<std::ofstream>(std::to_string(parameters.getSamplingRate()) + ".flac", std::ios::binary)};
-		auto writerPtr{std::make_unique<slim::util::StreamAsyncWriter>(std::move(streamPtr))};
-		auto filePtr{std::make_unique<File>(std::move(writerPtr), parameters.getLogicalChannels(), parameters.getSamplingRate(), parameters.getBitsPerSample(), parameters.getBitsPerValue())};
+		//auto streamPtr{std::make_unique<std::ofstream>(std::to_string(parameters.getSamplingRate()) + ".flac", std::ios::binary)};
+		//auto writerPtr{std::make_unique<slim::util::StreamAsyncWriter>(std::move(streamPtr))};
+		//auto filePtr{std::make_unique<File>(std::move(writerPtr), parameters.getLogicalChannels(), parameters.getSamplingRate(), parameters.getBitsPerSample(), parameters.getBitsPerValue())};
 
-		pipelines.emplace_back(std::ref<Producer>(*sourcePtr), std::ref<Consumer>(*filePtr));
-		files.push_back(std::move(filePtr));
+		//pipelines.emplace_back(std::ref<Producer>(*sourcePtr), std::ref<Consumer>(*filePtr));
+		//files.push_back(std::move(filePtr));
 
-		//pipelines.emplace_back(std::ref<Producer>(*sourcePtr), std::ref<Consumer>(streamer));
+		pipelines.emplace_back(std::ref<Producer>(*sourcePtr), std::ref<Consumer>(streamer));
 	}
 
 	return std::move(pipelines);
