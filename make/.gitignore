@@ -1,2 +1,4 @@
 *.o
+*.flac
+*.wav
 SlimStreamer
