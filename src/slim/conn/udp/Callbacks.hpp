@@ -12,15 +12,18 @@
 
 #pragma once
 
-#include "slim/conn/CallbacksBase.hpp"
-#include "slim/conn/Connection.hpp"
+#include "slim/conn/udp/CallbacksBase.hpp"
+#include "slim/conn/udp/Server.hpp"
 
 
 namespace slim
 {
 	namespace conn
 	{
-		template<typename ContainerType>
-		using Callbacks = CallbacksBase<Connection<ContainerType>>;
+		namespace udp
+		{
+			template<typename ContainerType>
+			using Callbacks = CallbacksBase<Server<ContainerType>>;
+		}
 	}
 }

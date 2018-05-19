@@ -26,10 +26,10 @@
 
 #include "slim/alsa/Parameters.hpp"
 #include "slim/alsa/Source.hpp"
-#include "slim/conn/Callbacks.hpp"
-#include "slim/conn/TCPServer.hpp"
-#include "slim/conn/UDPCallbacks.hpp"
-#include "slim/conn/UDPServer.hpp"
+#include "slim/conn/tcp/Callbacks.hpp"
+#include "slim/conn/tcp/Server.hpp"
+#include "slim/conn/udp/Callbacks.hpp"
+#include "slim/conn/udp/Server.hpp"
 #include "slim/Consumer.hpp"
 #include "slim/Container.hpp"
 #include "slim/Exception.hpp"
@@ -45,20 +45,20 @@
 
 
 using ContainerBase = slim::ContainerBase;
-using Connection    = slim::conn::Connection<ContainerBase>;
-using Consumer      = slim::Consumer;
-using TCPServer     = slim::conn::TCPServer<ContainerBase>;
-using UDPServer     = slim::conn::UDPServer<ContainerBase>;
-using Callbacks     = slim::conn::Callbacks<ContainerBase>;
-using UDPCallbacks  = slim::conn::UDPCallbacks<ContainerBase>;
 using Encoder       = slim::flac::Encoder;
-using Streamer      = slim::proto::Streamer<Connection, Encoder>;
+using TCPCallbacks  = slim::conn::tcp::Callbacks<ContainerBase>;
+using TCPConnection = slim::conn::tcp::Connection<ContainerBase>;
+using TCPServer     = slim::conn::tcp::Server<ContainerBase>;
+using UDPCallbacks  = slim::conn::udp::Callbacks<ContainerBase>;
+using UDPServer     = slim::conn::udp::Server<ContainerBase>;
+using Streamer      = slim::proto::Streamer<TCPConnection, Encoder>;
 
-using Source        = slim::alsa::Source;
+using Consumer      = slim::Consumer;
 using File          = slim::FileConsumer<Encoder>;
 using Pipeline      = slim::Pipeline;
 using Producer      = slim::Producer;
 using Scheduler     = slim::Scheduler;
+using Source        = slim::alsa::Source;
 
 using Container     = slim::Container<Streamer, TCPServer, TCPServer, UDPServer, Scheduler>;
 
@@ -108,7 +108,7 @@ void printLicenseInfo()
 
 auto createCommandCallbacks(Streamer& streamer)
 {
-	auto callbacksPtr{std::make_unique<Callbacks>()};
+	auto callbacksPtr{std::make_unique<TCPCallbacks>()};
 
 	callbacksPtr->setOpenCallback([&](auto& connection)
 	{
@@ -156,14 +156,14 @@ auto createPipelines(std::vector<std::unique_ptr<Source>>& sources, Streamer& st
 	{
 		auto parameters{sourcePtr->getParameters()};
 
-		//auto streamPtr{std::make_unique<std::ofstream>(std::to_string(parameters.getSamplingRate()) + ".flac", std::ios::binary)};
-		//auto writerPtr{std::make_unique<slim::util::StreamAsyncWriter>(std::move(streamPtr))};
-		//auto filePtr{std::make_unique<File>(std::move(writerPtr), parameters.getChannels() - 1, parameters.getSamplingRate(), parameters.getBitsPerSample(), parameters.getBitsPerValue())};
+		auto streamPtr{std::make_unique<std::ofstream>(std::to_string(parameters.getSamplingRate()) + ".flac", std::ios::binary)};
+		auto writerPtr{std::make_unique<slim::util::StreamAsyncWriter>(std::move(streamPtr))};
+		auto filePtr{std::make_unique<File>(std::move(writerPtr), parameters.getLogicalChannels(), parameters.getSamplingRate(), parameters.getBitsPerSample(), parameters.getBitsPerValue())};
 
-		//pipelines.emplace_back(std::ref<Producer>(*sourcePtr), std::ref<Consumer>(*filePtr));
-		//files.push_back(std::move(filePtr));
+		pipelines.emplace_back(std::ref<Producer>(*sourcePtr), std::ref<Consumer>(*filePtr));
+		files.push_back(std::move(filePtr));
 
-		pipelines.emplace_back(std::ref<Producer>(*sourcePtr), std::ref<Consumer>(streamer));
+		//pipelines.emplace_back(std::ref<Producer>(*sourcePtr), std::ref<Consumer>(streamer));
 	}
 
 	return std::move(pipelines);
@@ -209,7 +209,7 @@ auto createSources(slim::alsa::Parameters parameters)
 
 auto createStreamingCallbacks(Streamer& streamer)
 {
-	auto callbacksPtr{std::make_unique<Callbacks>()};
+	auto callbacksPtr{std::make_unique<TCPCallbacks>()};
 
 	callbacksPtr->setOpenCallback([&](auto& connection)
 	{
