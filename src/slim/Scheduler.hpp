@@ -64,7 +64,7 @@ namespace slim
 
 							try
 							{
-								pipeline.getProducer().start(std::move(overflowCallback));
+								pipeline.getProducer().start(overflowCallback);
 							}
 							catch (const slim::Exception& error)
 							{
