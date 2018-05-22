@@ -133,7 +133,17 @@ auto createDiscoveryCallbacks()
 
 	callbacksPtr->setDataCallback([&](auto& server, unsigned char* buffer, const std::size_t size)
 	{
-		LOG(INFO) << LABELS{"conn"} << "UDP DATA!!!";
+		LOG(INFO) << LABELS{"conn"} << "UDP DATA " << server.getNativePeerEndpoint().value().address().to_string();
+
+		try
+		{
+			server.write("ab");
+		}
+		catch (...)
+		{
+			LOG(INFO) << LABELS{"conn"} << "ERROR";
+		}
+
 	});
 	callbacksPtr->setStartCallback([&](auto& server)
 	{

@@ -15,9 +15,11 @@
 #include <asio.hpp>
 #include <conwrap/ProcessorAsioProxy.hpp>
 #include <memory>
+#include <optional>
 
 #include "slim/conn/udp/CallbacksBase.hpp"
 #include "slim/log/log.hpp"
+#include "slim/util/AsyncWriter.hpp"
 
 // TODO: refactor
 #define  BUFFER_SIZE 1
@@ -30,7 +32,7 @@ namespace slim
 		namespace udp
 		{
 			template <typename ContainerType>
-			class Server
+			class Server : public util::AsyncWriter
 			{
 				public:
 					Server(unsigned int p, std::unique_ptr<CallbacksBase<Server<ContainerType>>> c)
@@ -40,7 +42,7 @@ namespace slim
 						LOG(DEBUG) << LABELS{"conn"} << "UDP server object was created (id=" << this << ")";
 					}
 
-				   ~Server()
+					virtual ~Server()
 					{
 						LOG(DEBUG) << LABELS{"conn"} << "UDP server object was deleted (id=" << this << ")";
 					}
@@ -49,6 +51,18 @@ namespace slim
 					Server& operator=(const Server&) = delete;  // non-assignable
 					Server(Server&& rhs) = delete;              // non-movable
 					Server& operator=(Server&& rhs) = delete;   // non-movable-assinable
+
+					auto& getNativePeerEndpoint()
+					{
+						return peerEndpoint;
+					}
+
+					auto& getNativeSocket()
+					{
+						return nativeSocket;
+					}
+
+					virtual void rewind(const std::streampos pos) override {}
 
 					void setProcessorProxy(conwrap::ProcessorAsioProxy<ContainerType>* p)
 					{
@@ -76,6 +90,9 @@ namespace slim
 						// closing UDP socket
 						closeSocket();
 
+						// resetting peer's UDP endpoint
+						peerEndpoint = std::nullopt;
+
 						// calling stop callback and changing state of this object to '!started'
 						callbacksPtr->getStopCallback()(*this);
 						started = false;
@@ -83,19 +100,58 @@ namespace slim
 						LOG(INFO) << LABELS{"conn"} << "UDP server was stopped (id=" << this << ", port=" << port << ")";
 					}
 
+					// including write overloads
+					using AsyncWriter::write;
+
+					virtual std::size_t write(const void* data, const std::size_t size) override
+					{
+						std::size_t result{0};
+
+						if (nativeSocket.has_value() && nativeSocket.value().is_open())
+						{
+							if (peerEndpoint.has_value())
+							try
+							{
+								result = nativeSocket.value().send_to(asio::const_buffer(data, size), peerEndpoint.value());
+							}
+							catch(const std::system_error& e)
+							{
+								LOG(ERROR) << LABELS{"conn"} << "Could not send data due to an error (id=" << this << ", error=" << e.what() << ")";
+							}
+							else
+							{
+								LOG(WARNING) << LABELS{"conn"} << "Data was not sent due to missing peer's endpoint (id=" << this << ")";
+							}
+						}
+						else
+						{
+							LOG(WARNING) << LABELS{"conn"} << "Data was not sent due to closed socket (id=" << this << ")";
+						}
+
+						return result;
+					}
+
+					// including writeAsync overloads
+					using AsyncWriter::writeAsync;
+
+					virtual void writeAsync(const void* data, const std::size_t size, util::WriteCallback callback = [](auto, auto) {}) override
+					{
+
+					}
+
 				protected:
 					void closeSocket()
 					{
 						// disposing acceptor to prevent from new incomming requests
-						if (socketPtr)
+						if (nativeSocket.has_value())
 						{
-							socketPtr->cancel();
-							socketPtr->close();
+							nativeSocket.value().cancel();
+							nativeSocket.value().close();
 
-							LOG(INFO) << LABELS{"conn"} << "UDP socket was closed (id=" << socketPtr.get() << ", port=" << port << ")";
+							LOG(INFO) << LABELS{"conn"} << "UDP socket was closed (id=" << &nativeSocket.value() << ", port=" << port << ")";
 
 							// acceptor is not captured by handlers so it is safe to delete it
-							socketPtr.reset();
+							nativeSocket = std::nullopt;
 						}
 					}
 
@@ -118,17 +174,21 @@ namespace slim
 					void openSocket()
 					{
 						// creating a socket if required
-						if (!socketPtr)
+						if (!nativeSocket.has_value())
 						{
-							socketPtr = std::make_unique<asio::ip::udp::socket>(
+							nativeSocket = asio::ip::udp::socket
+							{
 								*processorProxyPtr->getDispatcher(),
 								asio::ip::udp::endpoint(
 									asio::ip::udp::v4(),
 									port
 								)
-							);
-							LOG(INFO) << LABELS{"conn"} << "UDP socket was opened (id=" << socketPtr.get() << ", port=" << port << ")";
+							};
+							LOG(INFO) << LABELS{"conn"} << "UDP socket was opened (id=" << &nativeSocket.value() << ", port=" << port << ")";
 						}
+
+						// allocating new endpoint required for UDP (peer's side)
+						peerEndpoint = asio::ip::udp::endpoint();
 
 						// start receiving data
 						receiveData();
@@ -136,9 +196,9 @@ namespace slim
 
 					void receiveData()
 					{
-						if (socketPtr)
+						if (nativeSocket.has_value())
 						{
-							socketPtr->async_receive_from(asio::buffer(buffer, BUFFER_SIZE), endpoint, [=](auto error, auto transferred)
+							nativeSocket.value().async_receive_from(asio::buffer(buffer, BUFFER_SIZE), peerEndpoint.value(), [=](auto error, auto transferred)
 							{
 								processorProxyPtr->wrap([=]
 								{
@@ -153,8 +213,8 @@ namespace slim
 					std::unique_ptr<CallbacksBase<Server>>      callbacksPtr;
 					bool                                        started{false};
 					conwrap::ProcessorAsioProxy<ContainerType>* processorProxyPtr;
-					std::unique_ptr<asio::ip::udp::socket>      socketPtr;
-					asio::ip::udp::endpoint                     endpoint;
+					std::optional<asio::ip::udp::socket>        nativeSocket{std::nullopt};
+					std::optional<asio::ip::udp::endpoint>      peerEndpoint{std::nullopt};
 					unsigned char                               buffer[BUFFER_SIZE];
 			};
 		}
