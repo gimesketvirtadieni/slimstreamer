@@ -77,7 +77,14 @@ namespace slim
 						openSocket();
 
 						// calling start callback and changing state of this object to 'started'
-						callbacksPtr->getStartCallback()(*this);
+						try
+						{
+							callbacksPtr->getStartCallback()(*this);
+						}
+						catch (const std::exception& e)
+						{
+							LOG(ERROR) << LABELS{"conn"} << "Error while invoking start callback (id=" << this << ", error=" << e.what() << ")";
+						}
 						started = true;
 
 						LOG(INFO) << LABELS{"conn"} << "UDP server was started (id=" << this << ")";
@@ -94,7 +101,14 @@ namespace slim
 						peerEndpoint = std::nullopt;
 
 						// calling stop callback and changing state of this object to '!started'
-						callbacksPtr->getStopCallback()(*this);
+						try
+						{
+							callbacksPtr->getStopCallback()(*this);
+						}
+						catch (const std::exception& e)
+						{
+							LOG(ERROR) << LABELS{"conn"} << "Error while invoking stop callback (id=" << this << ", error=" << e.what() << ")";
+						}
 						started = false;
 
 						LOG(INFO) << LABELS{"conn"} << "UDP server was stopped (id=" << this << ", port=" << port << ")";
@@ -160,7 +174,14 @@ namespace slim
 						if (!error)
 						{
 							// processing received data
-							callbacksPtr->getDataCallback()(*this, buffer, size);
+							try
+							{
+								callbacksPtr->getDataCallback()(*this, buffer, size);
+							}
+							catch (const std::exception& e)
+							{
+								LOG(ERROR) << LABELS{"conn"} << "Error while invoking data callback (id=" << this << ", error=" << e.what() << ")";
+							}
 
 							// keep receiving data
 							receiveData();
