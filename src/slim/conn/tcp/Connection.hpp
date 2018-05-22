@@ -104,24 +104,26 @@ namespace slim
 
 					virtual std::size_t write(const void* data, const std::size_t size) override
 					{
+						std::size_t result{0};
+
 						try
 						{
 							if (nativeSocket.is_open())
 							{
 								// no need to return actually written bytes as assio::write function writes all provided data
-								asio::write(nativeSocket, asio::const_buffer(data, size));
+								result = asio::write(nativeSocket, asio::const_buffer(data, size));
 							}
 							else
 							{
 								LOG(WARNING) << LABELS{"conn"} << "Could not send data as socket is not opened (id=" << this << ")";
 							}
 						}
-						catch(const std::exception& e)
+						catch(const std::system_error& e)
 						{
 							LOG(ERROR) << LABELS{"conn"} << "Could not send data due to an error (id=" << this << ", error=" << e.what() << ")";
 						}
 
-						return size;
+						return result;
 					}
 
 					// including writeAsync overloads

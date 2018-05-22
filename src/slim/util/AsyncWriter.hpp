@@ -12,8 +12,9 @@
 
 #pragma once
 
-#include <cstddef>  // std::size_t
+#include <cstddef>   // std::size_t
 #include <functional>
+#include <iostream>  // std::streampos
 #include <string>
 
 
