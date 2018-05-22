@@ -31,7 +31,7 @@ namespace slim
 				processorProxyPtr = p;
 			}
 
-			virtual void start(std::function<void()> overflowCallback = [] {}) = 0;
+			virtual void start() = 0;
 			virtual void stop() = 0;
 
 		private:

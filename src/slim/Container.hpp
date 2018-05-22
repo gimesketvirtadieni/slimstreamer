@@ -51,12 +51,12 @@ namespace slim
 				schedulerPtr->setProcessorProxy(p);
 			}
 
-			virtual void start(std::function<void()> overflowCallback = [] {}) override
+			virtual void start() override
 			{
 				commandServerPtr->start();
 				streamingServerPtr->start();
 				discoveryServerPtr->start();
-				schedulerPtr->start(std::move(overflowCallback));
+				schedulerPtr->start();
 			}
 
 			virtual void stop() override

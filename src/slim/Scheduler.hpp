@@ -28,8 +28,9 @@ namespace slim
 	class Scheduler
 	{
 		public:
-			Scheduler(std::vector<Pipeline> p)
+			Scheduler(std::vector<Pipeline> p, std::function<void()> oc = [] {})
 			: pipelines{std::move(p)}
+			, overflowCallback{std::move(oc)}
 			{
 				LOG(DEBUG) << LABELS{"slim"} << "Scheduler object was created (id=" << this << ")";
 			}
@@ -50,7 +51,7 @@ namespace slim
 				processorProxyPtr = p;
 			}
 
-			void start(std::function<void()> overflowCallback = [] {})
+			void start()
 			{
 				for (auto& pipeline : pipelines)
 				{
@@ -180,6 +181,7 @@ namespace slim
 
 		private:
 			std::vector<Pipeline>                   pipelines;
+			std::function<void()>                   overflowCallback;
 			std::vector<std::thread>                threads;
 			volatile bool                           consumerStarted{false};
 			conwrap::ProcessorProxy<ContainerBase>* processorProxyPtr{nullptr};

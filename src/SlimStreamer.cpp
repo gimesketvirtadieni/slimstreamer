@@ -287,7 +287,10 @@ int main(int argc, const char *argv[])
 			std::vector<std::unique_ptr<File>> files;
 
 			// creating Scheduler object with destination directed to slimproto Streamer
-			auto schedulerPtr{std::make_unique<Scheduler>(createPipelines(sources, *streamerPtr, files))};
+			auto schedulerPtr{std::make_unique<Scheduler>(createPipelines(sources, *streamerPtr, files), []
+			{
+				LOG(ERROR) << LABELS{"slim"} << "Buffer overflow error: a chunk was skipped";
+			})};
 
 			// creating Container object within Asio Processor with Scheduler and Servers
 			conwrap::ProcessorAsio<ContainerBase> processorAsio
@@ -306,10 +309,7 @@ int main(int argc, const char *argv[])
 
 				try
 				{
-					context.getResource()->start([]
-					{
-						LOG(ERROR) << LABELS{"slim"} << "Buffer overflow error: a chunk was skipped";
-					});
+					context.getResource()->start();
 					started = true;
 				}
 				catch (const std::exception& error)
