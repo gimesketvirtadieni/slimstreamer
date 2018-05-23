@@ -204,7 +204,7 @@ namespace slim
 		}
 
 
-		void Source::start(std::function<void()> overflowCallback)
+		void Source::start()
 		{
 			auto          maxFrames     = parameters.getFramesPerChunk();
 			unsigned int  bytesPerFrame = parameters.getTotalChannels() * (parameters.getBitsPerSample() >> 3);

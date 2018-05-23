@@ -193,7 +193,10 @@ auto createSources(slim::alsa::Parameters parameters)
 		parameters.setDeviceName(deviceValue);
 		parameters.setFramesPerChunk((rateValue * chunkDurationMilliSecond) / 1000);
 
-		sources.push_back(std::make_unique<Source>(parameters));
+		sources.push_back(std::make_unique<Source>(parameters,  []
+		{
+			LOG(ERROR) << LABELS{"slim"} << "Buffer overflow error: a chunk was skipped";
+		}));
 	}
 
 	return std::move(sources);
@@ -287,10 +290,7 @@ int main(int argc, const char *argv[])
 			std::vector<std::unique_ptr<File>> files;
 
 			// creating Scheduler object with destination directed to slimproto Streamer
-			auto schedulerPtr{std::make_unique<Scheduler>(createPipelines(sources, *streamerPtr, files), []
-			{
-				LOG(ERROR) << LABELS{"slim"} << "Buffer overflow error: a chunk was skipped";
-			})};
+			auto schedulerPtr{std::make_unique<Scheduler>(createPipelines(sources, *streamerPtr, files))};
 
 			// creating Container object within Asio Processor with Scheduler and Servers
 			conwrap::ProcessorAsio<ContainerBase> processorAsio

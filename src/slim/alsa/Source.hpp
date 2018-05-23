@@ -44,8 +44,9 @@ namespace slim
 			using TimePoint = std::chrono::time_point<std::chrono::steady_clock>;
 
 			public:
-				Source(Parameters p)
+				Source(Parameters p, std::function<void()> oc = [] {})
 				: parameters{p}
+				, overflowCallback{std::move(oc)}
 				, queuePtr{std::make_unique<util::RealTimeQueue<util::ExpandableBuffer>>(parameters.getQueueSize(), [&](util::ExpandableBuffer& buffer)
 				{
 					// last channel does not contain PCM data so it will be filtered out
@@ -109,7 +110,7 @@ namespace slim
 					});
 				}
 
-				virtual void start(std::function<void()> overflowCallback = [] {}) override;
+				virtual void start() override;
 				virtual void stop(bool gracefully = true) override;
 
 			protected:
@@ -127,6 +128,7 @@ namespace slim
 
 			private:
 				Parameters                                                   parameters;
+				std::function<void()>                                        overflowCallback;
 				std::unique_ptr<util::RealTimeQueue<util::ExpandableBuffer>> queuePtr;
 				snd_pcm_t*                                                   handlePtr{nullptr};
 				volatile bool                                                running{false};
