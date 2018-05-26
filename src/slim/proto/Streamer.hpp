@@ -48,12 +48,13 @@ namespace slim
 			using StreamingSessionType = StreamingSession<ConnectionType, EncoderType>;
 
 			public:
-				Streamer(unsigned int sp, unsigned int ch, unsigned int bs, unsigned int bv, std::optional<unsigned int> g)
+				Streamer(unsigned int sp, unsigned int ch, unsigned int bs, unsigned int bv, std::optional<unsigned int> g, FormatSelection f)
 				: streamingPort{sp}
 				, channels{ch}
 				, bitsPerSample{bs}
 				, bitsPerValue{bv}
 				, gain{g}
+				, formatSelection{f}
 				, timerThread{[&]
 				{
 					LOG(DEBUG) << LABELS{"proto"} << "Timer thread was started (id=" << std::this_thread::get_id() << ")";
@@ -271,9 +272,8 @@ namespace slim
 					std::stringstream ss;
 					ss << (++nextID);
 
-					// TODO: parametrize format
 					// creating command session object
-					auto sessionPtr{std::make_unique<CommandSessionType>(std::ref<ConnectionType>(connection), ss.str(), gain, FormatSelection::FLAC)};
+					auto sessionPtr{std::make_unique<CommandSessionType>(std::ref<ConnectionType>(connection), ss.str(), gain, formatSelection)};
 
 					// enable streaming for this session if required
 					if (streaming)
@@ -417,6 +417,7 @@ namespace slim
 				unsigned int                            bitsPerSample;
 				unsigned int                            bitsPerValue;
 				std::optional<unsigned int>             gain;
+				FormatSelection                         formatSelection;
 				SessionsMap<CommandSessionType>         commandSessions;
 				SessionsMap<StreamingSessionType>       streamingSessions;
 				bool                                    streaming{false};

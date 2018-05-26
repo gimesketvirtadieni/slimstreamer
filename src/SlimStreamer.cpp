@@ -39,6 +39,7 @@
 #include "slim/log/log.hpp"
 #include "slim/Pipeline.hpp"
 #include "slim/Producer.hpp"
+#include "slim/proto/Command.hpp"
 #include "slim/proto/Streamer.hpp"
 #include "slim/Scheduler.hpp"
 #include "slim/util/StreamAsyncWriter.hpp"
@@ -281,7 +282,7 @@ int main(int argc, const char *argv[])
 			auto sources{createSources(parameters)};
 
 			// Callbacks objects 'glue' SlimProto Streamer with TCP Command Servers
-			auto streamerPtr{std::make_unique<Streamer>(httpPort, parameters.getLogicalChannels(), parameters.getBitsPerSample(), parameters.getBitsPerValue(), gain)};
+			auto streamerPtr{std::make_unique<Streamer>(httpPort, parameters.getLogicalChannels(), parameters.getBitsPerSample(), parameters.getBitsPerValue(), gain, slim::proto::FormatSelection::FLAC)};
 			auto commandServerPtr{std::make_unique<TCPServer>(slimprotoPort, maxClients, std::move(createCommandCallbacks(*streamerPtr)))};
 			auto streamingServerPtr{std::make_unique<TCPServer>(httpPort, maxClients, std::move(createStreamingCallbacks(*streamerPtr)))};
 			auto discoveryServerPtr{std::make_unique<UDPServer>(3483, std::move(createDiscoveryCallbacks()))};
