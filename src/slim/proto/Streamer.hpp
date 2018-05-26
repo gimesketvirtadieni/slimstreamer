@@ -29,6 +29,7 @@
 #include "slim/Consumer.hpp"
 #include "slim/Exception.hpp"
 #include "slim/log/log.hpp"
+#include "slim/proto/Command.hpp"
 #include "slim/proto/CommandSession.hpp"
 #include "slim/proto/StreamingSession.hpp"
 
@@ -201,52 +202,37 @@ namespace slim
 
 				void onHTTPData(ConnectionType& connection, unsigned char* buffer, std::size_t receivedSize)
 				{
-					try
+					if (!applyToSession(streamingSessions, connection, [&](StreamingSessionType& session)
 					{
-						if (!applyToSession(streamingSessions, connection, [&](StreamingSessionType& session)
+						// processing request by a proper Streaming session mapped to this connection
+						session.onRequest(buffer, receivedSize);
+					}))
+					{
+						// parsing client ID
+						auto clientID = StreamingSessionType::parseClientID(std::string{(char*)buffer, receivedSize});
+						if (!clientID.has_value())
 						{
-							// processing request by a proper Streaming session mapped to this connection
-							session.onRequest(buffer, receivedSize);
-						}))
-						{
-							// parsing client ID
-							auto clientID = StreamingSessionType::parseClientID(std::string{(char*)buffer, receivedSize});
-							if (!clientID.has_value())
-							{
-								throw slim::Exception("Missing client ID in streaming session request");
-							}
-
-							LOG(INFO) << LABELS{"proto"} << "Client ID was parsed (clientID=" << clientID.value() << ")";
-
-							// creating streaming session object
-							auto streamingSessionPtr{std::make_unique<StreamingSessionType>(std::ref<ConnectionType>(connection), channels, samplingRate, bitsPerSample, bitsPerValue, clientID.value())};
-
-							// saving Streaming session reference in the relevant Command session
-							auto commandSessionPtr{findSessionByID(commandSessions, clientID.value())};
-							if (!commandSessionPtr.has_value())
-							{
-								throw slim::Exception("Could not correlate provided client ID with a valid SlimProto session");
-							}
-							commandSessionPtr.value()->setStreamingSession(streamingSessionPtr.get());
-
-							// saving Streaming session as a part of this Streamer
-							addSession(streamingSessions, connection, std::move(streamingSessionPtr));
+							throw slim::Exception("Missing client ID in streaming session request");
 						}
-					}
-					catch (const slim::Exception& error)
-					{
-						LOG(ERROR) << LABELS{"proto"} << "Error while streaming: " << error;
 
-						// TODO: work in progress
-						//applyToSession(commandSessions, connection, [&](CommandSessionType& commandSession)
-						//{
-						//	auto streamingSessionPtr{findSessionByID(streamingSessions, commandSession.getClientID())};
-						//	if (streamingSessionPtr.value())
-						//	{
-						//	}
-						//});
+						LOG(INFO) << LABELS{"proto"} << "Client ID was parsed (clientID=" << clientID.value() << ")";
 
-						connection.stop();
+						// creating streaming session object
+						auto streamingSessionPtr{std::make_unique<StreamingSessionType>(std::ref<ConnectionType>(connection), channels, samplingRate, bitsPerSample, bitsPerValue, clientID.value())};
+
+						// saving Streaming session reference in the relevant Command session
+						auto commandSessionPtr{findSessionByID(commandSessions, clientID.value())};
+						if (!commandSessionPtr.has_value())
+						{
+							throw slim::Exception("Could not correlate provided client ID with a valid SlimProto session");
+						}
+						commandSessionPtr.value()->setStreamingSession(streamingSessionPtr.get());
+
+						// processing request by a proper Streaming session mapped to this connection
+						streamingSessionPtr->onRequest(buffer, receivedSize);
+
+						// saving Streaming session as a part of this Streamer
+						addSession(streamingSessions, connection, std::move(streamingSessionPtr));
 					}
 				}
 
@@ -285,8 +271,9 @@ namespace slim
 					std::stringstream ss;
 					ss << (++nextID);
 
+					// TODO: parametrize format
 					// creating command session object
-					auto sessionPtr{std::make_unique<CommandSessionType>(std::ref<ConnectionType>(connection), ss.str(), gain)};
+					auto sessionPtr{std::make_unique<CommandSessionType>(std::ref<ConnectionType>(connection), ss.str(), gain, FormatSelection::FLAC)};
 
 					// enable streaming for this session if required
 					if (streaming)

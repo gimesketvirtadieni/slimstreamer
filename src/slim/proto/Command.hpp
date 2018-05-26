@@ -19,6 +19,19 @@ namespace slim
 {
 	namespace proto
 	{
+		enum class CommandSelection : char
+		{
+			Start = 's',
+			Stop  = 'q',
+			Time  = 't',
+		};
+
+		enum class FormatSelection
+		{
+			PCM,
+			FLAC,
+		};
+
 		template<typename CommandType>
 		class Command
 		{

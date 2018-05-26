@@ -88,19 +88,14 @@ namespace slim
 
 				inline void onRequest(unsigned char* buffer, std::size_t size)
 				{
-					// LOG(DEBUG) << LABELS{"proto"} << "HTTP onRequest";
-
-					//for (unsigned int i = 0; i < size; i++)
-					//{
-					//	LOG(DEBUG) << buffer[i];
-					//}
-
 					// TODO: make more strick validation
 					std::string get{"GET"};
 					std::string s{(char*)buffer, get.size()};
 					if (get.compare(s))
 					{
-						throw slim::Exception("Wrong method provided");
+						// stopping this session due an error
+						LOG(WARNING) << LABELS{"proto"} << "Wrong HTTP method provided";
+						connection.get().stop();
 					}
 				}
 

@@ -44,7 +44,7 @@ namespace slim
 			using StreamingSessionType = StreamingSession<ConnectionType, EncoderType>;
 
 			public:
-				CommandSession(std::reference_wrapper<ConnectionType> co, std::string id, std::optional<unsigned int> g)
+				CommandSession(std::reference_wrapper<ConnectionType> co, std::string id, std::optional<unsigned int> g, FormatSelection f)
 				: connection{co}
 				, clientID{id}
 				, gain{g}
@@ -59,11 +59,14 @@ namespace slim
 				, eventHandlers
 				{
 					{"STMc", [&] {onSTMc();}},
+					{"STMd", 0},
 					{"STMf", 0},
 					{"STMo", 0},
 					{"STMs", 0},
 					{"STMt", [&] {onSTMt();}},
+					{"STMu", 0},
 				}
+				, formatSelection{f}
 				{
 					LOG(DEBUG) << LABELS{"proto"} << "SlimProto session object was created (id=" << this << ")";
 				}
@@ -207,7 +210,7 @@ namespace slim
 					// if handshake commands were sent
 					if (commandHELO.has_value())
 					{
-						send(CommandSTRM{CommandSelection::Start, streamingPort, samplingRate, clientID});
+						send(CommandSTRM{CommandSelection::Start, formatSelection, streamingPort, samplingRate, clientID});
 					}
 				}
 
@@ -230,7 +233,7 @@ namespace slim
 
 					if (streaming)
 					{
-						send(CommandSTRM{CommandSelection::Start, streamingPort, samplingRate, clientID});
+						send(CommandSTRM{CommandSelection::Start, formatSelection, streamingPort, samplingRate, clientID});
 					}
 
 					return result;
@@ -288,6 +291,7 @@ namespace slim
 				std::optional<unsigned int>            gain;
 				CommandHandlersMap                     commandHandlers;
 				EventHandlersMap                       eventHandlers;
+				FormatSelection                        formatSelection;
 				bool                                   streaming{false};
 				unsigned int                           streamingPort{0};
 				unsigned int                           samplingRate{0};

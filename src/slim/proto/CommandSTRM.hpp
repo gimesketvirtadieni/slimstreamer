@@ -15,6 +15,7 @@
 #include <cstdint>  // std::u..._t types
 #include <cstring>  // memset, memcpy
 
+#include "slim/log/log.hpp"
 #include "slim/proto/Command.hpp"
 
 
@@ -46,7 +47,6 @@ namespace slim
 			char          httpHeader[64];
 		};
 
-
 		struct STRM
 		{
 			std::uint16_t size;
@@ -54,39 +54,37 @@ namespace slim
 		};
 		#pragma pack(pop)
 
-
-		enum class CommandSelection : char
-		{
-			Start = 's',
-			Stop  = 'q',
-			Time  = 't',
-		};
-
-
 		class CommandSTRM : public Command<STRM>
 		{
 			public:
+				// this constructor is used in case of CommandSelection::Time, CommandSelection::Stop, etc.
 				CommandSTRM(CommandSelection commandSelection)
-				: CommandSTRM{commandSelection, 0, 0, {}} {}
+				: CommandSTRM{commandSelection, FormatSelection::FLAC, 0, 0, {}} {}
 
-				CommandSTRM(CommandSelection commandSelection, unsigned int port, unsigned int samplingRate, std::string clientID)
+				CommandSTRM(CommandSelection commandSelection, FormatSelection formatSelection, unsigned int port, unsigned int samplingRate, std::string clientID)
 				{
 					memset(&strm, 0, sizeof(STRM));
 					memcpy(&strm.data.opcode, "strm", sizeof(strm.data.opcode));
 
 					strm.data.command    = static_cast<char>(commandSelection);
 					strm.data.autostart  = '1';  // autostart
-					// TODO: parametrize
-					//strm.data.format     = 'p';  // PCM
-					//strm.data.sampleSize = '3';  // 32 bits per sample
-					//strm.data.sampleRate = mapSamplingRate(samplingRate);
-					//strm.data.channels   = '2';  // stereo
-					//strm.data.endianness = '1';  // WAV
-					strm.data.format     = 'f';  // FLAC
-					strm.data.sampleSize = '?';  // self-describing
-					strm.data.sampleRate = '?';  // self-describing
-					strm.data.channels   = '?';  // self-describing
-					strm.data.endianness = '?';  // self-describing
+
+					if (formatSelection == FormatSelection::PCM)
+					{
+						strm.data.format     = 'p';  // PCM
+						strm.data.sampleSize = '3';  // 32 bits per sample
+						strm.data.sampleRate = mapSamplingRate(samplingRate);
+						strm.data.channels   = '2';  // stereo
+						strm.data.endianness = '1';  // WAV
+					}
+					else if (formatSelection == FormatSelection::FLAC)
+					{
+						strm.data.format     = 'f';  // FLAC
+						strm.data.sampleSize = '?';  // self-describing
+						strm.data.sampleRate = '?';  // self-describing
+						strm.data.channels   = '?';  // self-describing
+						strm.data.endianness = '?';  // self-describing
+					}
 
 					if (strm.data.command == static_cast<char>(CommandSelection::Start))
 					{
@@ -177,8 +175,10 @@ namespace slim
 					{
 						result = '9';
 					}
-
-					// TODO: 176400, 192000
+					else if (samplingRate > 96000)
+					{
+						LOG(DEBUG) << LABELS{"proto"} << "SlimProto does not support sampling rate for PCM format beyond 96K";
+					}
 
 					return result;
 				}
