@@ -12,7 +12,6 @@
 
 #pragma once
 
-#include <functional>
 #include <memory>
 
 #include "slim/Chunk.hpp"

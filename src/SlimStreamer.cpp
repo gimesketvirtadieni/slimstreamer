@@ -32,6 +32,7 @@
 #include "slim/conn/udp/Server.hpp"
 #include "slim/Consumer.hpp"
 #include "slim/Container.hpp"
+#include "slim/EncoderBase.hpp"
 #include "slim/Exception.hpp"
 #include "slim/FileConsumer.hpp"
 #include "slim/flac/Encoder.hpp"
@@ -241,6 +242,8 @@ int main(int argc, const char *argv[])
 			.custom_help("[options]")
 			.add_options()
 				("c,maxclients", "Maximum amount of clients able to connect", cxxopts::value<int>()->default_value("10"), "<number>")
+				// TODO: this is still work in progress
+				//("f,format", "Streaming format", cxxopts::value<std::string>()->default_value("FLAC"), "<PCM|FLAC>")
 				("g,gain", "Client audio gain", cxxopts::value<unsigned int>(), "<0-100>")
 				("h,help", "Print this help message", cxxopts::value<bool>())
 				("l,license", "Print license details", cxxopts::value<bool>())
@@ -266,9 +269,12 @@ int main(int argc, const char *argv[])
 		else
 		{
 			// setting mandatory parameters
+			// TODO: upercase
+			// TODO: this is still work in progress
+			//auto format        = result["format"].as<std::string>();
+			auto httpPort      = result["httpport"].as<int>();
 			auto maxClients    = result["maxclients"].as<int>();
 			auto slimprotoPort = result["slimprotoport"].as<int>();
-			auto httpPort      = result["httpport"].as<int>();
 
 			// setting optional parameters
 			std::optional<unsigned int> gain{std::nullopt};
@@ -276,6 +282,24 @@ int main(int argc, const char *argv[])
 			{
 				gain = result["gain"].as<unsigned int>();
 			}
+
+			// TODO: this is still work in progress
+			// validating parameters and setting format selection
+			//std::string                  pcm{"PCM"};
+			//std::string                  flac{"FLAC"};
+			//slim::proto::FormatSelection formatSelection;
+			//if (format == pcm)
+			//{
+			//	formatSelection = slim::proto::FormatSelection::PCM;
+			//}
+			//else if (format == flac)
+			//{
+			//	formatSelection = slim::proto::FormatSelection::FLAC;
+			//}
+			//else
+			//{
+			//	throw cxxopts::OptionException("Invalid streaming format, only 'FLAC' or 'PCM' values are supported");
+			//}
 
 			// creating source objects stored in a vector
 			slim::alsa::Parameters parameters{"", 3, SND_PCM_FORMAT_S32_LE, 0, 128, 0, 8};
