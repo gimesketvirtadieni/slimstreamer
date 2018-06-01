@@ -13,11 +13,13 @@
 #pragma once
 
 #include <functional>
+#include <memory>
 #include <optional>
 #include <sstream>  // std::stringstream
 #include <string>
 
 #include "slim/Chunk.hpp"
+#include "slim/EncoderBase.hpp"
 #include "slim/log/log.hpp"
 #include "slim/util/AsyncWriter.hpp"
 #include "slim/util/ExpandableBuffer.hpp"
@@ -27,15 +29,15 @@ namespace slim
 {
 	namespace proto
 	{
-		template<typename ConnectionType, typename EncoderType>
+		template<typename ConnectionType>
 		class StreamingSession
 		{
 			public:
-				StreamingSession(std::reference_wrapper<ConnectionType> co, unsigned int ch, unsigned int sr, unsigned int bs, unsigned int bv, std::string id)
+				StreamingSession(std::reference_wrapper<ConnectionType> co, unsigned int ch, unsigned int sr, unsigned int bs, unsigned int bv, std::unique_ptr<EncoderBase> e, std::string id)
 				: connection{co}
 				, samplingRate{sr}
+				, encoderPtr{std::move(e)}
 				, clientID{id}
-				, encoder{ch, sr, bs, bv, std::ref<util::AsyncWriter>(connection), false}
 				{
 					LOG(DEBUG) << LABELS{"proto"} << "HTTP session object was created (id=" << this << ")";
 
@@ -47,7 +49,7 @@ namespace slim
 					   << VERSION
 					   << ")\r\n"
 					   << "Connection: close\r\n"
-					   << "Content-Type: " << encoder.getMIME() << "\r\n"
+					   << "Content-Type: " << encoderPtr->getMIME() << "\r\n"
 					   << "\r\n";
 
 					// sending response string
@@ -78,7 +80,7 @@ namespace slim
 				{
 					if (samplingRate == chunk.getSamplingRate())
 					{
-						encoder.encode(chunk.getData(), chunk.getSize());
+						encoderPtr->encode(chunk.getData(), chunk.getSize());
 					}
 					else
 					{
@@ -116,8 +118,8 @@ namespace slim
 			private:
 				std::reference_wrapper<ConnectionType> connection;
 				unsigned int                           samplingRate;
+				std::unique_ptr<EncoderBase>           encoderPtr;
 				std::string                            clientID;
-				EncoderType                            encoder;
 		};
 	}
 }

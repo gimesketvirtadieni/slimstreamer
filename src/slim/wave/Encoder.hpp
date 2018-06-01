@@ -80,7 +80,7 @@ namespace slim
 					}
 				}
 
-				auto getMIME()
+				virtual std::string getMIME() override
 				{
 					return std::string{"audio/x-wave"};
 				}

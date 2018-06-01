@@ -44,19 +44,20 @@
 #include "slim/proto/Streamer.hpp"
 #include "slim/Scheduler.hpp"
 #include "slim/util/StreamAsyncWriter.hpp"
+#include "slim/wave/Encoder.hpp"
 
 
 using ContainerBase = slim::ContainerBase;
-using Encoder       = slim::flac::Encoder;
 using TCPCallbacks  = slim::conn::tcp::Callbacks<ContainerBase>;
 using TCPConnection = slim::conn::tcp::Connection<ContainerBase>;
 using TCPServer     = slim::conn::tcp::Server<ContainerBase>;
 using UDPCallbacks  = slim::conn::udp::Callbacks<ContainerBase>;
 using UDPServer     = slim::conn::udp::Server<ContainerBase>;
-using Streamer      = slim::proto::Streamer<TCPConnection, Encoder>;
+using Streamer      = slim::proto::Streamer<TCPConnection>;
 
 using Consumer      = slim::Consumer;
-using File          = slim::FileConsumer<Encoder>;
+// TODO: use builder as a parameter for FileConsumer instead of template
+using File          = slim::FileConsumer<slim::flac::Encoder>;
 using Pipeline      = slim::Pipeline;
 using Producer      = slim::Producer;
 using Scheduler     = slim::Scheduler;
@@ -285,28 +286,35 @@ int main(int argc, const char *argv[])
 
 			// TODO: this is still work in progress
 			// validating parameters and setting format selection
-			//std::string                  pcm{"PCM"};
-			//std::string                  flac{"FLAC"};
-			//slim::proto::FormatSelection formatSelection;
-			//if (format == pcm)
-			//{
-			//	formatSelection = slim::proto::FormatSelection::PCM;
-			//}
-			//else if (format == flac)
-			//{
-			//	formatSelection = slim::proto::FormatSelection::FLAC;
-			//}
-			//else
-			//{
-			//	throw cxxopts::OptionException("Invalid streaming format, only 'FLAC' or 'PCM' values are supported");
-			//}
+			std::string              format{"FLAC"};
+			std::string              pcm{"PCM"};
+			std::string              flac{"FLAC"};
+			slim::EncoderBuilderType encoderBuilder;
+			if (format == pcm)
+			{
+				encoderBuilder = [](unsigned int c, unsigned int s, unsigned int bs, unsigned int bv, std::reference_wrapper<slim::util::AsyncWriter> w, bool h)
+				{
+					return std::move(std::unique_ptr<slim::EncoderBase>{new slim::wave::Encoder{c, s, bs, bv, w, h}});
+				};
+			}
+			else if (format == flac)
+			{
+				encoderBuilder = [](unsigned int c, unsigned int s, unsigned int bs, unsigned int bv, std::reference_wrapper<slim::util::AsyncWriter> w, bool h)
+				{
+					return std::move(std::unique_ptr<slim::EncoderBase>{new slim::flac::Encoder{c, s, bs, bv, w, h}});
+				};
+			}
+			else
+			{
+				throw cxxopts::OptionException("Invalid streaming format, only 'FLAC' or 'PCM' values are supported");
+			}
 
 			// creating source objects stored in a vector
 			slim::alsa::Parameters parameters{"", 3, SND_PCM_FORMAT_S32_LE, 0, 128, 0, 8};
 			auto sources{createSources(parameters)};
 
 			// Callbacks objects 'glue' SlimProto Streamer with TCP Command Servers
-			auto streamerPtr{std::make_unique<Streamer>(httpPort, parameters.getLogicalChannels(), parameters.getBitsPerSample(), parameters.getBitsPerValue(), gain, slim::proto::FormatSelection::FLAC)};
+			auto streamerPtr{std::make_unique<Streamer>(httpPort, parameters.getLogicalChannels(), parameters.getBitsPerSample(), parameters.getBitsPerValue(), encoderBuilder, gain, slim::proto::FormatSelection::FLAC)};
 			auto commandServerPtr{std::make_unique<TCPServer>(slimprotoPort, maxClients, std::move(createCommandCallbacks(*streamerPtr)))};
 			auto streamingServerPtr{std::make_unique<TCPServer>(httpPort, maxClients, std::move(createStreamingCallbacks(*streamerPtr)))};
 			auto discoveryServerPtr{std::make_unique<UDPServer>(3483, std::move(createDiscoveryCallbacks()))};

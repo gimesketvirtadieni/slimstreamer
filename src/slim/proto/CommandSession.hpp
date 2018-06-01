@@ -35,13 +35,13 @@ namespace slim
 {
 	namespace proto
 	{
-		template<typename ConnectionType, typename EncoderType>
+		template<typename ConnectionType>
 		class CommandSession
 		{
 			using CommandHandlersMap   = std::unordered_map<std::string, std::function<std::size_t(unsigned char*, std::size_t)>>;
 			using EventHandlersMap     = std::unordered_map<std::string, std::function<void()>>;
 			using TimePoint            = std::chrono::time_point<std::chrono::steady_clock>;
-			using StreamingSessionType = StreamingSession<ConnectionType, EncoderType>;
+			using StreamingSessionType = StreamingSession<ConnectionType>;
 
 			public:
 				CommandSession(std::reference_wrapper<ConnectionType> co, std::string id, std::optional<unsigned int> g, FormatSelection f)

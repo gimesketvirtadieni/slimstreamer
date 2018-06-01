@@ -16,6 +16,7 @@
 #include <FLAC++/encoder.h>
 #include <string>
 
+#include "slim/EncoderBase.hpp"
 #include "slim/log/log.hpp"
 #include "slim/util/AsyncWriter.hpp"
 #include "slim/util/BufferedAsyncWriter.hpp"
@@ -25,7 +26,7 @@ namespace slim
 {
 	namespace flac
 	{
-		class Encoder : protected FLAC::Encoder::Stream
+		class Encoder : public EncoderBase, protected FLAC::Encoder::Stream
 		{
 			public:
 				explicit Encoder(unsigned int c, unsigned int s, unsigned int bs, unsigned int bv, std::reference_wrapper<util::AsyncWriter> w, bool h)
@@ -95,7 +96,7 @@ namespace slim
 					}
 				}
 
-			   ~Encoder()
+				virtual ~Encoder()
 				{
 					if (!finish())
 					{
@@ -108,7 +109,7 @@ namespace slim
 				Encoder(Encoder&&) = delete;                  // non-movable
 				Encoder& operator=(Encoder&&) = delete;       // non-assign-movable
 
-				void encode(unsigned char* data, const std::size_t size)
+				virtual void encode(unsigned char* data, const std::size_t size) override
 				{
 					// do not feed encoder with more data if there is no room in transfer buffer
 					if (bufferedWriter.isBufferAvailable())
@@ -156,7 +157,7 @@ namespace slim
 					}
 				}
 
-				auto getMIME()
+				virtual std::string getMIME() override
 				{
 					return std::string{"audio/flac"};
 				}

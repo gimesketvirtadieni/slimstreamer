@@ -27,6 +27,7 @@
 
 #include "slim/Chunk.hpp"
 #include "slim/Consumer.hpp"
+#include "slim/EncoderBase.hpp"
 #include "slim/Exception.hpp"
 #include "slim/log/log.hpp"
 #include "slim/proto/Command.hpp"
@@ -38,21 +39,22 @@ namespace slim
 {
 	namespace proto
 	{
-		template<typename ConnectionType, typename EncoderType>
+		template<typename ConnectionType>
 		class Streamer : public Consumer
 		{
 			template<typename SessionType>
 			using SessionsMap          = std::unordered_map<ConnectionType*, std::unique_ptr<SessionType>>;
 			using TimePoint            = std::chrono::time_point<std::chrono::steady_clock>;
-			using CommandSessionType   = CommandSession<ConnectionType, EncoderType>;
-			using StreamingSessionType = StreamingSession<ConnectionType, EncoderType>;
+			using CommandSessionType   = CommandSession<ConnectionType>;
+			using StreamingSessionType = StreamingSession<ConnectionType>;
 
 			public:
-				Streamer(unsigned int sp, unsigned int ch, unsigned int bs, unsigned int bv, std::optional<unsigned int> g, FormatSelection f)
+				Streamer(unsigned int sp, unsigned int ch, unsigned int bs, unsigned int bv, EncoderBuilderType eb, std::optional<unsigned int> g, FormatSelection f)
 				: streamingPort{sp}
 				, channels{ch}
 				, bitsPerSample{bs}
 				, bitsPerValue{bv}
+				, encoderBuilder{eb}
 				, gain{g}
 				, formatSelection{f}
 				, timerThread{[&]
@@ -219,7 +221,7 @@ namespace slim
 						LOG(INFO) << LABELS{"proto"} << "Client ID was parsed (clientID=" << clientID.value() << ")";
 
 						// creating streaming session object
-						auto streamingSessionPtr{std::make_unique<StreamingSessionType>(std::ref<ConnectionType>(connection), channels, samplingRate, bitsPerSample, bitsPerValue, clientID.value())};
+						auto streamingSessionPtr{std::make_unique<StreamingSessionType>(std::ref<ConnectionType>(connection), channels, samplingRate, bitsPerSample, bitsPerValue, std::move(encoderBuilder(channels, samplingRate, bitsPerSample, bitsPerValue, std::ref<util::AsyncWriter>(connection), false)), clientID.value())};
 
 						// saving Streaming session reference in the relevant Command session
 						auto commandSessionPtr{findSessionByID(commandSessions, clientID.value())};
@@ -416,6 +418,7 @@ namespace slim
 				unsigned int                            channels;
 				unsigned int                            bitsPerSample;
 				unsigned int                            bitsPerValue;
+				EncoderBuilderType                      encoderBuilder;
 				std::optional<unsigned int>             gain;
 				FormatSelection                         formatSelection;
 				SessionsMap<CommandSessionType>         commandSessions;
