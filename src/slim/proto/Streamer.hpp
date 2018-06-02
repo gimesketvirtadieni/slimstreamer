@@ -54,7 +54,7 @@ namespace slim
 				, channels{ch}
 				, bitsPerSample{bs}
 				, bitsPerValue{bv}
-				, encoderBuilder{std::move(eb)}
+				, encoderBuilder{eb}
 				, gain{g}
 				, formatSelection{f}
 				, timerThread{[&]

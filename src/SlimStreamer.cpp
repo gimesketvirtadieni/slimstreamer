@@ -310,7 +310,7 @@ int main(int argc, const char *argv[])
 			auto sources{createSources(parameters)};
 
 			// Callbacks objects 'glue' SlimProto Streamer with TCP Command Servers
-			auto streamerPtr{std::make_unique<Streamer<TCPConnection>>(httpPort, parameters.getLogicalChannels(), parameters.getBitsPerSample(), parameters.getBitsPerValue(), std::move(encoderBuilder), gain, formatSelection)};
+			auto streamerPtr{std::make_unique<Streamer<TCPConnection>>(httpPort, parameters.getLogicalChannels(), parameters.getBitsPerSample(), parameters.getBitsPerValue(), encoderBuilder, gain, formatSelection)};
 			auto commandServerPtr{std::make_unique<TCPServer>(slimprotoPort, maxClients, std::move(createCommandCallbacks(*streamerPtr)))};
 			auto streamingServerPtr{std::make_unique<TCPServer>(httpPort, maxClients, std::move(createStreamingCallbacks(*streamerPtr)))};
 			auto discoveryServerPtr{std::make_unique<UDPServer>(3483, std::move(createDiscoveryCallbacks()))};
@@ -319,7 +319,10 @@ int main(int argc, const char *argv[])
 			std::vector<std::unique_ptr<FileConsumer>> files;
 
 			// creating Scheduler object with destination directed to slimproto Streamer
-			auto schedulerPtr{std::make_unique<Scheduler>(createPipelines(sources, *streamerPtr, files, encoderBuilder))};
+			auto schedulerPtr
+			{
+				std::make_unique<Scheduler>(createPipelines(sources, *streamerPtr, files, encoderBuilder))
+			};
 
 			// creating Container object within Asio Processor with Scheduler and Servers
 			conwrap::ProcessorAsio<ContainerBase> processorAsio
@@ -332,6 +335,7 @@ int main(int argc, const char *argv[])
 
 			// start streaming
 			LOG(INFO) << "Starting SlimStreamer...";
+			LOG(INFO) << "Streaming format is " << format;
 			if (processorAsio.process([](auto context) -> bool
 			{
 				auto started{false};
