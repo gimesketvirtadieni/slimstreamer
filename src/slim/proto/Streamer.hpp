@@ -27,7 +27,8 @@
 
 #include "slim/Chunk.hpp"
 #include "slim/Consumer.hpp"
-#include "slim/EncoderBase.hpp"
+#include "slim/ContainerBase.hpp"
+#include "slim/EncoderBuilder.hpp"
 #include "slim/Exception.hpp"
 #include "slim/log/log.hpp"
 #include "slim/proto/Command.hpp"
@@ -49,14 +50,13 @@ namespace slim
 			using StreamingSessionType = StreamingSession<ConnectionType>;
 
 			public:
-				Streamer(unsigned int sp, unsigned int ch, unsigned int bs, unsigned int bv, EncoderBuilderType eb, std::optional<unsigned int> g, FormatSelection f)
+				Streamer(unsigned int sp, unsigned int ch, unsigned int bs, unsigned int bv, EncoderBuilder eb, std::optional<unsigned int> g)
 				: streamingPort{sp}
 				, channels{ch}
 				, bitsPerSample{bs}
 				, bitsPerValue{bv}
 				, encoderBuilder{eb}
 				, gain{g}
-				, formatSelection{f}
 				, timerThread{[&]
 				{
 					LOG(DEBUG) << LABELS{"proto"} << "Timer thread was started (id=" << std::this_thread::get_id() << ")";
@@ -221,7 +221,7 @@ namespace slim
 						LOG(INFO) << LABELS{"proto"} << "Client ID was parsed (clientID=" << clientID.value() << ")";
 
 						// creating streaming session object
-						auto streamingSessionPtr{std::make_unique<StreamingSessionType>(std::ref<ConnectionType>(connection), channels, samplingRate, bitsPerSample, bitsPerValue, std::move(encoderBuilder(channels, samplingRate, bitsPerSample, bitsPerValue, std::ref<util::AsyncWriter>(connection), false)), clientID.value())};
+						auto streamingSessionPtr{std::make_unique<StreamingSessionType>(std::ref<ConnectionType>(connection), channels, samplingRate, bitsPerSample, bitsPerValue, std::move(encoderBuilder.build(channels, samplingRate, bitsPerSample, bitsPerValue, std::ref<util::AsyncWriter>(connection), false)), clientID.value())};
 
 						// saving Streaming session reference in the relevant Command session
 						auto commandSessionPtr{findSessionByID(commandSessions, clientID.value())};
@@ -275,7 +275,7 @@ namespace slim
 					ss << (++nextID);
 
 					// creating command session object
-					auto sessionPtr{std::make_unique<CommandSessionType>(std::ref<ConnectionType>(connection), ss.str(), gain, formatSelection)};
+					auto sessionPtr{std::make_unique<CommandSessionType>(std::ref<ConnectionType>(connection), ss.str(), gain, encoderBuilder.getFormat())};
 
 					// enable streaming for this session if required
 					if (streaming)
@@ -418,9 +418,8 @@ namespace slim
 				unsigned int                            channels;
 				unsigned int                            bitsPerSample;
 				unsigned int                            bitsPerValue;
-				EncoderBuilderType                      encoderBuilder;
+				EncoderBuilder                          encoderBuilder;
 				std::optional<unsigned int>             gain;
-				FormatSelection                         formatSelection;
 				SessionsMap<CommandSessionType>         commandSessions;
 				SessionsMap<StreamingSessionType>       streamingSessions;
 				bool                                    streaming{false};

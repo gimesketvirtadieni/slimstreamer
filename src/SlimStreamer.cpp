@@ -138,7 +138,7 @@ auto createDiscoveryCallbacks()
 }
 
 
-auto createPipelines(std::vector<std::unique_ptr<Source>>& sources, Streamer<TCPConnection>& streamer, std::vector<std::unique_ptr<FileConsumer>>& files, EncoderBuilderType encoderBuilder)
+auto createPipelines(std::vector<std::unique_ptr<Source>>& sources, Streamer<TCPConnection>& streamer, std::vector<std::unique_ptr<FileConsumer>>& files, EncoderBuilder encoderBuilder)
 {
 	std::vector<Pipeline> pipelines;
 
@@ -149,7 +149,7 @@ auto createPipelines(std::vector<std::unique_ptr<Source>>& sources, Streamer<TCP
 		// TODO: default extension should be provided by encoderBuilder
 		//auto streamPtr{std::make_unique<std::ofstream>(std::to_string(parameters.getSamplingRate()) + ".flac", std::ios::binary)};
 		//auto writerPtr{std::make_unique<StreamAsyncWriter>(std::move(streamPtr))};
-		//auto encoderPtr{std::move(encoderBuilder(parameters.getLogicalChannels(), parameters.getSamplingRate(), parameters.getBitsPerSample(), parameters.getBitsPerValue(), std::ref<AsyncWriter>(*writerPtr), true))};
+		//auto encoderPtr{std::move(encoderBuilder.build(parameters.getLogicalChannels(), parameters.getSamplingRate(), parameters.getBitsPerSample(), parameters.getBitsPerValue(), std::ref<AsyncWriter>(*writerPtr), true))};
 		//auto filePtr{std::make_unique<FileConsumer>(std::move(writerPtr), std::move(encoderPtr))};
 
 		//pipelines.emplace_back(std::ref<Producer>(*sourcePtr), std::ref<Consumer>(*filePtr));
@@ -279,26 +279,24 @@ int main(int argc, const char *argv[])
 			}
 
 			// validating parameters and setting format selection
-			std::string        pcm{"PCM"};
-			std::string        flac{"FLAC"};
-			EncoderBuilderType encoderBuilder;
-			// TODO: get rid of
-			slim::proto::FormatSelection formatSelection;
+			std::string    pcm{"PCM"};
+			std::string    flac{"FLAC"};
+			EncoderBuilder encoderBuilder;
 			if (format == pcm)
 			{
-				encoderBuilder = [](unsigned int c, unsigned int s, unsigned int bs, unsigned int bv, std::reference_wrapper<AsyncWriter> w, bool h)
+				encoderBuilder.setBuilder([](unsigned int c, unsigned int s, unsigned int bs, unsigned int bv, std::reference_wrapper<AsyncWriter> w, bool h)
 				{
 					return std::move(std::unique_ptr<EncoderBase>{new wave::Encoder{c, s, bs, bv, w, h}});
-				};
-				formatSelection = slim::proto::FormatSelection::PCM;
+				});
+				encoderBuilder.setFormat(slim::proto::FormatSelection::PCM);
 			}
 			else if (format == flac)
 			{
-				encoderBuilder = [](unsigned int c, unsigned int s, unsigned int bs, unsigned int bv, std::reference_wrapper<AsyncWriter> w, bool h)
+				encoderBuilder.setBuilder([](unsigned int c, unsigned int s, unsigned int bs, unsigned int bv, std::reference_wrapper<AsyncWriter> w, bool h)
 				{
 					return std::move(std::unique_ptr<EncoderBase>{new flac::Encoder{c, s, bs, bv, w, h}});
-				};
-				formatSelection = slim::proto::FormatSelection::FLAC;
+				});
+				encoderBuilder.setFormat(slim::proto::FormatSelection::PCM);
 			}
 			else
 			{
@@ -310,10 +308,22 @@ int main(int argc, const char *argv[])
 			auto sources{createSources(parameters)};
 
 			// Callbacks objects 'glue' SlimProto Streamer with TCP Command Servers
-			auto streamerPtr{std::make_unique<Streamer<TCPConnection>>(httpPort, parameters.getLogicalChannels(), parameters.getBitsPerSample(), parameters.getBitsPerValue(), encoderBuilder, gain, formatSelection)};
-			auto commandServerPtr{std::make_unique<TCPServer>(slimprotoPort, maxClients, std::move(createCommandCallbacks(*streamerPtr)))};
-			auto streamingServerPtr{std::make_unique<TCPServer>(httpPort, maxClients, std::move(createStreamingCallbacks(*streamerPtr)))};
-			auto discoveryServerPtr{std::make_unique<UDPServer>(3483, std::move(createDiscoveryCallbacks()))};
+			auto streamerPtr
+			{
+				std::make_unique<Streamer<TCPConnection>>(httpPort, parameters.getLogicalChannels(), parameters.getBitsPerSample(), parameters.getBitsPerValue(), encoderBuilder, gain)
+			};
+			auto commandServerPtr
+			{
+				std::make_unique<TCPServer>(slimprotoPort, maxClients, std::move(createCommandCallbacks(*streamerPtr)))
+			};
+			auto streamingServerPtr
+			{
+				std::make_unique<TCPServer>(httpPort, maxClients, std::move(createStreamingCallbacks(*streamerPtr)))
+			};
+			auto discoveryServerPtr
+			{
+				std::make_unique<UDPServer>(3483, std::move(createDiscoveryCallbacks()))
+			};
 
 			// creating a container for files objects
 			std::vector<std::unique_ptr<FileConsumer>> files;

@@ -17,6 +17,7 @@
 #include <string>
 
 #include "slim/EncoderBase.hpp"
+#include "slim/Exception.hpp"
 #include "slim/log/log.hpp"
 #include "slim/util/AsyncWriter.hpp"
 #include "slim/util/BufferedAsyncWriter.hpp"
