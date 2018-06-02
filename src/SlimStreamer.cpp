@@ -47,23 +47,17 @@
 #include "slim/wave/Encoder.hpp"
 
 
-using ContainerBase = slim::ContainerBase;
-using TCPCallbacks  = slim::conn::tcp::Callbacks<ContainerBase>;
-using TCPConnection = slim::conn::tcp::Connection<ContainerBase>;
-using TCPServer     = slim::conn::tcp::Server<ContainerBase>;
-using UDPCallbacks  = slim::conn::udp::Callbacks<ContainerBase>;
-using UDPServer     = slim::conn::udp::Server<ContainerBase>;
-using Streamer      = slim::proto::Streamer<TCPConnection>;
+using namespace slim;
+using namespace slim::alsa;
+using namespace slim::conn;
+using namespace slim::proto;
+using namespace slim::util;
 
-using Consumer      = slim::Consumer;
-// TODO: use builder as a parameter for FileConsumer instead of template
-using File          = slim::FileConsumer;
-using Pipeline      = slim::Pipeline;
-using Producer      = slim::Producer;
-using Scheduler     = slim::Scheduler;
-using Source        = slim::alsa::Source;
-
-using Container     = slim::Container<Streamer, TCPServer, TCPServer, UDPServer, Scheduler>;
+using TCPCallbacks  = tcp::Callbacks<ContainerBase>;
+using TCPConnection = tcp::Connection<ContainerBase>;
+using TCPServer     = tcp::Server<ContainerBase>;
+using UDPCallbacks  = udp::Callbacks<ContainerBase>;
+using UDPServer     = udp::Server<ContainerBase>;
 
 
 static volatile bool running = true;
@@ -109,7 +103,7 @@ void printLicenseInfo()
 }
 
 
-auto createCommandCallbacks(Streamer& streamer)
+auto createCommandCallbacks(Streamer<TCPConnection>& streamer)
 {
 	auto callbacksPtr{std::make_unique<TCPCallbacks>()};
 
@@ -144,7 +138,7 @@ auto createDiscoveryCallbacks()
 }
 
 
-auto createPipelines(std::vector<std::unique_ptr<Source>>& sources, Streamer& streamer, std::vector<std::unique_ptr<File>>& files, slim::EncoderBuilderType encoderBuilder)
+auto createPipelines(std::vector<std::unique_ptr<Source>>& sources, Streamer<TCPConnection>& streamer, std::vector<std::unique_ptr<FileConsumer>>& files, EncoderBuilderType encoderBuilder)
 {
 	std::vector<Pipeline> pipelines;
 
@@ -154,9 +148,9 @@ auto createPipelines(std::vector<std::unique_ptr<Source>>& sources, Streamer& st
 
 		// TODO: default extension should be provided by encoderBuilder
 		//auto streamPtr{std::make_unique<std::ofstream>(std::to_string(parameters.getSamplingRate()) + ".flac", std::ios::binary)};
-		//auto writerPtr{std::make_unique<slim::util::StreamAsyncWriter>(std::move(streamPtr))};
-		//auto encoderPtr{std::move(encoderBuilder(parameters.getLogicalChannels(), parameters.getSamplingRate(), parameters.getBitsPerSample(), parameters.getBitsPerValue(), std::ref<slim::util::AsyncWriter>(*writerPtr), true))};
-		//auto filePtr{std::make_unique<File>(std::move(writerPtr), std::move(encoderPtr))};
+		//auto writerPtr{std::make_unique<StreamAsyncWriter>(std::move(streamPtr))};
+		//auto encoderPtr{std::move(encoderBuilder(parameters.getLogicalChannels(), parameters.getSamplingRate(), parameters.getBitsPerSample(), parameters.getBitsPerValue(), std::ref<AsyncWriter>(*writerPtr), true))};
+		//auto filePtr{std::make_unique<FileConsumer>(std::move(writerPtr), std::move(encoderPtr))};
 
 		//pipelines.emplace_back(std::ref<Producer>(*sourcePtr), std::ref<Consumer>(*filePtr));
 		//files.push_back(std::move(filePtr));
@@ -168,7 +162,7 @@ auto createPipelines(std::vector<std::unique_ptr<Source>>& sources, Streamer& st
 }
 
 
-auto createSources(slim::alsa::Parameters parameters)
+auto createSources(Parameters parameters)
 {
 	std::vector<std::tuple<unsigned int, std::string>> rates
 	{
@@ -208,7 +202,7 @@ auto createSources(slim::alsa::Parameters parameters)
 }
 
 
-auto createStreamingCallbacks(Streamer& streamer)
+auto createStreamingCallbacks(Streamer<TCPConnection>& streamer)
 {
 	auto callbacksPtr{std::make_unique<TCPCallbacks>()};
 
@@ -285,24 +279,24 @@ int main(int argc, const char *argv[])
 			}
 
 			// validating parameters and setting format selection
-			std::string                  pcm{"PCM"};
-			std::string                  flac{"FLAC"};
-			slim::EncoderBuilderType     encoderBuilder;
+			std::string        pcm{"PCM"};
+			std::string        flac{"FLAC"};
+			EncoderBuilderType encoderBuilder;
 			// TODO: get rid of
 			slim::proto::FormatSelection formatSelection;
 			if (format == pcm)
 			{
-				encoderBuilder = [](unsigned int c, unsigned int s, unsigned int bs, unsigned int bv, std::reference_wrapper<slim::util::AsyncWriter> w, bool h)
+				encoderBuilder = [](unsigned int c, unsigned int s, unsigned int bs, unsigned int bv, std::reference_wrapper<AsyncWriter> w, bool h)
 				{
-					return std::move(std::unique_ptr<slim::EncoderBase>{new slim::wave::Encoder{c, s, bs, bv, w, h}});
+					return std::move(std::unique_ptr<EncoderBase>{new wave::Encoder{c, s, bs, bv, w, h}});
 				};
 				formatSelection = slim::proto::FormatSelection::PCM;
 			}
 			else if (format == flac)
 			{
-				encoderBuilder = [](unsigned int c, unsigned int s, unsigned int bs, unsigned int bv, std::reference_wrapper<slim::util::AsyncWriter> w, bool h)
+				encoderBuilder = [](unsigned int c, unsigned int s, unsigned int bs, unsigned int bv, std::reference_wrapper<AsyncWriter> w, bool h)
 				{
-					return std::move(std::unique_ptr<slim::EncoderBase>{new slim::flac::Encoder{c, s, bs, bv, w, h}});
+					return std::move(std::unique_ptr<EncoderBase>{new flac::Encoder{c, s, bs, bv, w, h}});
 				};
 				formatSelection = slim::proto::FormatSelection::FLAC;
 			}
@@ -312,17 +306,17 @@ int main(int argc, const char *argv[])
 			}
 
 			// creating source objects stored in a vector
-			slim::alsa::Parameters parameters{"", 3, SND_PCM_FORMAT_S32_LE, 0, 128, 0, 8};
+			Parameters parameters{"", 3, SND_PCM_FORMAT_S32_LE, 0, 128, 0, 8};
 			auto sources{createSources(parameters)};
 
 			// Callbacks objects 'glue' SlimProto Streamer with TCP Command Servers
-			auto streamerPtr{std::make_unique<Streamer>(httpPort, parameters.getLogicalChannels(), parameters.getBitsPerSample(), parameters.getBitsPerValue(), std::move(encoderBuilder), gain, formatSelection)};
+			auto streamerPtr{std::make_unique<Streamer<TCPConnection>>(httpPort, parameters.getLogicalChannels(), parameters.getBitsPerSample(), parameters.getBitsPerValue(), std::move(encoderBuilder), gain, formatSelection)};
 			auto commandServerPtr{std::make_unique<TCPServer>(slimprotoPort, maxClients, std::move(createCommandCallbacks(*streamerPtr)))};
 			auto streamingServerPtr{std::make_unique<TCPServer>(httpPort, maxClients, std::move(createStreamingCallbacks(*streamerPtr)))};
 			auto discoveryServerPtr{std::make_unique<UDPServer>(3483, std::move(createDiscoveryCallbacks()))};
 
 			// creating a container for files objects
-			std::vector<std::unique_ptr<File>> files;
+			std::vector<std::unique_ptr<FileConsumer>> files;
 
 			// creating Scheduler object with destination directed to slimproto Streamer
 			auto schedulerPtr{std::make_unique<Scheduler>(createPipelines(sources, *streamerPtr, files, encoderBuilder))};
@@ -332,7 +326,7 @@ int main(int argc, const char *argv[])
 			{
 				std::unique_ptr<ContainerBase>
 				{
-					new Container(std::move(streamerPtr), std::move(commandServerPtr), std::move(streamingServerPtr), std::move(discoveryServerPtr), std::move(schedulerPtr))
+					new Container<Streamer<TCPConnection>, TCPServer, TCPServer, UDPServer, Scheduler>(std::move(streamerPtr), std::move(commandServerPtr), std::move(streamingServerPtr), std::move(discoveryServerPtr), std::move(schedulerPtr))
 				}
 			};
 
@@ -386,7 +380,7 @@ int main(int argc, const char *argv[])
 	{
 		std::cout << "Wrong option(s) provided: " << e.what() << std::endl;
 	}
-	catch (const slim::Exception& error)
+	catch (const Exception& error)
 	{
 		LOG(ERROR) << error;
 	}
