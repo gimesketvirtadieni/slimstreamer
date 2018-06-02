@@ -16,19 +16,19 @@
 
 #include "slim/Chunk.hpp"
 #include "slim/Consumer.hpp"
+#include "slim/EncoderBase.hpp"
 #include "slim/log/log.hpp"
 #include "slim/util/AsyncWriter.hpp"
 
 
 namespace slim
 {
-	template <typename EncoderType>
 	class FileConsumer : public Consumer
 	{
 		public:
-			FileConsumer(std::unique_ptr<util::AsyncWriter> w, unsigned int channels, unsigned int sampleRate, unsigned int bitsPerSample, unsigned int bitsPerValue)
+			FileConsumer(std::unique_ptr<util::AsyncWriter> w, std::unique_ptr<EncoderBase> e)
 			: writerPtr{std::move(w)}
-			, encoder{channels, sampleRate, bitsPerSample, bitsPerValue, std::ref<util::AsyncWriter>(*writerPtr), true} {}
+			, encoderPtr{std::move(e)} {}
 
 			virtual ~FileConsumer() = default;
 			FileConsumer(const FileConsumer&) = delete;             // non-copyable
@@ -41,7 +41,7 @@ namespace slim
 				auto* data{chunk.getData()};
 				auto  size{chunk.getSize()};
 
-				encoder.encode(data, size);
+				encoderPtr->encode(data, size);
 
 				LOG(DEBUG) << LABELS{"slim"} << "Written " << chunk.getFrames() << " frames";
 
@@ -51,6 +51,6 @@ namespace slim
 
 		private:
 			std::unique_ptr<util::AsyncWriter> writerPtr;
-			EncoderType                        encoder;
+			std::unique_ptr<EncoderBase>       encoderPtr;
 	};
 }
