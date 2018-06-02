@@ -31,7 +31,7 @@ namespace slim
 			public:
 				explicit Encoder(unsigned int c, unsigned int s, unsigned int bs, unsigned int bv, std::reference_wrapper<util::AsyncWriter> w, bool h)
 				: channels{c}
-				, sampleRate{s}
+				, samplingRate{s}
 				, bitsPerSample{bs}
 				, bitsPerValue{bv}
 				, bufferedWriter{w}
@@ -55,7 +55,7 @@ namespace slim
 					}
 
 					// setting sampling rate
-					if (!set_sample_rate(sampleRate))
+					if (!set_sample_rate(samplingRate))
 					{
 						throw Exception("Could not set sampling rate");
 					}
@@ -178,7 +178,7 @@ namespace slim
 
 			private:
 				unsigned int                   channels;
-				unsigned int                   sampleRate;
+				unsigned int                   samplingRate;
 				unsigned int                   bitsPerSample;
 				unsigned int                   bitsPerValue;
 				bool                           downScale{false};

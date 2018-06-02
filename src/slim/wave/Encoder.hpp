@@ -32,7 +32,7 @@ namespace slim
 			public:
 				explicit Encoder(unsigned int c, unsigned int s, unsigned int bs, unsigned int bv, std::reference_wrapper<util::AsyncWriter> w, bool h)
 				: channels{c}
-				, sampleRate{s}
+				, samplingRate{s}
 				, bitsPerSample{bs}
 				, bitsPerValue{bv}
 				, bufferedWriter{w}
@@ -90,7 +90,7 @@ namespace slim
 				{
 					auto               size{static_cast<std::uint32_t>(s)};
 					const unsigned int bytesPerFrame{channels * (bitsPerSample >> 3)};
-					const unsigned int byteRate{sampleRate * bytesPerFrame};
+					const unsigned int byteRate{samplingRate * bytesPerFrame};
 					const char         chunkID[]     = {0x52, 0x49, 0x46, 0x46};
 					const char         format[]      = {0x57, 0x41, 0x56, 0x45};
 					const char         subchunk1ID[] = {0x66, 0x6D, 0x74, 0x20};
@@ -107,7 +107,7 @@ namespace slim
 					ss.write(size1, sizeof(size1));
 					ss.write(format1, sizeof(format1));
 					ss.write((const char*)&channels, sizeof(std::uint16_t));
-					ss.write((const char*)&sampleRate, sizeof(std::uint32_t));
+					ss.write((const char*)&samplingRate, sizeof(std::uint32_t));
 					ss.write((const char*)&byteRate, sizeof(std::uint32_t));
 					ss.write((const char*)&bytesPerFrame, sizeof(std::uint16_t));
 					ss.write((const char*)&bitsPerSample, sizeof(std::int16_t));
@@ -129,13 +129,13 @@ namespace slim
 
 			private:
 				unsigned int                  channels;
-				unsigned int                  sampleRate;
+				unsigned int                  samplingRate;
 				unsigned int                  bitsPerSample;
 				unsigned int                  bitsPerValue;
 				// TODO: parametrize
-				util::BufferedAsyncWriter<10>      bufferedWriter;
-				bool                               headerRequired;
-				std::size_t                        bytesWritten{0};
+				util::BufferedAsyncWriter<10> bufferedWriter;
+				bool                          headerRequired;
+				std::size_t                   bytesWritten{0};
 		};
 	}
 }

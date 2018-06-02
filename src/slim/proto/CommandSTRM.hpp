@@ -31,7 +31,7 @@ namespace slim
 			std::uint8_t  autostart;
 			std::uint8_t  format;
 			std::uint8_t  sampleSize;
-			std::uint8_t  sampleRate;
+			std::uint8_t  samplingRate;
 			std::uint8_t  channels;
 			std::uint8_t  endianness;
 			std::uint8_t  threshold;
@@ -71,19 +71,19 @@ namespace slim
 
 					if (formatSelection == FormatSelection::PCM)
 					{
-						strm.data.format     = 'p';  // PCM
-						strm.data.sampleSize = '3';  // 32 bits per sample
-						strm.data.sampleRate = mapSamplingRate(samplingRate);
-						strm.data.channels   = '2';  // stereo
-						strm.data.endianness = '1';  // WAV
+						strm.data.format       = 'p';  // PCM
+						strm.data.sampleSize   = '3';  // 32 bits per sample
+						strm.data.samplingRate = mapSamplingRate(samplingRate);
+						strm.data.channels     = '2';  // stereo
+						strm.data.endianness   = '1';  // WAV
 					}
 					else if (formatSelection == FormatSelection::FLAC)
 					{
-						strm.data.format     = 'f';  // FLAC
-						strm.data.sampleSize = '?';  // self-describing
-						strm.data.sampleRate = '?';  // self-describing
-						strm.data.channels   = '?';  // self-describing
-						strm.data.endianness = '?';  // self-describing
+						strm.data.format       = 'f';  // FLAC
+						strm.data.sampleSize   = '?';  // self-describing
+						strm.data.samplingRate = '?';  // self-describing
+						strm.data.channels     = '?';  // self-describing
+						strm.data.endianness   = '?';  // self-describing
 					}
 
 					if (strm.data.command == static_cast<char>(CommandSelection::Start))
