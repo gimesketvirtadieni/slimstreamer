@@ -30,8 +30,9 @@ namespace slim
 		class Encoder : public EncoderBase, protected FLAC::Encoder::Stream
 		{
 			public:
-				explicit Encoder(unsigned int c, unsigned int s, unsigned int bs, unsigned int bv, std::reference_wrapper<util::AsyncWriter> w, bool h)
-				: channels{c}
+				explicit Encoder(unsigned int c, unsigned int s, unsigned int bs, unsigned int bv, std::reference_wrapper<util::AsyncWriter> w, bool h, std::string ex, std::string m)
+				: EncoderBase{ex, m}
+				, channels{c}
 				, samplingRate{s}
 				, bitsPerSample{bs}
 				, bitsPerValue{bv}
@@ -156,11 +157,6 @@ namespace slim
 					{
 						LOG(WARNING) << LABELS{"flac"} << "Transfer buffer is full - skipping PCM chunk";
 					}
-				}
-
-				virtual std::string getMIME() override
-				{
-					return std::string{"audio/flac"};
 				}
 
 			protected:

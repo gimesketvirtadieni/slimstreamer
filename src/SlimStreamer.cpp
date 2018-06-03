@@ -147,7 +147,7 @@ auto createPipelines(std::vector<std::unique_ptr<Source>>& sources, Streamer<TCP
 		auto parameters{sourcePtr->getParameters()};
 
 		// TODO: default extension should be provided by encoderBuilder
-		//auto streamPtr{std::make_unique<std::ofstream>(std::to_string(parameters.getSamplingRate()) + ".flac", std::ios::binary)};
+		//auto streamPtr{std::make_unique<std::ofstream>(std::to_string(parameters.getSamplingRate()) + "." + encoderBuilder.getExtention(), std::ios::binary)};
 		//auto writerPtr{std::make_unique<StreamAsyncWriter>(std::move(streamPtr))};
 		//auto encoderPtr{std::move(encoderBuilder.build(parameters.getLogicalChannels(), parameters.getSamplingRate(), parameters.getBitsPerSample(), parameters.getBitsPerValue(), std::ref<AsyncWriter>(*writerPtr), true))};
 		//auto filePtr{std::make_unique<FileConsumer>(std::move(writerPtr), std::move(encoderPtr))};
@@ -192,7 +192,7 @@ auto createSources(Parameters parameters)
 		parameters.setDeviceName(deviceValue);
 		parameters.setFramesPerChunk((rateValue * chunkDurationMilliSecond) / 1000);
 
-		sources.push_back(std::make_unique<Source>(parameters,  []
+		sources.push_back(std::make_unique<Source>(parameters, []
 		{
 			LOG(ERROR) << LABELS{"slim"} << "Buffer overflow error: a chunk was skipped";
 		}));
@@ -284,19 +284,23 @@ int main(int argc, const char *argv[])
 			EncoderBuilder encoderBuilder;
 			if (format == pcm)
 			{
-				encoderBuilder.setBuilder([](unsigned int c, unsigned int s, unsigned int bs, unsigned int bv, std::reference_wrapper<AsyncWriter> w, bool h)
+				encoderBuilder.setBuilder([](unsigned int c, unsigned int s, unsigned int bs, unsigned int bv, std::reference_wrapper<AsyncWriter> w, bool h, std::string ex, std::string m)
 				{
-					return std::move(std::unique_ptr<EncoderBase>{new wave::Encoder{c, s, bs, bv, w, h}});
+					return std::move(std::unique_ptr<EncoderBase>{new wave::Encoder{c, s, bs, bv, w, h, ex, m}});
 				});
 				encoderBuilder.setFormat(slim::proto::FormatSelection::PCM);
+				encoderBuilder.setExtention("wav");
+				encoderBuilder.setMIME("audio/x-wave");
 			}
 			else if (format == flac)
 			{
-				encoderBuilder.setBuilder([](unsigned int c, unsigned int s, unsigned int bs, unsigned int bv, std::reference_wrapper<AsyncWriter> w, bool h)
+				encoderBuilder.setBuilder([](unsigned int c, unsigned int s, unsigned int bs, unsigned int bv, std::reference_wrapper<AsyncWriter> w, bool h, std::string ex, std::string m)
 				{
-					return std::move(std::unique_ptr<EncoderBase>{new flac::Encoder{c, s, bs, bv, w, h}});
+					return std::move(std::unique_ptr<EncoderBase>{new flac::Encoder{c, s, bs, bv, w, h, ex, m}});
 				});
-				encoderBuilder.setFormat(slim::proto::FormatSelection::PCM);
+				encoderBuilder.setFormat(slim::proto::FormatSelection::FLAC);
+				encoderBuilder.setExtention("flac");
+				encoderBuilder.setMIME("audio/flac");
 			}
 			else
 			{

@@ -15,6 +15,7 @@
 #include <cstddef>   // std::size_t
 #include <functional>
 #include <memory>
+#include <string>
 
 
 namespace slim
@@ -22,14 +23,30 @@ namespace slim
 	class EncoderBase
 	{
 		public:
-			EncoderBase() = default;
+			EncoderBase(std::string ex, std::string m)
+			: extention{ex}
+			, mime{m}{}
+
 			virtual ~EncoderBase() = default;
 			EncoderBase(const EncoderBase&) = delete;             // non-copyable
 			EncoderBase& operator=(const EncoderBase&) = delete;  // non-assignable
 			EncoderBase(EncoderBase&&) = delete;                  // non-movable
 			EncoderBase& operator=(EncoderBase&&) = delete;       // non-assign-movable
 
-			virtual void        encode(unsigned char* data, const std::size_t size) = 0;
-			virtual std::string getMIME() = 0;
+			virtual void encode(unsigned char* data, const std::size_t size) = 0;
+
+			auto getExtention()
+			{
+				return extention;
+			}
+
+			auto getMIME()
+			{
+				return mime;
+			}
+
+		private:
+			std::string extention;
+			std::string mime;
 	};
 }

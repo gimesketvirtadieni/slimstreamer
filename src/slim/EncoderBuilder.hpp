@@ -15,6 +15,8 @@
 #include <cstddef>   // std::size_t
 #include <functional>
 #include <memory>
+#include <optional>
+#include <string>
 
 #include "slim/EncoderBase.hpp"
 #include "slim/Exception.hpp"
@@ -26,7 +28,7 @@ namespace slim
 {
 	class EncoderBuilder
 	{
-		using BuilderType = std::function<std::unique_ptr<EncoderBase>(unsigned int, unsigned int, unsigned int, unsigned int, std::reference_wrapper<util::AsyncWriter>, bool)>;
+		using BuilderType = std::function<std::unique_ptr<EncoderBase>(unsigned int, unsigned int, unsigned int, unsigned int, std::reference_wrapper<util::AsyncWriter>, bool, std::string, std::string)>;
 
 		public:
 			EncoderBuilder() = default;
@@ -36,9 +38,31 @@ namespace slim
 			EncoderBuilder(EncoderBuilder&&) = default;
 			EncoderBuilder& operator=(EncoderBuilder&&) = default;
 
+			auto getExtention()
+			{
+				if (!extention.has_value())
+				{
+					throw Exception("Default file extention was not provided");
+				}
+				return extention.value();
+			}
+
 			auto getFormat()
 			{
-				return format;
+				if (!format.has_value())
+				{
+					throw Exception("Streaming format was not provided");
+				}
+				return format.value();
+			}
+
+			auto getMIME()
+			{
+				if (!mime.has_value())
+				{
+					throw Exception("Streaming format MIME type was not provided");
+				}
+				return mime.value();
 			}
 
 			// TODO: get rid of parameters
@@ -48,8 +72,7 @@ namespace slim
 				{
 					throw Exception("Builder function was not provided");
 				}
-
-				return std::move(builder(c, s, bs, bv, w, h));
+				return std::move(builder(c, s, bs, bv, w, h, getExtention(), getMIME()));
 			}
 
 			void setBuilder(BuilderType b)
@@ -57,13 +80,25 @@ namespace slim
 				builder = std::move(b);
 			}
 
+			void setExtention(std::string e)
+			{
+				extention = e;
+			}
+
 			void setFormat(slim::proto::FormatSelection f)
 			{
 				format = f;
 			}
 
+			void setMIME(std::string m)
+			{
+				mime = m;
+			}
+
 		private:
-			BuilderType                  builder{0};
-			slim::proto::FormatSelection format{slim::proto::FormatSelection::FLAC};
+			BuilderType                                 builder{0};
+			std::optional<slim::proto::FormatSelection> format{std::nullopt};
+			std::optional<std::string>                  extention{std::nullopt};
+			std::optional<std::string>                  mime{std::nullopt};
 	};
 }
