@@ -39,10 +39,27 @@ namespace slim
 					, callbacksPtr{std::make_unique<Callbacks<ContainerType>>()}
 					, started{false}
 					{
-						callbacksPtr->setStartCallback(std::move(c->getStartCallback()));
+						callbacksPtr->setStartCallback(std::move([&, startCallback = std::move(c->getStartCallback())](auto& connection)
+						{
+							try
+							{
+								startCallback(connection);
+							}
+							catch (const std::exception& e)
+							{
+								LOG(ERROR) << LABELS{"conn"} << "Error while invoking 'on start' callback (id=" << this << ", error=" << e.what() << ")";
+							}
+						}));
 						callbacksPtr->setOpenCallback(std::move([&, openCallback = std::move(c->getOpenCallback())](auto& connection)
 						{
-							openCallback(connection);
+							try
+							{
+								openCallback(connection);
+							}
+							catch (const std::exception& e)
+							{
+								LOG(ERROR) << LABELS{"conn"} << "Error while invoking 'on open' callback (id=" << this << ", error=" << e.what() << ")";
+							}
 
 							// for whatever / unknown reason std::count_if returns signed!!! result, hence a type cast is required
 							auto foundTotal{std::count_if(connections.begin(), connections.end(), [&](auto& connectionPtr)
@@ -61,11 +78,38 @@ namespace slim
 								stopAcceptor();
 							}
 						}));
-						callbacksPtr->setDataCallback(std::move(c->getDataCallback()));
-						callbacksPtr->setCloseCallback(std::move(c->getCloseCallback()));
+						callbacksPtr->setDataCallback(std::move([&, dataCallback = std::move(c->getDataCallback())](auto& connection, unsigned char* buffer, const std::size_t size)
+						{
+							try
+							{
+								dataCallback(connection, buffer, size);
+							}
+							catch (const std::exception& e)
+							{
+								LOG(ERROR) << LABELS{"conn"} << "Error while invoking 'on data' callback (id=" << this << ", error=" << e.what() << ")";
+							}
+						}));
+						callbacksPtr->setCloseCallback(std::move([&, closeCallback = std::move(c->getCloseCallback())](auto& connection)
+						{
+							try
+							{
+								closeCallback(connection);
+							}
+							catch (const std::exception& e)
+							{
+								LOG(ERROR) << LABELS{"conn"} << "Error while invoking 'on close' callback (id=" << this << ", error=" << e.what() << ")";
+							}
+						}));
 						callbacksPtr->setStopCallback(std::move([&, stopCallback = std::move(c->getStopCallback())](auto& connection)
 						{
-							stopCallback(connection);
+							try
+							{
+								stopCallback(connection);
+							}
+							catch (const std::exception& e)
+							{
+								LOG(ERROR) << LABELS{"conn"} << "Error while invoking 'on stop' callback (id=" << this << ", error=" << e.what() << ")";
+							}
 
 							// connection cannot be removed at this moment as this method is called by the connection which is being removed
 							processorProxyPtr->process([&]
