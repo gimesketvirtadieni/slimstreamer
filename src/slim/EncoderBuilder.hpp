@@ -56,6 +56,15 @@ namespace slim
 				return format.value();
 			}
 
+			auto getHeader()
+			{
+				if (!header.has_value())
+				{
+					throw Exception("Streaming header flag was not provided");
+				}
+				return header.value();
+			}
+
 			auto getMIME()
 			{
 				if (!mime.has_value())
@@ -66,13 +75,13 @@ namespace slim
 			}
 
 			// TODO: get rid of parameters
-			std::unique_ptr<EncoderBase> build(unsigned int c, unsigned int s, unsigned int bs, unsigned int bv, std::reference_wrapper<util::AsyncWriter> w, bool h)
+			std::unique_ptr<EncoderBase> build(unsigned int c, unsigned int s, unsigned int bs, unsigned int bv, std::reference_wrapper<util::AsyncWriter> w)
 			{
 				if (!builder)
 				{
 					throw Exception("Builder function was not provided");
 				}
-				return std::move(builder(c, s, bs, bv, w, h, getExtention(), getMIME()));
+				return std::move(builder(c, s, bs, bv, w, getHeader(), getExtention(), getMIME()));
 			}
 
 			void setBuilder(BuilderType b)
@@ -90,6 +99,11 @@ namespace slim
 				format = f;
 			}
 
+			void setHeader(bool h)
+			{
+				header = h;
+			}
+
 			void setMIME(std::string m)
 			{
 				mime = m;
@@ -97,8 +111,9 @@ namespace slim
 
 		private:
 			BuilderType                                 builder{0};
-			std::optional<slim::proto::FormatSelection> format{std::nullopt};
 			std::optional<std::string>                  extention{std::nullopt};
+			std::optional<slim::proto::FormatSelection> format{std::nullopt};
+			std::optional<bool>                         header{std::nullopt};
 			std::optional<std::string>                  mime{std::nullopt};
 	};
 }
