@@ -104,6 +104,7 @@ namespace slim
 					{
 						LOG(ERROR) << LABELS{"flac"} << "Error while closing encoder: " << get_state().as_cstring();
 					}
+					// TODO: validate if buffer is empty here
 				}
 
 				Encoder(const Encoder&) = delete;             // non-copyable

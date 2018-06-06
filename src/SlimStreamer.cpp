@@ -152,7 +152,8 @@ auto createPipelines(std::vector<std::unique_ptr<Source>>& sources, Streamer<TCP
 		// TODO: default extension should be provided by encoderBuilder
 		//auto streamPtr{std::make_unique<std::ofstream>(std::to_string(parameters.getSamplingRate()) + "." + encoderBuilder.getExtention(), std::ios::binary)};
 		//auto writerPtr{std::make_unique<StreamAsyncWriter>(std::move(streamPtr))};
-		//auto encoderPtr{std::move(encoderBuilder.build(parameters.getLogicalChannels(), parameters.getSamplingRate(), parameters.getBitsPerSample(), parameters.getBitsPerValue(), std::ref<AsyncWriter>(*writerPtr)))};
+		//encoderBuilder.setWriter(writerPtr.get());
+		//auto encoderPtr{std::move(encoderBuilder.build(parameters.getLogicalChannels(), parameters.getSamplingRate(), parameters.getBitsPerSample(), parameters.getBitsPerValue()))};
 		//auto filePtr{std::make_unique<FileConsumer>(std::move(writerPtr), std::move(encoderPtr))};
 
 		//pipelines.emplace_back(std::ref<Producer>(*sourcePtr), std::ref<Consumer>(*filePtr));

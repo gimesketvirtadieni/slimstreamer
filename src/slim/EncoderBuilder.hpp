@@ -74,14 +74,23 @@ namespace slim
 				return mime.value();
 			}
 
+			auto getWriter()
+			{
+				if (!writerPtr)
+				{
+					throw Exception("Stream writer was not provided");
+				}
+				return writerPtr;
+			}
+
 			// TODO: get rid of parameters
-			std::unique_ptr<EncoderBase> build(unsigned int c, unsigned int s, unsigned int bs, unsigned int bv, std::reference_wrapper<util::AsyncWriter> w)
+			std::unique_ptr<EncoderBase> build(unsigned int c, unsigned int s, unsigned int bs, unsigned int bv)
 			{
 				if (!builder)
 				{
 					throw Exception("Builder function was not provided");
 				}
-				return std::move(builder(c, s, bs, bv, w, getHeader(), getExtention(), getMIME()));
+				return std::move(builder(c, s, bs, bv, std::ref(*getWriter()), getHeader(), getExtention(), getMIME()));
 			}
 
 			void setBuilder(BuilderType b)
@@ -109,11 +118,17 @@ namespace slim
 				mime = m;
 			}
 
+			void setWriter(util::AsyncWriter* w)
+			{
+				writerPtr = w;
+			}
+
 		private:
 			BuilderType                                 builder{0};
 			std::optional<std::string>                  extention{std::nullopt};
 			std::optional<slim::proto::FormatSelection> format{std::nullopt};
 			std::optional<bool>                         header{std::nullopt};
 			std::optional<std::string>                  mime{std::nullopt};
+			util::AsyncWriter*                          writerPtr{nullptr};
 	};
 }
