@@ -44,10 +44,16 @@ namespace slim
 						throw Exception("Could not disable FLAC stream verification");
 					}
 
-					// setting maximum possible compression level
-					if (!set_compression_level(8))
+					// setting minimal compression level (using max level does not gain much)
+					if (!set_compression_level(0))
 					{
 						throw Exception("Could not set compression level");
+					}
+
+					// making sure encoded output is suitable for streaming
+					if (!set_streamable_subset(true))
+					{
+						throw Exception("Could not select streamable subset");
 					}
 
 					// setting amount of channels
@@ -62,7 +68,7 @@ namespace slim
 						throw Exception("Could not set sampling rate");
 					}
 
-					// FLAC encoding support max 24 bits per value
+					// only 32 bit per sample for input PCM is supported
 					if (bitsPerSample != 32)
 					{
 						throw Exception("Format with 32 bits per sample is only supported");
@@ -84,12 +90,6 @@ namespace slim
 						throw Exception("Could not set bits per sample");
 					}
 
-					// choosing big enough number of expected samples for streaming purpose
-					if (!set_total_samples_estimate(0xFFFFFFFF))
-					{
-						throw Exception("Could not set estimated amount of samples");
-					}
-
 					// initializing FLAC encoder
 					auto init_status{init()};
 					if (init_status != FLAC__STREAM_ENCODER_INIT_STATUS_OK)
@@ -104,7 +104,6 @@ namespace slim
 					{
 						LOG(ERROR) << LABELS{"flac"} << "Error while closing encoder: " << get_state().as_cstring();
 					}
-					// TODO: validate if buffer is empty here
 				}
 
 				Encoder(const Encoder&) = delete;             // non-copyable
