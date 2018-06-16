@@ -38,6 +38,33 @@ namespace slim
 			EncoderBuilder(EncoderBuilder&&) = default;
 			EncoderBuilder& operator=(EncoderBuilder&&) = default;
 
+			auto getBitsPerSample()
+			{
+				if (!bitsPerSample.has_value())
+				{
+					throw Exception("Bits-per-sample parameter was not provided");
+				}
+				return bitsPerSample.value();
+			}
+
+			auto getBitsPerValue()
+			{
+				if (!bitsPerValue.has_value())
+				{
+					throw Exception("Bits-per-value parameter was not provided");
+				}
+				return bitsPerValue.value();
+			}
+
+			auto getChannels()
+			{
+				if (!channels.has_value())
+				{
+					throw Exception("Number of channels was not provided");
+				}
+				return channels.value();
+			}
+
 			auto getExtention()
 			{
 				if (!extention.has_value())
@@ -60,7 +87,7 @@ namespace slim
 			{
 				if (!header.has_value())
 				{
-					throw Exception("Streaming header flag was not provided");
+					throw Exception("Streaming header parameter was not provided");
 				}
 				return header.value();
 			}
@@ -74,6 +101,15 @@ namespace slim
 				return mime.value();
 			}
 
+			auto getSamplingRate()
+			{
+				if (!samplingRate.has_value())
+				{
+					throw Exception("Sampling rate was not provided");
+				}
+				return samplingRate.value();
+			}
+
 			auto getWriter()
 			{
 				if (!writerPtr)
@@ -83,19 +119,33 @@ namespace slim
 				return writerPtr;
 			}
 
-			// TODO: get rid of parameters
-			std::unique_ptr<EncoderBase> build(unsigned int c, unsigned int s, unsigned int bs, unsigned int bv)
+			std::unique_ptr<EncoderBase> build()
 			{
 				if (!builder)
 				{
 					throw Exception("Builder function was not provided");
 				}
-				return std::move(builder(c, s, bs, bv, std::ref(*getWriter()), getHeader(), getExtention(), getMIME()));
+				return std::move(builder(getChannels(), getSamplingRate(), getBitsPerSample(), getBitsPerValue(), std::ref(*getWriter()), getHeader(), getExtention(), getMIME()));
+			}
+
+			void setBitsPerSample(unsigned int bs)
+			{
+				bitsPerSample = bs;
+			}
+
+			void setBitsPerValue(unsigned int bv)
+			{
+				bitsPerValue = bv;
 			}
 
 			void setBuilder(BuilderType b)
 			{
 				builder = std::move(b);
+			}
+
+			void setChannels(unsigned int c)
+			{
+				channels = c;
 			}
 
 			void setExtention(std::string e)
@@ -118,6 +168,11 @@ namespace slim
 				mime = m;
 			}
 
+			void setSamplingRate(unsigned int s)
+			{
+				samplingRate = s;
+			}
+
 			void setWriter(util::AsyncWriter* w)
 			{
 				writerPtr = w;
@@ -125,6 +180,10 @@ namespace slim
 
 		private:
 			BuilderType                                 builder{0};
+			std::optional<unsigned int>                 channels{std::nullopt};
+			std::optional<unsigned int>                 samplingRate{std::nullopt};
+			std::optional<unsigned int>                 bitsPerSample{std::nullopt};
+			std::optional<unsigned int>                 bitsPerValue{std::nullopt};
 			std::optional<std::string>                  extention{std::nullopt};
 			std::optional<slim::proto::FormatSelection> format{std::nullopt};
 			std::optional<bool>                         header{std::nullopt};

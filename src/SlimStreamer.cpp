@@ -147,13 +147,18 @@ auto createPipelines(std::vector<std::unique_ptr<Source>>& sources, Streamer<TCP
 
 	for (auto& sourcePtr : sources)
 	{
-		auto parameters{sourcePtr->getParameters()};
-
-		// TODO: default extension should be provided by encoderBuilder
+		// creating a file writer
+		//auto parameters{sourcePtr->getParameters()};
 		//auto streamPtr{std::make_unique<std::ofstream>(std::to_string(parameters.getSamplingRate()) + "." + encoderBuilder.getExtention(), std::ios::binary)};
 		//auto writerPtr{std::make_unique<StreamAsyncWriter>(std::move(streamPtr))};
+
+		// creating an encoder for writing to files
+		//encoderBuilder.setChannels(parameters.getLogicalChannels());
+		//encoderBuilder.setSamplingRate(parameters.getSamplingRate());
+		//encoderBuilder.setBitsPerSample(parameters.getBitsPerSample());
+		//encoderBuilder.setBitsPerValue(parameters.getBitsPerValue());
 		//encoderBuilder.setWriter(writerPtr.get());
-		//auto encoderPtr{std::move(encoderBuilder.build(parameters.getLogicalChannels(), parameters.getSamplingRate(), parameters.getBitsPerSample(), parameters.getBitsPerValue()))};
+		//auto encoderPtr{std::move(encoderBuilder.build())};
 		//auto filePtr{std::make_unique<FileConsumer>(std::move(writerPtr), std::move(encoderPtr))};
 
 		//pipelines.emplace_back(std::ref<Producer>(*sourcePtr), std::ref<Consumer>(*filePtr));
