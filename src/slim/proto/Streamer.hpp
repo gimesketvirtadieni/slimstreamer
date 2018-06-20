@@ -222,7 +222,7 @@ namespace slim
 						encoderBuilder.setWriter(&connection);
 
 						// creating streaming session object
-						auto streamingSessionPtr{std::make_unique<StreamingSessionType>(std::ref<ConnectionType>(connection), encoderBuilder.getChannels(), samplingRate, encoderBuilder.getBitsPerSample(), encoderBuilder.getBitsPerValue(), std::move(encoderBuilder.build()), clientID.value())};
+						auto streamingSessionPtr{std::make_unique<StreamingSessionType>(std::ref<ConnectionType>(connection), std::move(encoderBuilder.build()), samplingRate, clientID.value())};
 
 						// saving Streaming session reference in the relevant Command session
 						auto commandSessionPtr{findSessionByID(commandSessions, clientID.value())};
