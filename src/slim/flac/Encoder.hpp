@@ -30,12 +30,8 @@ namespace slim
 		class Encoder : public EncoderBase, protected FLAC::Encoder::Stream
 		{
 			public:
-				explicit Encoder(unsigned int c, unsigned int s, unsigned int bs, unsigned int bv, std::reference_wrapper<util::AsyncWriter> w, bool h, std::string ex, std::string m)
-				: EncoderBase{ex, m}
-				, channels{c}
-				, samplingRate{s}
-				, bitsPerSample{bs}
-				, bitsPerValue{bv}
+				explicit Encoder(unsigned int c, unsigned int bs, unsigned int bv, unsigned int s, std::reference_wrapper<util::AsyncWriter> w, bool h, std::string ex, std::string m)
+				: EncoderBase{c, bs, bv, s, ex, m}
 				, bufferedWriter{w}
 				{
 					// do not validate FLAC encoded stream if it produces the same result
@@ -57,25 +53,25 @@ namespace slim
 					}
 
 					// setting amount of channels
-					if (!set_channels(channels))
+					if (!set_channels(getChannels()))
 					{
 						throw Exception("Could not set amount of channels");
 					}
 
 					// setting sampling rate
-					if (!set_sample_rate(samplingRate))
+					if (!set_sample_rate(getSamplingRate()))
 					{
 						throw Exception("Could not set sampling rate");
 					}
 
 					// only 32 bit per sample for input PCM is supported
-					if (bitsPerSample != 32)
+					if (getBitsPerSample() != 32)
 					{
 						throw Exception("Format with 32 bits per sample is only supported");
 					}
 
 					// FLAC encoding support max 24 bits per value
-					auto b{bitsPerValue};
+					auto b{getBitsPerValue()};
 					if (b > 24)
 					{
 						LOG(WARNING) << LABELS{"flac"} << "PCM data will be scaled to 24 bits values, which is max bit depth supported by FLAC";
@@ -116,8 +112,8 @@ namespace slim
 					// do not feed encoder with more data if there is no room in transfer buffer
 					if (bufferedWriter.isBufferAvailable())
 					{
-						std::size_t sampleSize{bitsPerSample >> 3};
-						std::size_t frameSize{sampleSize * channels};
+						std::size_t sampleSize{getBitsPerSample() >> 3};
+						std::size_t frameSize{sampleSize * getChannels()};
 						std::size_t frames{size / frameSize};
 
 						// if values contain more than 24 bits then downscaling to 24 bits, which is max supported by FLAC
@@ -174,13 +170,9 @@ namespace slim
 				}
 
 			private:
-				unsigned int                   channels;
-				unsigned int                   samplingRate;
-				unsigned int                   bitsPerSample;
-				unsigned int                   bitsPerValue;
-				bool                           downScale{false};
 				// TODO: parametrize
 				util::BufferedAsyncWriter<128> bufferedWriter;
+				bool                           downScale{false};
 		};
 	}
 }

@@ -30,12 +30,8 @@ namespace slim
 		class Encoder : public EncoderBase
 		{
 			public:
-				explicit Encoder(unsigned int c, unsigned int s, unsigned int bs, unsigned int bv, std::reference_wrapper<util::AsyncWriter> w, bool h, std::string ex, std::string m)
-				: EncoderBase{ex, m}
-				, channels{c}
-				, samplingRate{s}
-				, bitsPerSample{bs}
-				, bitsPerValue{bv}
+				explicit Encoder(unsigned int c, unsigned int bs, unsigned int bv, unsigned int s, std::reference_wrapper<util::AsyncWriter> w, bool h, std::string ex, std::string m)
+				: EncoderBase{c, bs, bv, s, ex, m}
 				, bufferedWriter{w}
 				, headerRequired{h}
 				{
@@ -85,6 +81,9 @@ namespace slim
 				void writeHeader(std::size_t s = 0)
 				{
 					auto               size{static_cast<std::uint32_t>(s)};
+					const unsigned int channels{getChannels()};
+					const unsigned int bitsPerSample{getBitsPerSample()};
+					const unsigned int samplingRate{getSamplingRate()};
 					const unsigned int bytesPerFrame{channels * (bitsPerSample >> 3)};
 					const unsigned int byteRate{samplingRate * bytesPerFrame};
 					const char         chunkID[]     = {0x52, 0x49, 0x46, 0x46};
@@ -124,10 +123,6 @@ namespace slim
 				}
 
 			private:
-				unsigned int                  channels;
-				unsigned int                  samplingRate;
-				unsigned int                  bitsPerSample;
-				unsigned int                  bitsPerValue;
 				// TODO: parametrize
 				util::BufferedAsyncWriter<10> bufferedWriter;
 				bool                          headerRequired;

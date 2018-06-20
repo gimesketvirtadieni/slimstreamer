@@ -294,9 +294,9 @@ int main(int argc, const char *argv[])
 			encoderBuilder.setHeader(false);
 			if (format == pcm)
 			{
-				encoderBuilder.setBuilder([](unsigned int c, unsigned int s, unsigned int bs, unsigned int bv, std::reference_wrapper<AsyncWriter> w, bool h, std::string ex, std::string m)
+				encoderBuilder.setBuilder([](unsigned int c, unsigned int bs, unsigned int bv, unsigned int s, std::reference_wrapper<AsyncWriter> w, bool h, std::string ex, std::string m)
 				{
-					return std::move(std::unique_ptr<EncoderBase>{new wave::Encoder{c, s, bs, bv, w, h, ex, m}});
+					return std::move(std::unique_ptr<EncoderBase>{new wave::Encoder{c, bs, s, bv, w, h, ex, m}});
 				});
 				encoderBuilder.setFormat(slim::proto::FormatSelection::PCM);
 				encoderBuilder.setExtention("wav");
@@ -304,9 +304,9 @@ int main(int argc, const char *argv[])
 			}
 			else if (format == flac)
 			{
-				encoderBuilder.setBuilder([](unsigned int c, unsigned int s, unsigned int bs, unsigned int bv, std::reference_wrapper<AsyncWriter> w, bool h, std::string ex, std::string m)
+				encoderBuilder.setBuilder([](unsigned int c, unsigned int bs, unsigned int bv, unsigned int s, std::reference_wrapper<AsyncWriter> w, bool h, std::string ex, std::string m)
 				{
-					return std::move(std::unique_ptr<EncoderBase>{new flac::Encoder{c, s, bs, bv, w, h, ex, m}});
+					return std::move(std::unique_ptr<EncoderBase>{new flac::Encoder{c, bs, bv, s, w, h, ex, m}});
 				});
 				encoderBuilder.setFormat(slim::proto::FormatSelection::FLAC);
 				encoderBuilder.setExtention("flac");
@@ -321,10 +321,15 @@ int main(int argc, const char *argv[])
 			Parameters parameters{"", 3, SND_PCM_FORMAT_S32_LE, 0, 128, 0, 8};
 			auto sources{createSources(parameters)};
 
+			// pre-configuring an encoder builder
+			encoderBuilder.setChannels(parameters.getLogicalChannels());
+			encoderBuilder.setBitsPerSample(parameters.getBitsPerSample());
+			encoderBuilder.setBitsPerValue(parameters.getBitsPerValue());
+
 			// Callbacks objects 'glue' SlimProto Streamer with TCP Command Servers
 			auto streamerPtr
 			{
-				std::make_unique<Streamer<TCPConnection>>(httpPort, parameters.getLogicalChannels(), parameters.getBitsPerSample(), parameters.getBitsPerValue(), encoderBuilder, gain)
+				std::make_unique<Streamer<TCPConnection>>(httpPort, encoderBuilder, gain)
 			};
 			auto commandServerPtr
 			{

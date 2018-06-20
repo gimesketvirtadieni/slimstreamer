@@ -50,11 +50,8 @@ namespace slim
 			using StreamingSessionType = StreamingSession<ConnectionType>;
 
 			public:
-				Streamer(unsigned int sp, unsigned int ch, unsigned int bs, unsigned int bv, EncoderBuilder eb, std::optional<unsigned int> g)
+				Streamer(unsigned int sp, EncoderBuilder eb, std::optional<unsigned int> g)
 				: streamingPort{sp}
-				, channels{ch}
-				, bitsPerSample{bs}
-				, bitsPerValue{bv}
 				, encoderBuilder{eb}
 				, gain{g}
 				, timerThread{[&]
@@ -221,14 +218,11 @@ namespace slim
 						LOG(INFO) << LABELS{"proto"} << "Client ID was parsed (clientID=" << clientID.value() << ")";
 
 						// configuring an encoder builder
-						encoderBuilder.setChannels(channels);
 						encoderBuilder.setSamplingRate(samplingRate);
-						encoderBuilder.setBitsPerSample(bitsPerSample);
-						encoderBuilder.setBitsPerValue(bitsPerValue);
 						encoderBuilder.setWriter(&connection);
 
 						// creating streaming session object
-						auto streamingSessionPtr{std::make_unique<StreamingSessionType>(std::ref<ConnectionType>(connection), channels, samplingRate, bitsPerSample, bitsPerValue, std::move(encoderBuilder.build()), clientID.value())};
+						auto streamingSessionPtr{std::make_unique<StreamingSessionType>(std::ref<ConnectionType>(connection), encoderBuilder.getChannels(), samplingRate, encoderBuilder.getBitsPerSample(), encoderBuilder.getBitsPerValue(), std::move(encoderBuilder.build()), clientID.value())};
 
 						// saving Streaming session reference in the relevant Command session
 						auto commandSessionPtr{findSessionByID(commandSessions, clientID.value())};
@@ -422,9 +416,6 @@ namespace slim
 
 			private:
 				unsigned int                            streamingPort;
-				unsigned int                            channels;
-				unsigned int                            bitsPerSample;
-				unsigned int                            bitsPerValue;
 				EncoderBuilder                          encoderBuilder;
 				std::optional<unsigned int>             gain;
 				SessionsMap<CommandSessionType>         commandSessions;

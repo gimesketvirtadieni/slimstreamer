@@ -23,8 +23,12 @@ namespace slim
 	class EncoderBase
 	{
 		public:
-			EncoderBase(std::string ex, std::string m)
-			: extention{ex}
+			EncoderBase(unsigned int c, unsigned int bs, unsigned int bv, unsigned int s, std::string ex, std::string m)
+			: channels{c}
+			, bitsPerSample{bs}
+			, bitsPerValue{bv}
+			, samplingRate{s}
+			, extention{ex}
 			, mime{m}{}
 
 			virtual ~EncoderBase() = default;
@@ -35,18 +39,42 @@ namespace slim
 
 			virtual void encode(unsigned char* data, const std::size_t size) = 0;
 
-			auto getExtention()
+			inline auto getBitsPerSample()
+			{
+				return bitsPerSample;
+			}
+
+			inline auto getBitsPerValue()
+			{
+				return bitsPerValue;
+			}
+
+			inline auto getChannels()
+			{
+				return channels;
+			}
+
+			inline auto getExtention()
 			{
 				return extention;
 			}
 
-			auto getMIME()
+			inline auto getMIME()
 			{
 				return mime;
 			}
 
+			inline auto getSamplingRate()
+			{
+				return samplingRate;
+			}
+
 		private:
-			std::string extention;
-			std::string mime;
+			unsigned int channels;
+			unsigned int bitsPerSample;
+			unsigned int bitsPerValue;
+			unsigned int samplingRate;
+			std::string  extention;
+			std::string  mime;
 	};
 }
