@@ -71,7 +71,6 @@ namespace slim
 					{
 						onStart();
 
-						// TODO: validate result???
 						acceptor.async_accept(
 							nativeSocket,
 							[&](const std::error_code& error)

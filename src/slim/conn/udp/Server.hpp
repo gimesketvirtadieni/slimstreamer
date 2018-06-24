@@ -21,7 +21,7 @@
 #include "slim/log/log.hpp"
 #include "slim/util/AsyncWriter.hpp"
 
-// TODO: refactor
+// TODO: parametrize
 #define  BUFFER_SIZE 1
 
 

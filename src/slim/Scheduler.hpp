@@ -42,8 +42,8 @@ namespace slim
 
 			Scheduler(const Scheduler&) = delete;             // non-copyable
 			Scheduler& operator=(const Scheduler&) = delete;  // non-assignable
-			Scheduler(Scheduler&& rhs) = default;
-			Scheduler& operator=(Scheduler&& rhs) = default;
+			Scheduler(Scheduler&& rhs) = delete;              // non-movable
+			Scheduler& operator=(Scheduler&& rhs) = delete;   // non-move-assignable
 
 			void setProcessorProxy(conwrap::ProcessorProxy<ContainerBase>* p)
 			{
@@ -110,7 +110,7 @@ namespace slim
 									processorProxyPtr->process([&producer = pipeline.getProducer(), &consumer = pipeline.getConsumer()]
 									{
 										// TODO: calculate total chunks per processing quantum
-										// processing chunks as long as destination is not deferring them AND max chunks per task is not reached AND there are chunks available
+										// processing chunks as long as consumer is not deferring them AND max chunks per task is not reached AND there are chunks available
 										auto processed{true};
 										for (unsigned int count{5}; processed && count > 0 && producer.isAvailable(); count--)
 										{
