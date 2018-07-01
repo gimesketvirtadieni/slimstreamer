@@ -13,6 +13,7 @@
 #pragma once
 
 #include <chrono>
+#include <functional>  // reference_wrapper
 
 #include "slim/Consumer.hpp"
 #include "slim/Producer.hpp"
