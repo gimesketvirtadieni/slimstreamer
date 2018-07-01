@@ -13,10 +13,7 @@
 #pragma once
 
 #include <chrono>
-#include <conwrap/ProcessorProxy.hpp>
-#include <functional>
 
-#include "slim/Chunk.hpp"
 #include "slim/Consumer.hpp"
 #include "slim/Producer.hpp"
 
