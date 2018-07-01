@@ -33,12 +33,12 @@ namespace slim
 		}
 
 
-		snd_pcm_sframes_t Source::containsData(unsigned char* buffer, snd_pcm_sframes_t frames)
+		snd_pcm_sframes_t Source::containsData(unsigned char* buffer, snd_pcm_uframes_t frames)
 		{
 			auto offset{-1};
 			auto bytesPerFrame{parameters.getTotalChannels() * (parameters.getBitsPerSample() >> 3)};
 
-			for (snd_pcm_sframes_t i = 0; i < frames && offset < 0; i++)
+			for (snd_pcm_uframes_t i = 0; i < frames && offset < 0; i++)
 			{
 				// processing PCM data marker
 				StreamMarker value{buffer[(i + 1) * bytesPerFrame - 1]};  // last byte of the current frame
@@ -60,12 +60,12 @@ namespace slim
 		}
 
 
-		snd_pcm_sframes_t Source::copyData(unsigned char* srcBuffer, unsigned char* dstBuffer, snd_pcm_sframes_t frames)
+		snd_pcm_uframes_t Source::copyData(unsigned char* srcBuffer, unsigned char* dstBuffer, snd_pcm_uframes_t frames)
 		{
 			auto bytesPerFrame{parameters.getTotalChannels() * (parameters.getBitsPerSample() >> 3)};
 			auto framesCopied{snd_pcm_sframes_t{0}};
 
-			for (snd_pcm_sframes_t i = 0; i < frames; i++)
+			for (snd_pcm_uframes_t i = 0; i < frames; i++)
 			{
 				StreamMarker value{srcBuffer[(i + 1) * bytesPerFrame - 1]};  // last byte of the current frame
 				if (value == StreamMarker::beginningOfStream)
@@ -94,7 +94,6 @@ namespace slim
 
 			// returning copied size in frames
 			return framesCopied;
-
 		}
 
 
@@ -230,16 +229,19 @@ namespace slim
 				// this call will block until buffer is filled or PCM stream state is changed
 				result = snd_pcm_readi(handlePtr, srcBuffer, maxFrames);
 
+				// if PCM data is available if the buffer
 				if (result > 0)
 				{
-					auto offset = containsData(srcBuffer, result);
-					if (offset >= 0)
+					auto offset = containsData(srcBuffer, static_cast<snd_pcm_uframes_t>(result));
+
+					// if PCM data contains active stream and its offset within the range
+					if (offset >= 0 && offset < result)
 					{
-						// enqueue received PCM data so that not Real-Time safe code can process it
+						// enqueue received PCM data so that none-Real-Time safe code can process it
 						queuePtr->enqueue([&](util::ExpandableBuffer& buffer)
 						{
 							// copying data and setting new chunk size in bytes
-							buffer.size(copyData(srcBuffer + offset * bytesPerFrame, buffer.data(), result - offset) * parameters.getLogicalChannels() * (parameters.getBitsPerSample() >> 3));
+							buffer.size(copyData(srcBuffer + offset * bytesPerFrame, buffer.data(), static_cast<snd_pcm_uframes_t>(result - offset)) * parameters.getLogicalChannels() * (parameters.getBitsPerSample() >> 3));
 
 							// available is used to provide optimization for a scheduler submitting tasks to a processor
 							available = true;

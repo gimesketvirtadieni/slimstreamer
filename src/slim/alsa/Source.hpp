@@ -115,8 +115,8 @@ namespace slim
 
 			protected:
 				void              close();
-				snd_pcm_sframes_t containsData(unsigned char* buffer, snd_pcm_sframes_t frames);
-				snd_pcm_sframes_t copyData(unsigned char* srcBuffer, unsigned char* dstBuffer, snd_pcm_sframes_t frames);
+				snd_pcm_sframes_t containsData(unsigned char* buffer, snd_pcm_uframes_t frames);
+				snd_pcm_uframes_t copyData(unsigned char* srcBuffer, unsigned char* dstBuffer, snd_pcm_uframes_t frames);
 
 				inline auto formatError(std::string message, int error = 0)
 				{
