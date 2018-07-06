@@ -12,7 +12,10 @@
 
 #pragma once
 
+#include <conwrap/ProcessorProxy.hpp>
+
 #include "slim/Chunk.hpp"
+#include "slim/ContainerBase.hpp"
 
 
 namespace slim
@@ -22,5 +25,8 @@ namespace slim
 		public:
 			virtual     ~Consumer() = default;
 			virtual bool consume(Chunk) = 0;
+			virtual void setProcessorProxy(conwrap::ProcessorProxy<ContainerBase>* p) = 0;
+			virtual void start() = 0;
+			virtual void stop(bool gracefully = true) = 0;
 	};
 }

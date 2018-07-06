@@ -38,7 +38,7 @@
 #include "slim/flac/Encoder.hpp"
 #include "slim/log/ConsoleSink.hpp"
 #include "slim/log/log.hpp"
-#include "slim/Pipeline.hpp"
+#include "slim/Multiplexor.hpp"
 #include "slim/Producer.hpp"
 #include "slim/proto/Command.hpp"
 #include "slim/proto/Streamer.hpp"
@@ -135,39 +135,6 @@ auto createDiscoveryCallbacks()
 	});
 
 	return std::move(callbacksPtr);
-}
-
-
-auto createPipelines(std::vector<std::unique_ptr<Source>>& sources, Streamer<TCPConnection>& streamer, std::vector<std::unique_ptr<FileConsumer>>& files, EncoderBuilder encoderBuilder)
-{
-	std::vector<Pipeline> pipelines;
-
-	// setting header flag to true, which will send header first (relevant in case of streaming to a file)
-	encoderBuilder.setHeader(true);
-
-	for (auto& sourcePtr : sources)
-	{
-		// creating a file writer
-		//auto parameters{sourcePtr->getParameters()};
-		//auto streamPtr{std::make_unique<std::ofstream>(std::to_string(parameters.getSamplingRate()) + "." + encoderBuilder.getExtention(), std::ios::binary)};
-		//auto writerPtr{std::make_unique<StreamAsyncWriter>(std::move(streamPtr))};
-
-		// creating an encoder for writing to files
-		//encoderBuilder.setChannels(parameters.getLogicalChannels());
-		//encoderBuilder.setSamplingRate(parameters.getSamplingRate());
-		//encoderBuilder.setBitsPerSample(parameters.getBitsPerSample());
-		//encoderBuilder.setBitsPerValue(parameters.getBitsPerValue());
-		//encoderBuilder.setWriter(writerPtr.get());
-		//auto encoderPtr{std::move(encoderBuilder.build())};
-		//auto filePtr{std::make_unique<FileConsumer>(std::move(writerPtr), std::move(encoderPtr))};
-
-		//pipelines.emplace_back(std::ref<Producer>(*sourcePtr), std::ref<Consumer>(*filePtr));
-		//files.push_back(std::move(filePtr));
-
-		pipelines.emplace_back(std::ref<Producer>(*sourcePtr), std::ref<Consumer>(streamer));
-	}
-
-	return std::move(pipelines);
 }
 
 
@@ -317,9 +284,9 @@ int main(int argc, const char *argv[])
 				throw cxxopts::OptionException("Invalid streaming format, only 'FLAC' or 'PCM' values are supported");
 			}
 
-			// creating source objects stored in a vector
+			// creating source objects and store them in a Multiplexor object
 			Parameters parameters{"", 3, SND_PCM_FORMAT_S32_LE, 0, 128, 0, 8};
-			auto sources{createSources(parameters)};
+			auto       multiplexorPtr{std::make_unique<Multiplexor<Source>>(createSources(parameters))};
 
 			// pre-configuring an encoder builder
 			encoderBuilder.setChannels(parameters.getLogicalChannels());
@@ -343,14 +310,32 @@ int main(int argc, const char *argv[])
 			{
 				std::make_unique<UDPServer>(3483, std::move(createDiscoveryCallbacks()))
 			};
-
+/*
+			// TODO: work in progress
 			// creating a container for files objects
 			std::vector<std::unique_ptr<FileConsumer>> files;
 
+			// creating a file writer
+			//auto parameters{sourcePtr->getParameters()};
+			//auto streamPtr{std::make_unique<std::ofstream>(std::to_string(parameters.getSamplingRate()) + "." + encoderBuilder.getExtention(), std::ios::binary)};
+			//auto writerPtr{std::make_unique<StreamAsyncWriter>(std::move(streamPtr))};
+
+			// creating an encoder for writing to files
+			//encoderBuilder.setChannels(parameters.getLogicalChannels());
+			//encoderBuilder.setSamplingRate(parameters.getSamplingRate());
+			//encoderBuilder.setBitsPerSample(parameters.getBitsPerSample());
+			//encoderBuilder.setBitsPerValue(parameters.getBitsPerValue());
+			//encoderBuilder.setWriter(writerPtr.get());
+			//auto encoderPtr{std::move(encoderBuilder.build())};
+			//auto filePtr{std::make_unique<FileConsumer>(std::move(writerPtr), std::move(encoderPtr))};
+
+			//pipelines.emplace_back(std::ref<Producer>(*sourcePtr), std::ref<Consumer>(*filePtr));
+			//files.push_back(std::move(filePtr));
+*/
 			// creating Scheduler object with destination directed to slimproto Streamer
 			auto schedulerPtr
 			{
-				std::make_unique<Scheduler>(createPipelines(sources, *streamerPtr, files, encoderBuilder))
+				std::make_unique<Scheduler<Multiplexor<Source>, Streamer<TCPConnection>>>(std::move(multiplexorPtr), std::move(streamerPtr))
 			};
 
 			// creating Container object within Asio Processor with Scheduler and Servers
@@ -358,7 +343,7 @@ int main(int argc, const char *argv[])
 			{
 				std::unique_ptr<ContainerBase>
 				{
-					new Container<Streamer<TCPConnection>, TCPServer, TCPServer, UDPServer, Scheduler>(std::move(streamerPtr), std::move(commandServerPtr), std::move(streamingServerPtr), std::move(discoveryServerPtr), std::move(schedulerPtr))
+					new Container<TCPServer, TCPServer, UDPServer, Scheduler<Multiplexor<Source>, Streamer<TCPConnection>>>(std::move(commandServerPtr), std::move(streamingServerPtr), std::move(discoveryServerPtr), std::move(schedulerPtr))
 				}
 			};
 

@@ -22,13 +22,12 @@
 
 namespace slim
 {
-	template<typename StreamerType, typename CommandServerType, typename StreamingServerType, typename DiscoveryServerType, typename SchedulerType>
+	template<typename CommandServerType, typename StreamingServerType, typename DiscoveryServerType, typename SchedulerType>
 	class Container : public ContainerBase
 	{
 		public:
-			Container(std::unique_ptr<StreamerType> st, std::unique_ptr<CommandServerType> cse, std::unique_ptr<StreamingServerType> sse, std::unique_ptr<DiscoveryServerType> dse, std::unique_ptr<SchedulerType> sc)
-			: streamerPtr{std::move(st)}
-			, commandServerPtr{std::move(cse)}
+			Container(std::unique_ptr<CommandServerType> cse, std::unique_ptr<StreamingServerType> sse, std::unique_ptr<DiscoveryServerType> dse, std::unique_ptr<SchedulerType> sc)
+			: commandServerPtr{std::move(cse)}
 			, streamingServerPtr{std::move(sse)}
 			, discoveryServerPtr{std::move(dse)}
 			, schedulerPtr{std::move(sc)} {}
@@ -44,7 +43,6 @@ namespace slim
 			virtual void setProcessorProxy(conwrap::ProcessorAsioProxy<ContainerBase>* p) override
 			{
 				ContainerBase::setProcessorProxy(p);
-				streamerPtr->setProcessorProxy(p);
 				commandServerPtr->setProcessorProxy(p);
 				streamingServerPtr->setProcessorProxy(p);
 				discoveryServerPtr->setProcessorProxy(p);
@@ -68,7 +66,6 @@ namespace slim
 			}
 
 		private:
-			std::unique_ptr<StreamerType>        streamerPtr;
 			std::unique_ptr<CommandServerType>   commandServerPtr;
 			std::unique_ptr<StreamingServerType> streamingServerPtr;
 			std::unique_ptr<DiscoveryServerType> discoveryServerPtr;

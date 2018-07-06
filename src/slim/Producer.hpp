@@ -12,9 +12,11 @@
 
 #pragma once
 
+#include <conwrap/ProcessorProxy.hpp>
 #include <functional>
 
 #include "slim/Consumer.hpp"
+#include "slim/ContainerBase.hpp"
 
 
 namespace slim
@@ -27,6 +29,7 @@ namespace slim
 			virtual bool isRunning() = 0;
 			virtual void pause(unsigned int millisec) = 0;
 			virtual bool produce(Consumer&) = 0;
+			virtual void setProcessorProxy(conwrap::ProcessorProxy<ContainerBase>* p) = 0;
 			virtual void start() = 0;
 			virtual void stop(bool gracefully = true) = 0;
 	};

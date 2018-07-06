@@ -93,6 +93,7 @@ namespace slim
 					LOG(DEBUG) << LABELS{"proto"} << "Streamer object was deleted (id=" << this << ")";
 				}
 
+				// TODO: non-movable is required due to usage in server callbacks; consider refactoring
 				Streamer(const Streamer&) = delete;             // non-copyable
 				Streamer& operator=(const Streamer&) = delete;  // non-assignable
 				Streamer(Streamer&& rhs) = delete;              // non-movable
@@ -288,10 +289,13 @@ namespace slim
 					addSession(commandSessions, connection, std::move(sessionPtr));
 				}
 
-				void setProcessorProxy(conwrap::ProcessorProxy<ContainerBase>* p)
+				virtual void setProcessorProxy(conwrap::ProcessorProxy<ContainerBase>* p) override
 				{
 					processorProxyPtr = p;
 				}
+
+				virtual void start() override {}
+				virtual void stop(bool gracefully = true) override {}
 
 			protected:
 				template<typename SessionType>

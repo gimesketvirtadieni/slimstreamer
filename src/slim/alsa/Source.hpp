@@ -15,6 +15,7 @@
 #include <alsa/asoundlib.h>
 #include <chrono>
 #include <conwrap/ProcessorAsio.hpp>
+#include <conwrap/ProcessorProxy.hpp>
 #include <functional>
 #include <memory>
 #include <mutex>
@@ -23,6 +24,7 @@
 #include "slim/alsa/Parameters.hpp"
 #include "slim/Chunk.hpp"
 #include "slim/Consumer.hpp"
+#include "slim/ContainerBase.hpp"
 #include "slim/Producer.hpp"
 #include "slim/util/ExpandableBuffer.hpp"
 #include "slim/util/RealTimeQueue.hpp"
@@ -110,6 +112,7 @@ namespace slim
 					});
 				}
 
+				virtual void setProcessorProxy(conwrap::ProcessorProxy<ContainerBase>* p) {}
 				virtual void start() override;
 				virtual void stop(bool gracefully = true) override;
 
