@@ -76,7 +76,7 @@ namespace slim
 						{
 							// TODO: cruise control should be implemented
 							// if no PCM data is available in any of the producers then pause processing
-							std::this_thread::sleep_for(std::chrono::milliseconds{50});
+							std::this_thread::sleep_for(std::chrono::milliseconds{10});
 						}
 					}
 
@@ -86,7 +86,7 @@ namespace slim
 				// making sure it is up and running
 				while(processingThread.joinable() && !processingStarted)
 				{
-					std::this_thread::sleep_for(std::chrono::milliseconds{10});
+					std::this_thread::sleep_for(std::chrono::milliseconds{1});
 				}
 			}
 
