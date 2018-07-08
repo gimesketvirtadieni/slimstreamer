@@ -18,6 +18,7 @@
 #include <vector>
 
 #include "slim/ContainerBase.hpp"
+#include "slim/log/log.hpp"
 
 
 namespace slim
@@ -88,16 +89,23 @@ namespace slim
 
 			virtual bool produce(Consumer& consumer) override
 			{
-				// by default processing succeeded; false means deferring
-				auto result{true};
+				auto processed{true};
 
-				// TODO: reconsider
-				if (currentProducerPtr)
+				// processing chunks as long as consumer is not deferring them AND max chunks per task is not reached AND there are chunks available
+				// TODO: calculate total chunks per processing quantum
+				for (unsigned int count{0}; processed && count < 5 && isAvailable(); count++)
 				{
-					result = currentProducerPtr->produce(consumer);
+					processed = submitChunk(consumer);
 				}
 
-				return result;
+				// if processing was defered then pausing it for some period
+				if (!processed)
+				{
+					// TODO: cruise control should be implemented
+					pause(50);
+				}
+
+				return processed;
 			}
 
 			virtual void start() override
@@ -155,6 +163,21 @@ namespace slim
 						thread.join();
 					}
 				}
+			}
+
+		protected:
+			bool submitChunk(Consumer& consumer)
+			{
+				// by default processing succeeded; false means deferring
+				auto result{true};
+
+				// TODO: reconsider
+				if (currentProducerPtr)
+				{
+					result = currentProducerPtr->produce(consumer);
+				}
+
+				return result;
 			}
 
 		private:

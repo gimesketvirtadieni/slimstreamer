@@ -70,7 +70,10 @@ namespace slim
 					{
 						if (producerPtr->isAvailable())
 						{
-							submitProcessingQuantum();
+							processorProxyPtr->process([&producer = *producerPtr, &consumer = *consumerPtr]
+							{
+								producer.produce(consumer);
+							});
 						}
 						else
 						{
@@ -100,28 +103,6 @@ namespace slim
 				{
 					processingThread.join();
 				}
-			}
-
-		protected:
-			void submitProcessingQuantum()
-			{
-				processorProxyPtr->process([&producer = *producerPtr, &consumer = *consumerPtr]
-				{
-					// TODO: calculate total chunks per processing quantum
-					// processing chunks as long as consumer is not deferring them AND max chunks per task is not reached AND there are chunks available
-					auto processed{true};
-					for (unsigned int count{0}; processed && count < 5 && producer.isAvailable(); count++)
-					{
-						processed = producer.produce(consumer);
-					}
-
-					// if processing was defered then pausing it for some period
-					if (!processed)
-					{
-						// TODO: cruise control should be implemented
-						producer.pause(50);
-					}
-				});
 			}
 
 		private:
