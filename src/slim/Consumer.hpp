@@ -23,10 +23,22 @@ namespace slim
 	class Consumer
 	{
 		public:
-			virtual     ~Consumer() = default;
-			virtual bool consume(Chunk) = 0;
-			virtual void setProcessorProxy(conwrap::ProcessorProxy<ContainerBase>* p) = 0;
+			virtual                                        ~Consumer() = default;
+			virtual bool                                    consume(Chunk) = 0;
+			virtual conwrap::ProcessorProxy<ContainerBase>* getProcessorProxy()
+			{
+				return processorProxyPtr;
+			}
+
+			virtual void setProcessorProxy(conwrap::ProcessorProxy<ContainerBase>* p)
+			{
+				processorProxyPtr = p;
+			}
+
 			virtual void start() = 0;
 			virtual void stop(bool gracefully = true) = 0;
+
+		private:
+			conwrap::ProcessorProxy<ContainerBase>* processorProxyPtr{nullptr};
 	};
 }

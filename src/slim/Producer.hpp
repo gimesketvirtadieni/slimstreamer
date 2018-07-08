@@ -13,7 +13,6 @@
 #pragma once
 
 #include <conwrap/ProcessorProxy.hpp>
-#include <functional>
 
 #include "slim/Consumer.hpp"
 #include "slim/ContainerBase.hpp"
@@ -24,13 +23,25 @@ namespace slim
 	class Producer
 	{
 		public:
-			virtual     ~Producer() = default;
-			virtual bool isAvailable() = 0;
-			virtual bool isRunning() = 0;
-			virtual void pause(unsigned int millisec) = 0;
-			virtual bool produce(Consumer&) = 0;
-			virtual void setProcessorProxy(conwrap::ProcessorProxy<ContainerBase>* p) = 0;
+			virtual                                        ~Producer() = default;
+			virtual bool                                    isAvailable() = 0;
+			virtual bool                                    isRunning() = 0;
+			virtual void                                    pause(unsigned int millisec) = 0;
+			virtual bool                                    produce(Consumer&) = 0;
+			virtual conwrap::ProcessorProxy<ContainerBase>* getProcessorProxy()
+			{
+				return processorProxyPtr;
+			}
+
+			virtual void setProcessorProxy(conwrap::ProcessorProxy<ContainerBase>* p)
+			{
+				processorProxyPtr = p;
+			}
+
 			virtual void start() = 0;
 			virtual void stop(bool gracefully = true) = 0;
+
+		private:
+			conwrap::ProcessorProxy<ContainerBase>* processorProxyPtr{nullptr};
 	};
 }

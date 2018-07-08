@@ -112,7 +112,6 @@ namespace slim
 					});
 				}
 
-				virtual void setProcessorProxy(conwrap::ProcessorProxy<ContainerBase>* p) {}
 				virtual void start() override;
 				virtual void stop(bool gracefully = true) override;
 

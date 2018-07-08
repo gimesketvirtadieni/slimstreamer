@@ -63,50 +63,19 @@ namespace slim
 				{
 					LOG(DEBUG) << LABELS{"slim"} << "Processing thread was started (id=" << std::this_thread::get_id() << ")";
 
-					// signalling sheduler when processing thread is fully ready
+					// signalling back to the starting thread when processing thread is fully ready
 					processingStarted = true;
 
-					for(auto running{true}, available{true}; running;)
+					while (producerPtr->isRunning())
 					{
-						running   = false;
-						available = false;
-
-						for (auto& p : producerPtr->producers)
+						if (producerPtr->isAvailable())
 						{
-							auto r{p->isRunning()};
-							auto a{p->isAvailable()};
-
-							// if there is PCM available then submitting a task to the processor
-							if (r && a)
-							{
-								processorProxyPtr->process([&producer = *p, &consumer = *consumerPtr]
-								{
-									// TODO: calculate total chunks per processing quantum
-									// processing chunks as long as consumer is not deferring them AND max chunks per task is not reached AND there are chunks available
-									auto processed{true};
-									for (unsigned int count{5}; processed && count > 0 && producer.isAvailable(); count--)
-									{
-										processed = producer.produce(consumer);
-									}
-
-									// if processing was defered then pausing it for some period
-									if (!processed)
-									{
-										// TODO: cruise control should be implemented
-										producer.pause(50);
-									}
-								});
-							}
-
-							// using producer's status to determine whether to sleep or to exit
-							running   |= r;
-							available |= a;
+							submitProcessingQuantum();
 						}
-
-						// if no PCM data is available in any of the producers then pause processing
-						if (!available)
+						else
 						{
 							// TODO: cruise control should be implemented
+							// if no PCM data is available in any of the producers then pause processing
 							std::this_thread::sleep_for(std::chrono::milliseconds{50});
 						}
 					}
@@ -133,11 +102,33 @@ namespace slim
 				}
 			}
 
+		protected:
+			void submitProcessingQuantum()
+			{
+				processorProxyPtr->process([&producer = *producerPtr, &consumer = *consumerPtr]
+				{
+					// TODO: calculate total chunks per processing quantum
+					// processing chunks as long as consumer is not deferring them AND max chunks per task is not reached AND there are chunks available
+					auto processed{true};
+					for (unsigned int count{0}; processed && count < 5 && producer.isAvailable(); count++)
+					{
+						processed = producer.produce(consumer);
+					}
+
+					// if processing was defered then pausing it for some period
+					if (!processed)
+					{
+						// TODO: cruise control should be implemented
+						producer.pause(50);
+					}
+				});
+			}
+
 		private:
 			std::unique_ptr<ProducerType>           producerPtr;
 			std::unique_ptr<ConsumerType>           consumerPtr;
+			conwrap::ProcessorProxy<ContainerBase>* processorProxyPtr{nullptr};
 			std::thread                             processingThread;
 			volatile bool                           processingStarted{false};
-			conwrap::ProcessorProxy<ContainerBase>* processorProxyPtr{nullptr};
 	};
 }

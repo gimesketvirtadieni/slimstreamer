@@ -38,22 +38,67 @@ namespace slim
 
 			virtual bool isAvailable() override
 			{
-				return true;
+				auto result{false};
+
+				if (currentProducerPtr)
+				{
+					result = currentProducerPtr->isAvailable();
+				}
+
+				if (!result)
+				{
+					for (auto& producerPtr : producers)
+					{
+						if (producerPtr->isAvailable())
+						{
+							currentProducerPtr = producerPtr.get();
+							result             = true;
+							break;
+						}
+					}
+				}
+
+				return result;
 			}
 
 			virtual bool isRunning() override
 			{
-				return true;
+				auto result{false};
+
+				for (auto& producerPtr : producers)
+				{
+					if (producerPtr->isRunning())
+					{
+						result = true;
+						break;
+					}
+				}
+
+				return result;
 			}
 
-			virtual void pause(unsigned int millisec) override {}
-
-			virtual bool produce(Consumer&) override
+			virtual void pause(unsigned int millisec) override
 			{
-				return true;
+				// TODO: reconsider
+				if (currentProducerPtr)
+				{
+					currentProducerPtr->pause(millisec);
+				}
 			}
 
-			virtual void setProcessorProxy(conwrap::ProcessorProxy<ContainerBase>* p) override {}
+			virtual bool produce(Consumer& consumer) override
+			{
+				// by default processing succeeded; false means deferring
+				auto result{true};
+
+				// TODO: reconsider
+				if (currentProducerPtr)
+				{
+					result = currentProducerPtr->produce(consumer);
+				}
+
+				return result;
+			}
 
 			virtual void start() override
 			{
@@ -99,14 +144,7 @@ namespace slim
 				// signalling all threads to stop processing
 				for (auto& producerPtr : producers)
 				{
-					try
-					{
-						producerPtr->stop(gracefully);
-					}
-					catch (const slim::Exception& error)
-					{
-						LOG(ERROR) << LABELS{"slim"} << "Error while stopping a producer: " << error;
-					}
+					producerPtr->stop(gracefully);
 				}
 
 				// waiting for all threads to terminate
@@ -119,9 +157,9 @@ namespace slim
 				}
 			}
 
-		/* TODO: temporary hack; must be private */
-		public:
+		private:
 			std::vector<std::unique_ptr<ProducerType>> producers;
+			ProducerType*                              currentProducerPtr{nullptr};
 			std::vector<std::thread>                   threads;
 	};
 }

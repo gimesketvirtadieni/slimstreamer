@@ -63,6 +63,7 @@ namespace slim
 						// TODO: make configurable
 						if (counter > 24)
 						{
+							auto processorProxyPtr{getProcessorProxy()};
 							if (processorProxyPtr)
 							{
 								processorProxyPtr->process([&]
@@ -289,11 +290,6 @@ namespace slim
 					addSession(commandSessions, connection, std::move(sessionPtr));
 				}
 
-				virtual void setProcessorProxy(conwrap::ProcessorProxy<ContainerBase>* p) override
-				{
-					processorProxyPtr = p;
-				}
-
 				virtual void start() override {}
 				virtual void stop(bool gracefully = true) override {}
 
@@ -419,18 +415,17 @@ namespace slim
 				}
 
 			private:
-				unsigned int                            streamingPort;
-				EncoderBuilder                          encoderBuilder;
-				std::optional<unsigned int>             gain;
-				SessionsMap<CommandSessionType>         commandSessions;
-				SessionsMap<StreamingSessionType>       streamingSessions;
-				bool                                    streaming{false};
-				unsigned int                            samplingRate{0};
-				unsigned long                           nextID{0};
-				conwrap::ProcessorProxy<ContainerBase>* processorProxyPtr{nullptr};
-				volatile bool                           timerRunning{true};
-				std::thread                             timerThread;
-				std::optional<TimePoint>                deferStartedAt{std::nullopt};
+				unsigned int                      streamingPort;
+				EncoderBuilder                    encoderBuilder;
+				std::optional<unsigned int>       gain;
+				SessionsMap<CommandSessionType>   commandSessions;
+				SessionsMap<StreamingSessionType> streamingSessions;
+				bool                              streaming{false};
+				unsigned int                      samplingRate{0};
+				unsigned long                     nextID{0};
+				volatile bool                     timerRunning{true};
+				std::thread                       timerThread;
+				std::optional<TimePoint>          deferStartedAt{std::nullopt};
 		};
 	}
 }
