@@ -12,6 +12,7 @@
 
 #pragma once
 
+#include <atomic>
 #include <conwrap/ProcessorProxy.hpp>
 #include <functional>
 #include <memory>
@@ -30,6 +31,28 @@ namespace slim
 			Scheduler(std::unique_ptr<ProducerType> pr, std::unique_ptr<ConsumerType> cn)
 			: producerPtr{std::move(pr)}
 			, consumerPtr{std::move(cn)}
+			, monitorThread
+			{[&]{
+				// starting a single consumer thread for processing PCM data
+				LOG(DEBUG) << LABELS{"slim"} << "Scheduler monitor thread was started (id=" << std::this_thread::get_id() << ")";
+
+				while (!finish)
+				{
+					std::this_thread::sleep_for(std::chrono::milliseconds{50});
+
+					if (requestTaskLater)
+					{
+						requestTaskLater = false;
+
+						processorProxyPtr->process([&]
+						{
+							processTask();
+						});
+					}
+				}
+
+				LOG(DEBUG) << LABELS{"slim"} << "Scheduler monitor thread was stopped (id=" << std::this_thread::get_id() << ")";
+			}}
 			{
 				LOG(DEBUG) << LABELS{"slim"} << "Scheduler object was created (id=" << this << ")";
 			}
@@ -37,6 +60,13 @@ namespace slim
 			// using Rule Of Zero
 		   ~Scheduler()
 			{
+				// signalling monitor thread to stop and joining it
+				finish = true;
+				if (monitorThread.joinable())
+				{
+					monitorThread.join();
+				}
+
 				LOG(DEBUG) << LABELS{"slim"} << "Scheduler object was deleted (id=" << this << ")";
 			}
 
@@ -58,39 +88,10 @@ namespace slim
 				producerPtr->start();
 				consumerPtr->start();
 
-				// starting a single consumer thread for processing PCM data
-				processingThread = std::thread([&]
-				{
-					LOG(DEBUG) << LABELS{"slim"} << "Processing thread was started (id=" << std::this_thread::get_id() << ")";
+				// asking monitor thread to submit a new task
+				requestTaskLater = true;
 
-					// signalling back to the starting thread when processing thread is fully ready
-					processingStarted = true;
-
-					while (producerPtr->isRunning())
-					{
-						if (producerPtr->isAvailable())
-						{
-							processorProxyPtr->process([&producer = *producerPtr, &consumer = *consumerPtr]
-							{
-								producer.produce(consumer);
-							});
-						}
-						else
-						{
-							// TODO: cruise control should be implemented
-							// if no PCM data is available in any of the producers then pause processing
-							std::this_thread::sleep_for(std::chrono::milliseconds{10});
-						}
-					}
-
-					LOG(DEBUG) << LABELS{"slim"} << "Streamer thread was stopped (id=" << std::this_thread::get_id() << ")";
-				});
-
-				// making sure it is up and running
-				while(processingThread.joinable() && !processingStarted)
-				{
-					std::this_thread::sleep_for(std::chrono::milliseconds{1});
-				}
+				LOG(DEBUG) << LABELS{"slim"} << "Streaming was started";
 			}
 
 			void stop(bool gracefully = true)
@@ -98,18 +99,36 @@ namespace slim
 				producerPtr->stop();
 				consumerPtr->stop();
 
-				// waiting for consumer's thread to terminate
-				if (processingThread.joinable())
+				LOG(DEBUG) << LABELS{"slim"} << "Streaming was stopped";
+			}
+
+		protected:
+			void processTask()
+			{
+				if (producerPtr->isRunning())
 				{
-					processingThread.join();
+					if (producerPtr->isAvailable())
+					{
+						producerPtr->produce(*consumerPtr);
+
+						processorProxyPtr->process([&]
+						{
+							processTask();
+						});
+					}
+					else
+					{
+						requestTaskLater = true;
+					}
 				}
 			}
 
 		private:
 			std::unique_ptr<ProducerType>           producerPtr;
 			std::unique_ptr<ConsumerType>           consumerPtr;
+			std::thread                             monitorThread;
+			std::atomic<bool>                       finish{false};
+			std::atomic<bool>                       requestTaskLater{false};
 			conwrap::ProcessorProxy<ContainerBase>* processorProxyPtr{nullptr};
-			std::thread                             processingThread;
-			volatile bool                           processingStarted{false};
 	};
 }
