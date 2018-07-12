@@ -105,21 +105,26 @@ namespace slim
 		protected:
 			void processTask()
 			{
-				if (producerPtr->isRunning())
-				{
-					if (producerPtr->isAvailable())
-					{
-						producerPtr->produce(*consumerPtr);
+				auto available{true};
 
-						processorProxyPtr->process([&]
-						{
-							processTask();
-						});
-					}
-					else
+				// TODO: calculate total chunks per processing quantum
+				// processing up to max(count) chunks within one event-loop quantum
+				unsigned int count{0};
+				for (; available && count < 5; available = producerPtr->produceChunk(*consumerPtr), count++) {}
+
+				// if there is more PCM data to be processed
+				if (available)
+				{
+					LOG(DEBUG) << LABELS{"slim"} << "Here 2 count=" << count;
+					processorProxyPtr->process([&]
 					{
-						requestTaskLater = true;
-					}
+						processTask();
+					});
+				}
+				else if (producerPtr->isRunning())
+				{
+					// requesting monitoring thread to submit a new task later, which will allow event-loop to progress
+					requestTaskLater = true;
 				}
 			}
 

@@ -93,23 +93,23 @@ namespace slim
 					return running;
 				}
 
-				virtual void pause(unsigned int millisec) override
+				virtual bool produceChunk(Consumer& consumer) override
 				{
-					pauseUntil = std::chrono::steady_clock::now() + std::chrono::milliseconds{millisec};
-				}
-
-				virtual bool produce(Consumer& consumer) override
-				{
-					// this call does NOT block if bounded queue (buffer) is empty
-					return queuePtr->dequeue([&](util::ExpandableBuffer& buffer)
+					// if consumer did not accept a chunk then deferring further processing
+					if (queuePtr->dequeue([&](util::ExpandableBuffer& buffer)
 					{
 						// creating Chunk object which is a light weight wrapper around ExpandableBuffer with meta data about PCM stream details
 						return consumer.consume(Chunk{std::ref<util::ExpandableBuffer>(buffer), parameters.getSamplingRate(), parameters.getLogicalChannels(), parameters.getBitsPerSample()});
-					}
-					, [&]
+					}, [&]
 					{
 						available = false;
-					});
+					}))
+					{
+						// TODO: cruise control should be implemented
+						pause(50);
+					}
+
+					return isAvailable();
 				}
 
 				virtual void start() override;
@@ -126,6 +126,12 @@ namespace slim
 				}
 
 				void open();
+
+				void pause(unsigned int millisec)
+				{
+					pauseUntil = std::chrono::steady_clock::now() + std::chrono::milliseconds{millisec};
+				}
+
 				bool restore(snd_pcm_sframes_t error);
 
 			private:

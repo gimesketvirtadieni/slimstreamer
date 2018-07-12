@@ -23,11 +23,11 @@ namespace slim
 	class Producer
 	{
 		public:
-			virtual                                        ~Producer() = default;
-			virtual bool                                    isAvailable() = 0;
-			virtual bool                                    isRunning() = 0;
-			virtual void                                    pause(unsigned int millisec) = 0;
-			virtual bool                                    produce(Consumer&) = 0;
+			virtual     ~Producer() = default;
+			virtual bool isAvailable() = 0;
+			virtual bool isRunning() = 0;
+			virtual bool produceChunk(Consumer&) = 0;
+
 			virtual conwrap::ProcessorProxy<ContainerBase>* getProcessorProxy()
 			{
 				return processorProxyPtr;
