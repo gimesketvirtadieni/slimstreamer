@@ -13,6 +13,7 @@
 #pragma once
 
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <conwrap/ProcessorProxy.hpp>
 #include <cstddef>  // std::size_t
@@ -54,11 +55,11 @@ namespace slim
 				: streamingPort{sp}
 				, encoderBuilder{eb}
 				, gain{g}
-				, timerThread{[&]
+				, monitorThread{[&]
 				{
-					LOG(DEBUG) << LABELS{"proto"} << "Timer thread was started (id=" << std::this_thread::get_id() << ")";
+					LOG(DEBUG) << LABELS{"proto"} << "Monitor thread was started (id=" << std::this_thread::get_id() << ")";
 
-					for(unsigned int counter{0}; timerRunning; counter++, std::this_thread::sleep_for(std::chrono::milliseconds{200}))
+					for(unsigned int counter{0}; !monitorFinish; counter++, std::this_thread::sleep_for(std::chrono::milliseconds{200}))
 			        {
 						// TODO: make configurable
 						if (counter > 24)
@@ -80,7 +81,7 @@ namespace slim
 						}
 			        }
 
-					LOG(DEBUG) << LABELS{"proto"} << "Timer thread was stopped (id=" << std::this_thread::get_id() << ")";
+					LOG(DEBUG) << LABELS{"proto"} << "Monitor thread was stopped (id=" << std::this_thread::get_id() << ")";
 				}}
 				{
 					LOG(DEBUG) << LABELS{"proto"} << "Streamer object was created (id=" << this << ")";
@@ -88,8 +89,12 @@ namespace slim
 
 				virtual ~Streamer()
 				{
-					timerRunning = false;
-					timerThread.join();
+					// stopping monitor thread
+					monitorFinish = true;
+					if (monitorThread.joinable())
+					{
+						monitorThread.join();
+					}
 
 					LOG(DEBUG) << LABELS{"proto"} << "Streamer object was deleted (id=" << this << ")";
 				}
@@ -423,8 +428,8 @@ namespace slim
 				bool                              streaming{false};
 				unsigned int                      samplingRate{0};
 				unsigned long                     nextID{0};
-				volatile bool                     timerRunning{true};
-				std::thread                       timerThread;
+				std::atomic<bool>                 monitorFinish{false};
+				std::thread                       monitorThread;
 				std::optional<TimePoint>          deferStartedAt{std::nullopt};
 		};
 	}

@@ -36,7 +36,7 @@ namespace slim
 				// starting a single consumer thread for processing PCM data
 				LOG(DEBUG) << LABELS{"slim"} << "Scheduler monitor thread was started (id=" << std::this_thread::get_id() << ")";
 
-				while (!finish)
+				while (!monitorFinish)
 				{
 					std::this_thread::sleep_for(std::chrono::milliseconds{50});
 
@@ -61,7 +61,7 @@ namespace slim
 		   ~Scheduler()
 			{
 				// signalling monitor thread to stop and joining it
-				finish = true;
+				monitorFinish = true;
 				if (monitorThread.joinable())
 				{
 					monitorThread.join();
@@ -130,7 +130,7 @@ namespace slim
 			std::unique_ptr<ProducerType>           producerPtr;
 			std::unique_ptr<ConsumerType>           consumerPtr;
 			std::thread                             monitorThread;
-			std::atomic<bool>                       finish{false};
+			std::atomic<bool>                       monitorFinish{false};
 			std::atomic<bool>                       requestTaskLater{false};
 			conwrap::ProcessorProxy<ContainerBase>* processorProxyPtr{nullptr};
 	};
