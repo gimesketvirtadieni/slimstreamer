@@ -10,6 +10,7 @@
  * Author: gimesketvirtadieni at gmail dot com (Andrej Kislovskij)
  */
 
+#include <atomic>
 #include <chrono>
 #include <conwrap/ProcessorAsio.hpp>
 #include <csignal>
@@ -60,7 +61,7 @@ using UDPCallbacks  = udp::Callbacks<ContainerBase>;
 using UDPServer     = udp::Server<ContainerBase>;
 
 
-static volatile bool running = true;
+static std::atomic<bool> running{true};
 
 
 void signalHandler(int sig)

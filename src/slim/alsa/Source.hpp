@@ -13,6 +13,7 @@
 #pragma once
 
 #include <alsa/asoundlib.h>
+#include <atomic>
 #include <chrono>
 #include <conwrap/ProcessorAsio.hpp>
 #include <conwrap/ProcessorProxy.hpp>
@@ -139,8 +140,8 @@ namespace slim
 				std::function<void()>                                        overflowCallback;
 				std::unique_ptr<util::RealTimeQueue<util::ExpandableBuffer>> queuePtr;
 				snd_pcm_t*                                                   handlePtr{nullptr};
-				volatile bool                                                running{false};
-				volatile bool                                                available{false};
+				std::atomic<bool>                                            running{false};
+				std::atomic<bool>                                            available{false};
 				bool                                                         streaming{true};
 				std::mutex                                                   lock;
 				std::optional<TimePoint>                                     pauseUntil{std::nullopt};
