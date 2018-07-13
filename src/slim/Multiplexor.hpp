@@ -82,24 +82,15 @@ namespace slim
 			{
 				auto available{false};
 
-				// TODO: reconsider
 				if (currentProducerPtr)
 				{
 					available = currentProducerPtr->produceChunk(consumer);
 				}
 
-				// TODO: combine with isAvailable
+				// isAvailable will switch over to a different producer if there is no more chunks available
 				if (!available)
 				{
-					for (auto& producerPtr : producers)
-					{
-						if (producerPtr->isRunning() && producerPtr->isAvailable())
-						{
-							currentProducerPtr = producerPtr.get();
-							available          = true;
-							break;
-						}
-					}
+					available = isAvailable();
 				}
 
 				return available;

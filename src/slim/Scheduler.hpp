@@ -109,13 +109,11 @@ namespace slim
 
 				// TODO: calculate total chunks per processing quantum
 				// processing up to max(count) chunks within one event-loop quantum
-				unsigned int count{0};
-				for (; available && count < 5; available = producerPtr->produceChunk(*consumerPtr), count++) {}
+				for (unsigned int count{0}; available && count < 5; available = producerPtr->produceChunk(*consumerPtr), count++) {}
 
 				// if there is more PCM data to be processed
 				if (available)
 				{
-					LOG(DEBUG) << LABELS{"slim"} << "Here 2 count=" << count;
 					processorProxyPtr->process([&]
 					{
 						processTask();
