@@ -37,25 +37,16 @@ namespace slim
 			Multiplexor(Multiplexor&& rhs) = delete;              // non-movable
 			Multiplexor& operator=(Multiplexor&& rhs) = delete;   // non-move-assignable
 
-			virtual bool isAvailable() override
+			virtual bool isProducing() override
 			{
 				auto result{false};
 
-				if (currentProducerPtr)
+				for (auto& producerPtr : producers)
 				{
-					result = currentProducerPtr->isAvailable();
-				}
-
-				if (!result)
-				{
-					for (auto& producerPtr : producers)
+					if (producerPtr->isProducing())
 					{
-						if (producerPtr->isAvailable())
-						{
-							currentProducerPtr = producerPtr.get();
-							result             = true;
-							break;
-						}
+						result = true;
+						break;
 					}
 				}
 
@@ -82,15 +73,29 @@ namespace slim
 			{
 				auto available{false};
 
+				// setting the current producer if needed
+				if (!currentProducerPtr && producers.size() > 0)
+				{
+					currentProducerPtr = producers.at(0).get();
+				}
+
 				if (currentProducerPtr)
 				{
 					available = currentProducerPtr->produceChunk(consumer);
-				}
 
-				// isAvailable will switch over to a different producer if there is no more chunks available
-				if (!available)
-				{
-					available = isAvailable();
+					if (!available && !currentProducerPtr->isProducing())
+					{
+						// trying to switch over to a different source
+						for (auto& producerPtr : producers)
+						{
+							if (producerPtr->isProducing())
+							{
+								currentProducerPtr = producerPtr.get();
+								available          = true;
+								break;
+							}
+						}
+					}
 				}
 
 				return available;

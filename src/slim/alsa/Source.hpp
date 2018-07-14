@@ -73,21 +73,9 @@ namespace slim
 					return parameters;
 				}
 
-				virtual bool isAvailable() override
+				virtual bool isProducing() override
 				{
-					bool result;
-
-					if (pauseUntil.has_value() && pauseUntil.value() > std::chrono::steady_clock::now())
-					{
-						result = false;
-					}
-					else
-					{
-						result = available;
-						pauseUntil.reset();
-					}
-
-					return result;
+					return producing;
 				}
 
 				virtual bool isRunning() override
@@ -122,6 +110,23 @@ namespace slim
 				snd_pcm_sframes_t containsData(unsigned char* buffer, snd_pcm_uframes_t frames);
 				snd_pcm_uframes_t copyData(unsigned char* srcBuffer, unsigned char* dstBuffer, snd_pcm_uframes_t frames);
 
+				inline bool isAvailable()
+				{
+					bool result;
+
+					if (pauseUntil.has_value() && pauseUntil.value() > std::chrono::steady_clock::now())
+					{
+						result = false;
+					}
+					else
+					{
+						result = available;
+						pauseUntil.reset();
+					}
+
+					return result;
+				}
+
 				inline auto formatError(std::string message, int error = 0)
 				{
 					return message + ": name='" + parameters.getDeviceName() + (error != 0 ? std::string{"' error='"} + snd_strerror(error) + "'" : "");
@@ -142,6 +147,7 @@ namespace slim
 				std::unique_ptr<QueueType>   queuePtr;
 				snd_pcm_t*                   handlePtr{nullptr};
 				std::atomic<bool>            running{false};
+				std::atomic<bool>            producing{false};
 				std::atomic<bool>            available{false};
 				bool                         streaming{true};
 				std::mutex                   lock;

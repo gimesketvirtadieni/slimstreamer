@@ -24,7 +24,7 @@ namespace slim
 	{
 		public:
 			virtual     ~Producer() = default;
-			virtual bool isAvailable() = 0;
+			virtual bool isProducing() = 0;
 			virtual bool isRunning() = 0;
 			virtual bool produceChunk(Consumer&) = 0;
 

@@ -222,7 +222,6 @@ namespace slim
 			}
 
 			// everything inside this loop (except overflowCallback) must be real-time safe: no memory allocation, no logging, etc.
-			auto              producing{false};
 			snd_pcm_sframes_t result{0};
 			while (result >= 0)
 			{
