@@ -15,7 +15,6 @@
 
 #include "slim/alsa/Source.hpp"
 #include "slim/Exception.hpp"
-#include "slim/log/log.hpp"
 
 
 namespace slim

@@ -200,9 +200,8 @@ namespace slim
 					}
 				}
 
-				inline void stream(unsigned int p, unsigned int r)
+				inline void startStreaming(unsigned int p, unsigned int r)
 				{
-					// TODO: it's never set back to false
 					streaming     = true;
 					streamingPort = p;
 					samplingRate  = r;
@@ -211,6 +210,18 @@ namespace slim
 					if (commandHELO.has_value())
 					{
 						send(CommandSTRM{CommandSelection::Start, formatSelection, streamingPort, samplingRate, clientID});
+					}
+				}
+
+				inline void stopStreaming()
+				{
+					streaming = false;
+
+					// if handshake commands were sent
+					if (commandHELO.has_value())
+					{
+						// TODO: create a new constructor for CommandSTRM
+						send(CommandSTRM{CommandSelection::Stop, formatSelection, streamingPort, samplingRate, clientID});
 					}
 				}
 

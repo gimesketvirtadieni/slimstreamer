@@ -132,7 +132,7 @@ namespace slim
 						samplingRate = chunkSamplingRate;
 						for (auto& entry : commandSessions)
 						{
-							entry.second->stream(streamingPort, samplingRate);
+							entry.second->startStreaming(streamingPort, samplingRate);
 						}
 					}
 
@@ -175,13 +175,14 @@ namespace slim
 
 					if (samplingRate && samplingRate == chunkSamplingRate && streaming)
 					{
+						distributeChunk(chunk);
+
 						if (chunk.getEndOfStream())
 						{
-							LOG(INFO) << LABELS{"proto"} << "End of stream!";
-						}
-						else
-						{
-							distributeChunk(chunk);
+							for (auto& entry : commandSessions)
+							{
+								entry.second->stopStreaming();
+							}
 						}
 					}
 
@@ -295,7 +296,7 @@ namespace slim
 					// enable streaming for this session if required
 					if (streaming)
 					{
-						sessionPtr->stream(streamingPort, samplingRate);
+						sessionPtr->startStreaming(streamingPort, samplingRate);
 					}
 
 					// saving command session in the map

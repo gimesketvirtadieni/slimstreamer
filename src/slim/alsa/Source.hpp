@@ -26,6 +26,7 @@
 #include "slim/Chunk.hpp"
 #include "slim/Consumer.hpp"
 #include "slim/ContainerBase.hpp"
+#include "slim/log/log.hpp"
 #include "slim/Producer.hpp"
 #include "slim/util/RealTimeQueue.hpp"
 
@@ -99,10 +100,10 @@ namespace slim
 					// if consumer did not accept a chunk then deferring further processing
 					if (queuePtr->dequeue([&](Chunk& chunk)
 					{
-						// creating Chunk object which is a light weight wrapper around ExpandableBuffer with meta data about PCM stream details
 						return consumer.consume(chunk);
 					}, [&]
 					{
+						// TODO: get rid of 'isAvailable'; underFlow callback
 						available = false;
 					}))
 					{
