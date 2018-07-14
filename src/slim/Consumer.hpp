@@ -24,7 +24,7 @@ namespace slim
 	{
 		public:
 			virtual                                        ~Consumer() = default;
-			virtual bool                                    consume(Chunk) = 0;
+			virtual bool                                    consume(Chunk&) = 0;
 			virtual conwrap::ProcessorProxy<ContainerBase>* getProcessorProxy()
 			{
 				return processorProxyPtr;

@@ -105,7 +105,7 @@ namespace slim
 				Streamer(Streamer&& rhs) = delete;              // non-movable
 				Streamer& operator=(Streamer&& rhs) = delete;   // non-movable-assinable
 
-				virtual bool consume(Chunk chunk) override
+				virtual bool consume(Chunk& chunk) override
 				{
 					auto chunkSamplingRate{chunk.getSamplingRate()};
 
@@ -175,7 +175,14 @@ namespace slim
 
 					if (samplingRate && samplingRate == chunkSamplingRate && streaming)
 					{
-						distributeChunk(chunk);
+						if (chunk.getEndOfStream())
+						{
+							LOG(INFO) << LABELS{"proto"} << "End of stream!";
+						}
+						else
+						{
+							distributeChunk(chunk);
+						}
 					}
 
 					return streaming;
@@ -335,7 +342,7 @@ namespace slim
 					return (found != sessions.end());
 				}
 
-				inline void distributeChunk(Chunk chunk)
+				inline void distributeChunk(Chunk& chunk)
 				{
 					// sending chunk to all HTTP sessions
 					auto counter{commandSessions.size()};

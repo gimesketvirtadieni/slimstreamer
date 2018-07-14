@@ -27,7 +27,6 @@
 #include "slim/Consumer.hpp"
 #include "slim/ContainerBase.hpp"
 #include "slim/Producer.hpp"
-#include "slim/util/ExpandableBuffer.hpp"
 #include "slim/util/RealTimeQueue.hpp"
 
 
@@ -44,16 +43,17 @@ namespace slim
 
 		class Source : public Producer
 		{
-			using TimePoint = std::chrono::time_point<std::chrono::steady_clock>;
+			using TimePointType = std::chrono::time_point<std::chrono::steady_clock>;
+			using QueueType     = util::RealTimeQueue<Chunk>;
 
 			public:
 				Source(Parameters p, std::function<void()> oc = [] {})
 				: parameters{p}
 				, overflowCallback{std::move(oc)}
-				, queuePtr{std::make_unique<util::RealTimeQueue<util::ExpandableBuffer>>(parameters.getQueueSize(), [&](util::ExpandableBuffer& buffer)
+				, queuePtr{std::make_unique<QueueType>(parameters.getQueueSize(), [&](Chunk& chunk)
 				{
-					// last channel does not contain PCM data so it will be filtered out
-					buffer.capacity(p.getFramesPerChunk() * p.getLogicalChannels() * (p.getBitsPerSample() >> 3));
+					// no need to store data from the last channel as it contains commands
+					chunk.setCapacity(p.getFramesPerChunk() * p.getLogicalChannels() * (p.getBitsPerSample() >> 3));
 				})} {}
 
 				virtual ~Source()
@@ -97,10 +97,10 @@ namespace slim
 				virtual bool produceChunk(Consumer& consumer) override
 				{
 					// if consumer did not accept a chunk then deferring further processing
-					if (queuePtr->dequeue([&](util::ExpandableBuffer& buffer)
+					if (queuePtr->dequeue([&](Chunk& chunk)
 					{
 						// creating Chunk object which is a light weight wrapper around ExpandableBuffer with meta data about PCM stream details
-						return consumer.consume(Chunk{std::ref<util::ExpandableBuffer>(buffer), parameters.getSamplingRate(), parameters.getLogicalChannels(), parameters.getBitsPerSample()});
+						return consumer.consume(chunk);
 					}, [&]
 					{
 						available = false;
@@ -136,15 +136,15 @@ namespace slim
 				bool restore(snd_pcm_sframes_t error);
 
 			private:
-				Parameters                                                   parameters;
-				std::function<void()>                                        overflowCallback;
-				std::unique_ptr<util::RealTimeQueue<util::ExpandableBuffer>> queuePtr;
-				snd_pcm_t*                                                   handlePtr{nullptr};
-				std::atomic<bool>                                            running{false};
-				std::atomic<bool>                                            available{false};
-				bool                                                         streaming{true};
-				std::mutex                                                   lock;
-				std::optional<TimePoint>                                     pauseUntil{std::nullopt};
+				Parameters                   parameters;
+				std::function<void()>        overflowCallback;
+				std::unique_ptr<QueueType>   queuePtr;
+				snd_pcm_t*                   handlePtr{nullptr};
+				std::atomic<bool>            running{false};
+				std::atomic<bool>            available{false};
+				bool                         streaming{true};
+				std::mutex                   lock;
+				std::optional<TimePointType> pauseUntil{std::nullopt};
 		};
 	}
 }

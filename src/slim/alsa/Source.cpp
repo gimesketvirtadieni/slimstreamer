@@ -209,7 +209,7 @@ namespace slim
 			unsigned int  bytesPerFrame = parameters.getTotalChannels() * (parameters.getBitsPerSample() >> 3);
 			unsigned char srcBuffer[maxFrames * bytesPerFrame];
 
-			// making sure 'running' state is not changed
+			// changing state to 'running' in a thread-safe way
 			{
 				std::lock_guard<std::mutex> lockGuard{lock};
 				if (running)
@@ -223,6 +223,7 @@ namespace slim
 			}
 
 			// everything inside this loop (except overflowCallback) must be real-time safe: no memory allocation, no logging, etc.
+			auto              producing{false};
 			snd_pcm_sframes_t result{0};
 			while (result >= 0)
 			{
@@ -237,13 +238,23 @@ namespace slim
 					// if PCM data contains active stream and its offset within the range
 					if (offset >= 0 && offset < result)
 					{
-						// enqueue received PCM data so that none-Real-Time safe code can process it
-						queuePtr->enqueue([&](util::ExpandableBuffer& buffer)
-						{
-							// copying data and setting new chunk size in bytes
-							buffer.size(copyData(srcBuffer + offset * bytesPerFrame, buffer.data(), static_cast<snd_pcm_uframes_t>(result - offset)) * parameters.getLogicalChannels() * (parameters.getBitsPerSample() >> 3));
+						// changing state to 'producing'
+						producing = true;
 
-							// available is used to provide optimization for a scheduler submitting tasks to a processor
+						// enqueue received PCM data so that none-Real-Time safe code can process it
+						queuePtr->enqueue([&](Chunk& chunk)
+						{
+							// setting chunk 'meta' data
+							chunk.setSamplingRate(parameters.getSamplingRate());
+							chunk.setChannels(parameters.getLogicalChannels());
+							chunk.setBitsPerSample(parameters.getBitsPerSample());
+							chunk.setEndOfStream(false);
+
+							// TODO: move functionality to Chunk class
+							// copying data and setting new chunk size in bytes
+							chunk.setSize(copyData(srcBuffer + offset * bytesPerFrame, chunk.getData(), static_cast<snd_pcm_uframes_t>(result - offset)) * parameters.getLogicalChannels() * (parameters.getBitsPerSample() >> 3));
+
+							// signaling not-Real-Time-safe thread there is data available
 							available = true;
 
 							// always true as source buffer contains data
@@ -253,6 +264,33 @@ namespace slim
 							// calling overflow callback in case it was not possible to enqueue a chunk
 							overflowCallback();
 						});
+					}
+					else
+					{
+						// changing state to 'not producing'
+						if (producing)
+						{
+							// creating an 'empty' chunk required to mark end-of-stream
+							queuePtr->enqueue([&](Chunk& chunk)
+							{
+								chunk.setSamplingRate(parameters.getSamplingRate());
+								chunk.setChannels(parameters.getLogicalChannels());
+								chunk.setBitsPerSample(parameters.getBitsPerSample());
+								chunk.setEndOfStream(true);
+								chunk.setSize(0);
+
+								// signaling not-Real-Time-safe thread there is data available
+								available = true;
+
+								// always true as source buffer contains data
+								return true;
+							}, [&]
+							{
+								// calling overflow callback in case it was not possible to enqueue a chunk
+								overflowCallback();
+							});
+						}
+						producing = false;
 					}
 				}
 				else if (result < 0 && restore(result))
@@ -268,13 +306,13 @@ namespace slim
 				LOG(ERROR) << LABELS{"alsa"} << formatError("Unexpected error while reading PCM data", result);
 			}
 
-			// changing state to 'not started'
+			// changing state to 'not running' in a thread-safe way
 			{
 				std::lock_guard<std::mutex> lockGuard{lock};
+				running = false;
 
 				// closing ALSA device
 				close();
-				running = false;
 			}
 		}
 

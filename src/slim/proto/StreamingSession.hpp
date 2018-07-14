@@ -76,7 +76,7 @@ namespace slim
 					return samplingRate;
 				}
 
-				inline void onChunk(Chunk chunk)
+				inline void onChunk(Chunk& chunk)
 				{
 					if (samplingRate == chunk.getSamplingRate())
 					{

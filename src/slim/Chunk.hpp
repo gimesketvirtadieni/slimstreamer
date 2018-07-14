@@ -12,28 +12,32 @@
 
 #pragma once
 
-#include <functional>
-
 #include "slim/util/ExpandableBuffer.hpp"
 
 
 namespace slim
 {
+	namespace util
+	{
+		template<typename T>
+		class RealTimeQueue;
+	}
+
 	class Chunk
 	{
+		friend util::RealTimeQueue<Chunk>;
+
 		public:
-			Chunk(std::reference_wrapper<util::ExpandableBuffer> br, unsigned int sr, unsigned int c, unsigned int b)
-			: buffer{br}
-			, samplingRate{sr}
+			Chunk(unsigned int sr, unsigned int c, unsigned int b)
+			: samplingRate{sr}
 			, channels{c}
 			, bitsPerSample{b} {}
 
-			// using Rule Of Zero
 		   ~Chunk() = default;
-			Chunk(const Chunk& rhs) = default;
-			Chunk& operator=(const Chunk& rhs) = default;
-			Chunk(Chunk&& rhs) = default;
-			Chunk& operator=(Chunk&& rhs) = default;
+			Chunk(const Chunk& rhs) = delete;
+			Chunk& operator=(const Chunk& rhs) = delete;
+			Chunk(Chunk&& rhs) = delete;
+			Chunk& operator=(Chunk&& rhs) = delete;
 
 			inline auto getChannels()
 			{
@@ -42,7 +46,12 @@ namespace slim
 
 			inline auto* getData()
 			{
-				return buffer.get().data();
+				return buffer.data();
+			}
+
+			inline auto getEndOfStream()
+			{
+				return endOfStream;
 			}
 
 			inline std::size_t getFrames()
@@ -57,13 +66,47 @@ namespace slim
 
 			inline std::size_t getSize()
 			{
-				return buffer.get().size();
+				return buffer.size();
 			}
 
+			inline void setBitsPerSample(unsigned int b)
+			{
+				bitsPerSample = b;
+			}
+
+			inline void setCapacity(std::size_t c)
+			{
+				buffer.capacity(c);
+			}
+
+			inline void setChannels(unsigned int c)
+			{
+				channels = c;
+			}
+
+			inline void setEndOfStream(bool e)
+			{
+				endOfStream = e;
+			}
+
+			inline void setSamplingRate(unsigned int r)
+			{
+				samplingRate = r;
+			}
+
+			inline void setSize(std::size_t s)
+			{
+				buffer.size(s);
+			}
+
+		protected:
+			Chunk() : Chunk{0, 0, 0} {}
+
 		private:
-			std::reference_wrapper<util::ExpandableBuffer> buffer;
-			unsigned int                                   samplingRate;
-			unsigned int                                   channels;
-			unsigned int                                   bitsPerSample;
+			unsigned int           samplingRate;
+			unsigned int           channels;
+			unsigned int           bitsPerSample;
+			util::ExpandableBuffer buffer;
+			bool                   endOfStream{false};
 		};
 }
