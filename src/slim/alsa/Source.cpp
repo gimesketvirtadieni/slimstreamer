@@ -252,9 +252,6 @@ namespace slim
 							// copying data and setting new chunk size in bytes
 							chunk.setSize(copyData(srcBuffer + offset * bytesPerFrame, chunk.getData(), static_cast<snd_pcm_uframes_t>(result - offset)) * parameters.getLogicalChannels() * (parameters.getBitsPerSample() >> 3));
 
-							// signaling not-Real-Time-safe thread there is data available
-							available = true;
-
 							// always true as source buffer contains data
 							return true;
 						}, [&]
@@ -276,9 +273,6 @@ namespace slim
 								chunk.setBitsPerSample(parameters.getBitsPerSample());
 								chunk.setEndOfStream(true);
 								chunk.setSize(0);
-
-								// signaling not-Real-Time-safe thread there is data available
-								available = true;
 
 								// always true as source buffer contains data
 								return true;

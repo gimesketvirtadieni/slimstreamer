@@ -85,21 +85,31 @@ namespace slim
 
 				virtual bool produceChunk(Consumer& consumer) override
 				{
-					// if consumer did not accept a chunk then deferring further processing
-					if (queuePtr->dequeue([&](Chunk& chunk)
+					auto result{false};
+					auto underflow{false};
+
+					if (!isOnPause())
 					{
-						return consumer.consume(chunk);
-					}, [&]
-					{
-						// TODO: get rid of 'isAvailable'; underFlow callback
-						available = false;
-					}))
-					{
-						// TODO: cruise control should be implemented
-						pause(50);
+						if (queuePtr->dequeue([&](Chunk& chunk)
+						{
+							return consumer.consume(chunk);
+						}, [&]
+						{
+							underflow = true;
+						}))
+						{
+							// more chunks may be available if there were no undedflow
+							result = !underflow;
+						}
+						else
+						{
+							// TODO: cruise control should be implemented
+							// if consumer did not accept a chunk then deferring further processing
+							pause(50);
+						}
 					}
 
-					return isAvailable();
+					return result;
 				}
 
 				virtual void start() override;
@@ -110,7 +120,12 @@ namespace slim
 				snd_pcm_sframes_t containsData(unsigned char* buffer, snd_pcm_uframes_t frames);
 				snd_pcm_uframes_t copyData(unsigned char* srcBuffer, unsigned char* dstBuffer, snd_pcm_uframes_t frames);
 
-				inline bool isAvailable()
+				inline auto formatError(std::string message, int error = 0)
+				{
+					return message + ": name='" + parameters.getDeviceName() + (error != 0 ? std::string{"' error='"} + snd_strerror(error) + "'" : "");
+				}
+
+				inline bool isOnPause()
 				{
 					bool result;
 
@@ -120,21 +135,15 @@ namespace slim
 					}
 					else
 					{
-						result = available;
 						pauseUntil.reset();
 					}
 
 					return result;
 				}
 
-				inline auto formatError(std::string message, int error = 0)
-				{
-					return message + ": name='" + parameters.getDeviceName() + (error != 0 ? std::string{"' error='"} + snd_strerror(error) + "'" : "");
-				}
-
 				void open();
 
-				void pause(unsigned int millisec)
+				inline void pause(unsigned int millisec)
 				{
 					pauseUntil = std::chrono::steady_clock::now() + std::chrono::milliseconds{millisec};
 				}
@@ -148,7 +157,6 @@ namespace slim
 				snd_pcm_t*                   handlePtr{nullptr};
 				std::atomic<bool>            running{false};
 				std::atomic<bool>            producing{false};
-				std::atomic<bool>            available{false};
 				bool                         streaming{true};
 				std::mutex                   lock;
 				std::optional<TimePointType> pauseUntil{std::nullopt};
