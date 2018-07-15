@@ -263,33 +263,27 @@ namespace slim
 							overflowCallback();
 						});
 					}
-					else
+					else if (producing)
 					{
-						// changing state to 'not producing'
-						if (producing)
+						// creating an 'empty' chunk to mark the end-of-stream
+						queuePtr->enqueue([&](Chunk& chunk)
 						{
-							// creating an 'empty' chunk required to mark end-of-stream
-							queuePtr->enqueue([&](Chunk& chunk)
-							{
-								chunk.setSamplingRate(parameters.getSamplingRate());
-								chunk.setChannels(parameters.getLogicalChannels());
-								chunk.setBitsPerSample(parameters.getBitsPerSample());
-								chunk.setEndOfStream(true);
-								chunk.setSize(0);
+							chunk.setSamplingRate(parameters.getSamplingRate());
+							chunk.setChannels(parameters.getLogicalChannels());
+							chunk.setBitsPerSample(parameters.getBitsPerSample());
+							chunk.setEndOfStream(true);
+							chunk.setSize(0);
 
-								// keep track on amount of processed chunks
-								chunkCounter++;
+							// keep track on amount of processed chunks
+							chunkCounter++;
 
-								// always true as source buffer contains data
-								return true;
-							}, [&]
-							{
-								// calling overflow callback in case it was not possible to enqueue a chunk
-								overflowCallback();
-							});
-						}
-						producing    = false;
-						chunkCounter = 0;
+							// always true as source buffer contains data
+							return true;
+						}, [&]
+						{
+							// calling overflow callback in case it was not possible to enqueue a chunk
+							overflowCallback();
+						});
 					}
 				}
 				else if (result < 0 && restore(result))

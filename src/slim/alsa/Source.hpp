@@ -92,6 +92,13 @@ namespace slim
 					{
 						if (queuePtr->dequeue([&](Chunk& chunk)
 						{
+							// if it is end-of-stream then changing state to 'not producing'
+							if (chunk.getEndOfStream())
+							{
+								producing    = false;
+								chunkCounter = 0;
+							}
+
 							return consumer.consume(chunk);
 						}, [&]
 						{
