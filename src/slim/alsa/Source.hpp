@@ -20,7 +20,6 @@
 #include <functional>
 #include <memory>
 #include <mutex>
-#include <optional>
 
 #include "slim/alsa/Parameters.hpp"
 #include "slim/Chunk.hpp"
@@ -127,15 +126,11 @@ namespace slim
 
 				inline bool isOnPause()
 				{
-					bool result;
+					auto result{false};
 
-					if (pauseUntil.has_value() && pauseUntil.value() > std::chrono::steady_clock::now())
+					if (pauseUntil > std::chrono::steady_clock::now())
 					{
-						result = false;
-					}
-					else
-					{
-						pauseUntil.reset();
+						result = true;
 					}
 
 					return result;
@@ -159,7 +154,7 @@ namespace slim
 				std::atomic<bool>            producing{false};
 				bool                         streaming{true};
 				std::mutex                   lock;
-				std::optional<TimePointType> pauseUntil{std::nullopt};
+				TimePointType                pauseUntil{std::chrono::steady_clock::now()};
 		};
 	}
 }
