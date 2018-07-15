@@ -252,6 +252,9 @@ namespace slim
 							// copying data and setting new chunk size in bytes
 							chunk.setSize(copyData(srcBuffer + offset * bytesPerFrame, chunk.getData(), static_cast<snd_pcm_uframes_t>(result - offset)) * parameters.getLogicalChannels() * (parameters.getBitsPerSample() >> 3));
 
+							// keep track on amount of processed chunks
+							chunkCounter++;
+
 							// always true as source buffer contains data
 							return true;
 						}, [&]
@@ -274,6 +277,9 @@ namespace slim
 								chunk.setEndOfStream(true);
 								chunk.setSize(0);
 
+								// keep track on amount of processed chunks
+								chunkCounter++;
+
 								// always true as source buffer contains data
 								return true;
 							}, [&]
@@ -282,7 +288,8 @@ namespace slim
 								overflowCallback();
 							});
 						}
-						producing = false;
+						producing    = false;
+						chunkCounter = 0;
 					}
 				}
 				else if (result < 0 && restore(result))

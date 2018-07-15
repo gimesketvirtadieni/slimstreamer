@@ -43,8 +43,9 @@ namespace slim
 
 		class Source : public Producer
 		{
-			using TimePointType = std::chrono::time_point<std::chrono::steady_clock>;
 			using QueueType     = util::RealTimeQueue<Chunk>;
+			using TimePointType = std::chrono::time_point<std::chrono::steady_clock>;
+			using CounterType   = unsigned long long;
 
 			public:
 				Source(Parameters p, std::function<void()> oc = [] {})
@@ -87,7 +88,7 @@ namespace slim
 					auto result{false};
 					auto underflow{false};
 
-					if (!isOnPause())
+					if (chunkCounter > parameters.getStartThreshold() && !isOnPause())
 					{
 						if (queuePtr->dequeue([&](Chunk& chunk)
 						{
@@ -146,15 +147,16 @@ namespace slim
 				bool restore(snd_pcm_sframes_t error);
 
 			private:
-				Parameters                   parameters;
-				std::function<void()>        overflowCallback;
-				std::unique_ptr<QueueType>   queuePtr;
-				snd_pcm_t*                   handlePtr{nullptr};
-				std::atomic<bool>            running{false};
-				std::atomic<bool>            producing{false};
-				bool                         streaming{true};
-				std::mutex                   lock;
-				TimePointType                pauseUntil{std::chrono::steady_clock::now()};
+				Parameters                 parameters;
+				std::function<void()>      overflowCallback;
+				std::unique_ptr<QueueType> queuePtr;
+				snd_pcm_t*                 handlePtr{nullptr};
+				std::atomic<bool>          running{false};
+				std::atomic<bool>          producing{false};
+				std::atomic<CounterType>   chunkCounter{0};
+				bool                       streaming{true};
+				std::mutex                 lock;
+				TimePointType              pauseUntil{std::chrono::steady_clock::now()};
 		};
 	}
 }

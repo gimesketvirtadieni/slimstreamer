@@ -38,7 +38,7 @@ namespace slim
 
 				while (!monitorFinish)
 				{
-					std::this_thread::sleep_for(std::chrono::milliseconds{50});
+					std::this_thread::sleep_for(std::chrono::milliseconds{100});
 
 					if (requestTaskLater)
 					{
@@ -105,11 +105,11 @@ namespace slim
 		protected:
 			void processTask()
 			{
-				auto available{true};
+				bool available;
 
 				// TODO: calculate total chunks per processing quantum
 				// processing up to max(count) chunks within one event-loop quantum
-				for (unsigned int count{0}; available && count < 5; available = producerPtr->produceChunk(*consumerPtr), count++) {}
+				for (unsigned int count{0}; (available = producerPtr->produceChunk(*consumerPtr)) && count < 5; count++) {}
 
 				// if there is more PCM data to be processed
 				if (available)

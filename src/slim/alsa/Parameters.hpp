@@ -92,6 +92,12 @@ namespace slim
 					return periods;
 				}
 
+				inline const unsigned int getStartThreshold() const
+				{
+					// TODO: parametrize
+					return 5;
+				}
+
 				inline void setDeviceName(std::string d)
 				{
 					deviceName = d;
