@@ -23,8 +23,9 @@ namespace slim
 	class Consumer
 	{
 		public:
-			virtual                                        ~Consumer() = default;
-			virtual bool                                    consume(Chunk&) = 0;
+			virtual     ~Consumer() = default;
+			virtual bool consumeChunk(Chunk&) = 0;
+
 			virtual conwrap::ProcessorProxy<ContainerBase>* getProcessorProxy()
 			{
 				return processorProxyPtr;

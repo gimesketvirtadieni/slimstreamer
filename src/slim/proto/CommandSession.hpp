@@ -44,9 +44,11 @@ namespace slim
 			using StreamingSessionType = StreamingSession<ConnectionType>;
 
 			public:
-				CommandSession(std::reference_wrapper<ConnectionType> co, std::string id, std::optional<unsigned int> g, FormatSelection f)
+				CommandSession(std::reference_wrapper<ConnectionType> co, std::string id, unsigned int p, FormatSelection f, std::optional<unsigned int> g)
 				: connection{co}
 				, clientID{id}
+				, streamingPort{p}
+				, formatSelection{f}
 				, gain{g}
 				, commandHandlers
 				{
@@ -66,7 +68,6 @@ namespace slim
 					{"STMt", [&] {onSTMt();}},
 					{"STMu", 0},
 				}
-				, formatSelection{f}
 				{
 					LOG(DEBUG) << LABELS{"proto"} << "SlimProto session object was created (id=" << this << ")";
 				}
@@ -89,6 +90,11 @@ namespace slim
 				inline auto getStreamingSession()
 				{
 					return streamingSessionPtr;
+				}
+
+				inline auto getSamplingRate()
+				{
+					return samplingRate;
 				}
 
 				inline auto isConnectedReceived()
@@ -190,6 +196,12 @@ namespace slim
 					}
 				}
 
+				inline void setSamplingRate(unsigned int s)
+				{
+					// TODO: implement proper processing
+					samplingRate = s;
+				}
+
 				inline void setStreamingSession(StreamingSessionType* s)
 				{
 					streamingSessionPtr = s;
@@ -200,11 +212,9 @@ namespace slim
 					}
 				}
 
-				inline void startStreaming(unsigned int p, unsigned int r)
+				inline void start()
 				{
-					streaming     = true;
-					streamingPort = p;
-					samplingRate  = r;
+					streaming = true;
 
 					// if handshake commands were sent
 					if (commandHELO.has_value())
@@ -213,7 +223,7 @@ namespace slim
 					}
 				}
 
-				inline void stopStreaming()
+				inline void stop()
 				{
 					streaming = false;
 
@@ -299,12 +309,12 @@ namespace slim
 			private:
 				std::reference_wrapper<ConnectionType> connection;
 				std::string                            clientID;
+				unsigned int                           streamingPort{0};
+				FormatSelection                        formatSelection;
 				std::optional<unsigned int>            gain;
 				CommandHandlersMap                     commandHandlers;
 				EventHandlersMap                       eventHandlers;
-				FormatSelection                        formatSelection;
 				bool                                   streaming{false};
-				unsigned int                           streamingPort{0};
 				unsigned int                           samplingRate{0};
 				StreamingSessionType*                  streamingSessionPtr{nullptr};
 				bool                                   connectedReceived{false};

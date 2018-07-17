@@ -105,7 +105,7 @@ namespace slim
 				Streamer(Streamer&& rhs) = delete;              // non-movable
 				Streamer& operator=(Streamer&& rhs) = delete;   // non-movable-assinable
 
-				virtual bool consume(Chunk& chunk) override
+				virtual bool consumeChunk(Chunk& chunk) override
 				{
 					auto chunkSamplingRate{chunk.getSamplingRate()};
 
@@ -132,7 +132,9 @@ namespace slim
 						samplingRate = chunkSamplingRate;
 						for (auto& entry : commandSessions)
 						{
-							entry.second->startStreaming(streamingPort, samplingRate);
+							// TODO: this is a temporary solution
+							entry.second->setSamplingRate(samplingRate);
+							entry.second->start();
 						}
 					}
 
@@ -181,7 +183,7 @@ namespace slim
 						{
 							for (auto& entry : commandSessions)
 							{
-								entry.second->stopStreaming();
+								entry.second->stop();
 							}
 
 							// TODO: to validate!!!!
@@ -295,16 +297,18 @@ namespace slim
 					ss << (++nextID);
 
 					// creating command session object
-					auto sessionPtr{std::make_unique<CommandSessionType>(std::ref<ConnectionType>(connection), ss.str(), gain, encoderBuilder.getFormat())};
+					auto commandSessionPtr{std::make_unique<CommandSessionType>(std::ref<ConnectionType>(connection), ss.str(), streamingPort, encoderBuilder.getFormat(), gain)};
 
 					// enable streaming for this session if required
 					if (streaming)
 					{
-						sessionPtr->startStreaming(streamingPort, samplingRate);
+						// TODO: this is temporary solution
+						commandSessionPtr->setSamplingRate(samplingRate);
+						commandSessionPtr->start();
 					}
 
 					// saving command session in the map
-					addSession(commandSessions, connection, std::move(sessionPtr));
+					addSession(commandSessions, connection, std::move(commandSessionPtr));
 				}
 
 				virtual void start() override {}

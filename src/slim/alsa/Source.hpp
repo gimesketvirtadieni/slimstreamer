@@ -99,7 +99,7 @@ namespace slim
 								chunkCounter = 0;
 							}
 
-							return consumer.consume(chunk);
+							return consumer.consumeChunk(chunk);
 						}, [&]
 						{
 							underflow = true;

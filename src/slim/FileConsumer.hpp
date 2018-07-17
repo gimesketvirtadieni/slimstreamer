@@ -36,7 +36,7 @@ namespace slim
 			FileConsumer(FileConsumer&& rhs) = delete;              // non-movable
 			FileConsumer& operator=(FileConsumer&& rhs) = delete;   // non-assign-movable
 
-			virtual bool consume(Chunk& chunk) override
+			virtual bool consumeChunk(Chunk& chunk) override
 			{
 				auto* data{chunk.getData()};
 				auto  size{chunk.getSize()};
