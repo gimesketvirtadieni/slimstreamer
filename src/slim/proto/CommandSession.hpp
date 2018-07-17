@@ -214,25 +214,22 @@ namespace slim
 
 				inline void start()
 				{
-					streaming = true;
-
-					// if handshake commands were sent
-					if (commandHELO.has_value())
+					// if not streaming and handshake was received
+					if (!streaming && commandHELO.has_value())
 					{
 						send(CommandSTRM{CommandSelection::Start, formatSelection, streamingPort, samplingRate, clientID});
 					}
+					streaming = true;
 				}
 
 				inline void stop()
 				{
-					streaming = false;
-
-					// if handshake commands were sent
-					if (commandHELO.has_value())
+					// if streaming and handshake was received
+					if (streaming && commandHELO.has_value())
 					{
-						// TODO: create a new constructor for CommandSTRM
-						send(CommandSTRM{CommandSelection::Stop, formatSelection, streamingPort, samplingRate, clientID});
+						send(CommandSTRM{CommandSelection::Stop});
 					}
+					streaming = false;
 				}
 
 			protected:
