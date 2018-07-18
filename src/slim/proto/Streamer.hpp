@@ -178,18 +178,18 @@ namespace slim
 					if (samplingRate && samplingRate == chunkSamplingRate && streaming)
 					{
 						distributeChunk(chunk);
+					}
 
-						if (chunk.getEndOfStream())
+					if (samplingRate && !chunkSamplingRate && streaming)
+					{
+						for (auto& entry : commandSessions)
 						{
-							for (auto& entry : commandSessions)
-							{
-								entry.second->stop();
-							}
-
-							// TODO: to validate!!!!
-							// resetting streaming
-							samplingRate = 0;
+							entry.second->stop();
 						}
+
+						// TODO: to validate!!!!
+						// resetting streaming
+						samplingRate = 0;
 					}
 
 					return streaming;

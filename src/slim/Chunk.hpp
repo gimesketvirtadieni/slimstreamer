@@ -49,11 +49,6 @@ namespace slim
 				return buffer.data();
 			}
 
-			inline auto getEndOfStream()
-			{
-				return endOfStream;
-			}
-
 			inline std::size_t getFrames()
 			{
 				return getSize() / (channels * (bitsPerSample >> 3));
@@ -84,11 +79,6 @@ namespace slim
 				channels = c;
 			}
 
-			inline void setEndOfStream(bool e)
-			{
-				endOfStream = e;
-			}
-
 			inline void setSamplingRate(unsigned int r)
 			{
 				samplingRate = r;
@@ -107,6 +97,5 @@ namespace slim
 			unsigned int           channels;
 			unsigned int           bitsPerSample;
 			util::ExpandableBuffer buffer;
-			bool                   endOfStream{false};
 		};
 }

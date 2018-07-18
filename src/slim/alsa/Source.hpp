@@ -93,7 +93,7 @@ namespace slim
 						if (queuePtr->dequeue([&](Chunk& chunk)
 						{
 							// if it is end-of-stream then changing state to 'not producing'
-							if (chunk.getEndOfStream())
+							if (!chunk.getSamplingRate())
 							{
 								producing    = false;
 								chunkCounter = 0;

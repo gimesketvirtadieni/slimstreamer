@@ -246,7 +246,6 @@ namespace slim
 							chunk.setSamplingRate(parameters.getSamplingRate());
 							chunk.setChannels(parameters.getLogicalChannels());
 							chunk.setBitsPerSample(parameters.getBitsPerSample());
-							chunk.setEndOfStream(false);
 
 							// TODO: move functionality to Chunk class
 							// copying data and setting new chunk size in bytes
@@ -268,10 +267,10 @@ namespace slim
 						// creating an 'empty' chunk to mark the end-of-stream
 						queuePtr->enqueue([&](Chunk& chunk)
 						{
-							chunk.setSamplingRate(parameters.getSamplingRate());
+							// marking end-of-stream by setting sampling rate to zero
+							chunk.setSamplingRate(0);
 							chunk.setChannels(parameters.getLogicalChannels());
 							chunk.setBitsPerSample(parameters.getBitsPerSample());
-							chunk.setEndOfStream(true);
 							chunk.setSize(0);
 
 							// keep track on amount of processed chunks
