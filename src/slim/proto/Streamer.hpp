@@ -262,7 +262,6 @@ namespace slim
 					// enable streaming for this session if required
 					if (streaming)
 					{
-						// TODO: this is temporary solution
 						commandSessionPtr->setSamplingRate(samplingRate);
 						commandSessionPtr->start();
 					}
@@ -280,6 +279,7 @@ namespace slim
 						entry.second->start();
 					}
 
+					// saving when streaming was started - required for calculating defer time-out
 					startedAt = std::chrono::steady_clock::now();
 				}
 
