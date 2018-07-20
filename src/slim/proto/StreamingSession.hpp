@@ -33,10 +33,9 @@ namespace slim
 		class StreamingSession
 		{
 			public:
-				StreamingSession(std::reference_wrapper<ConnectionType> co, std::unique_ptr<EncoderBase> e, unsigned int sr, std::string id)
+				StreamingSession(std::reference_wrapper<ConnectionType> co, std::unique_ptr<EncoderBase> e, std::string id)
 				: connection{co}
 				, encoderPtr{std::move(e)}
-				, samplingRate{sr}
 				, clientID{id}
 				{
 					LOG(DEBUG) << LABELS{"proto"} << "HTTP session object was created (id=" << this << ")";
@@ -73,12 +72,12 @@ namespace slim
 
 				inline auto getSamplingRate()
 				{
-					return samplingRate;
+					return encoderPtr->getSamplingRate();
 				}
 
 				inline void onChunk(Chunk& chunk)
 				{
-					if (samplingRate == chunk.getSamplingRate())
+					if (encoderPtr->getSamplingRate() == chunk.getSamplingRate())
 					{
 						encoderPtr->encode(chunk.getData(), chunk.getSize());
 					}
@@ -118,7 +117,6 @@ namespace slim
 			private:
 				std::reference_wrapper<ConnectionType> connection;
 				std::unique_ptr<EncoderBase>           encoderPtr;
-				unsigned int                           samplingRate;
 				std::string                            clientID;
 		};
 	}
