@@ -70,11 +70,6 @@ namespace slim
 					return clientID;
 				}
 
-				inline auto getSamplingRate()
-				{
-					return encoderPtr->getSamplingRate();
-				}
-
 				inline void onChunk(Chunk& chunk)
 				{
 					if (encoderPtr->getSamplingRate() == chunk.getSamplingRate())
@@ -83,7 +78,8 @@ namespace slim
 					}
 					else
 					{
-						LOG(WARNING) << LABELS{"proto"} << "Skipping chunk transmition due to different sampling rate used by a client";
+						LOG(WARNING) << LABELS{"proto"} << "Closing HTTP connection due to different sampling rate used by a client";
+						connection.get().stop();
 					}
 				}
 

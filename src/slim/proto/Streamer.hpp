@@ -122,7 +122,7 @@ namespace slim
 						}
 
 						// assigning new sampling rate
-						samplingRate = chunkSamplingRate;
+						setSamplingRate(chunkSamplingRate);
 
 						// if this is the beginning of a stream
 						if (chunkSamplingRate)
@@ -209,6 +209,7 @@ namespace slim
 						auto commandSessionPtr{findSessionByID(commandSessions, clientID.value())};
 						if (!commandSessionPtr.has_value())
 						{
+							connection.stop();
 							throw slim::Exception("Could not correlate provided client ID with a valid SlimProto session");
 						}
 						commandSessionPtr.value()->setStreamingSession(streamingSessionPtr.get());
@@ -274,8 +275,6 @@ namespace slim
 				{
 					for (auto& entry : commandSessions)
 					{
-						// TODO: this is a temporary solution
-						entry.second->setSamplingRate(samplingRate);
 						entry.second->start();
 					}
 
@@ -285,10 +284,10 @@ namespace slim
 
 				virtual void stop(bool gracefully = true) override
 				{
-					// stopping SlimProto session will send end-of-stream command which normally triggers close of HTTP connection
-					// TODO: implement 'safety' logic to close HTTP connection in case client does not
+					// it is enough to send stop SlimProto command here
 					for (auto& entry : commandSessions)
 					{
+						// stopping SlimProto session will send end-of-stream command which normally triggers close of HTTP connection
 						entry.second->stop();
 					}
 				}
@@ -385,9 +384,7 @@ namespace slim
 					auto result{500 < std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - startedAt).count()};
 					auto missingSessionsTotal{std::count_if(commandSessions.begin(), commandSessions.end(), [&](auto& entry)
 					{
-						auto streamingSessionPtr{entry.second->getStreamingSession()};
-
-						return !(streamingSessionPtr && samplingRate == streamingSessionPtr->getSamplingRate());
+						return !entry.second->getStreamingSession();
 					})};
 
 					// if deferring time-out has expired
@@ -429,6 +426,20 @@ namespace slim
 					}
 
 					return std::move(sessionPtr);
+				}
+
+				void setSamplingRate(unsigned int newSamplingRate)
+				{
+					samplingRate = newSamplingRate;
+
+					for (auto& entry : commandSessions)
+					{
+						// setting new sampling rate to all the clients
+						entry.second->setSamplingRate(samplingRate);
+
+						// resetting links between SlimProto and HTTP sessions to keep track on HTTP sessions reconnects
+						entry.second->setStreamingSession(nullptr);
+					}
 				}
 
 			private:
