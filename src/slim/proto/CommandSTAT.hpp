@@ -74,6 +74,9 @@ namespace slim
 					{
 						throw slim::Exception("Length provided in STAT command is too big");
 					}
+
+					// converting used fields
+					stat.elapsedMilliseconds = ntohl(stat.elapsedMilliseconds);
 				}
 
 				// using Rule Of Zero
@@ -91,6 +94,11 @@ namespace slim
 				virtual std::size_t getSize() override
 				{
 					return sizeof(STAT);
+				}
+
+				inline auto getElapsed()
+				{
+					return stat.elapsedMilliseconds;
 				}
 
 				inline auto getEvent()

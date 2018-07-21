@@ -63,7 +63,7 @@ namespace slim
 					{"STMc", [&] {onSTMc();}},
 					{"STMd", 0},
 					{"STMf", 0},
-					{"STMo", 0},
+					{"STMo", [&] {onSTMo();}},
 					{"STMs", 0},
 					{"STMt", [&] {onSTMt();}},
 					{"STMu", 0},
@@ -288,13 +288,17 @@ namespace slim
 					connectedReceived = true;
 				}
 
+				inline void onSTMo()
+				{
+					LOG(WARNING) << LABELS{"proto"} << "xRUN notification sent by a client";
+				}
+
 				inline void onSTMt()
 				{
-					//LOG(DEBUG) << LABELS{"proto"} << "elapsed=" << ntohl(commandSTAT.value().stat.elapsedSeconds) << " " << ntohl(commandSTAT.value().stat.elapsedMilliseconds);
-					//LOG(DEBUG) << LABELS{"proto"} << "out buf size=" << ntohl(commandSTAT.value().stat.outputBufferSize);
-					//LOG(DEBUG) << LABELS{"proto"} << "out buf used=" << ntohl(commandSTAT.value().stat.outputBufferFullness);
-					//LOG(DEBUG) << LABELS{"proto"} << "str buf size=" << ntohl(commandSTAT.value().stat.streamBufferSize);
-					//LOG(DEBUG) << LABELS{"proto"} << "str buf used=" << ntohl(commandSTAT.value().stat.streamBufferFullness);
+					//if (commandSTAT.has_value())
+					//{
+					//	LOG(DEBUG) << LABELS{"proto"} << "played by client=" << commandSTAT.value().getElapsed();
+					//}
 				}
 
 				template<typename CommandType>
