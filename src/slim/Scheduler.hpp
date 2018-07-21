@@ -18,41 +18,20 @@
 #include <memory>
 #include <thread>
 
+#include "slim/Consumer.hpp"
 #include "slim/ContainerBase.hpp"
 #include "slim/log/log.hpp"
+#include "slim/Producer.hpp"
 
 
 namespace slim
 {
-	template <class ProducerType, class ConsumerType>
 	class Scheduler
 	{
 		public:
-			Scheduler(std::unique_ptr<ProducerType> pr, std::unique_ptr<ConsumerType> cn)
+			Scheduler(std::unique_ptr<Producer> pr, std::unique_ptr<Consumer> cn)
 			: producerPtr{std::move(pr)}
 			, consumerPtr{std::move(cn)}
-			, monitorThread
-			{[&]{
-				// starting a single consumer thread for processing PCM data
-				LOG(DEBUG) << LABELS{"slim"} << "Scheduler monitor thread was started (id=" << std::this_thread::get_id() << ")";
-
-				while (!monitorFinish)
-				{
-					std::this_thread::sleep_for(std::chrono::milliseconds{100});
-
-					if (requestTaskLater)
-					{
-						requestTaskLater = false;
-
-						processorProxyPtr->process([&]
-						{
-							processTask();
-						});
-					}
-				}
-
-				LOG(DEBUG) << LABELS{"slim"} << "Scheduler monitor thread was stopped (id=" << std::this_thread::get_id() << ")";
-			}}
 			{
 				LOG(DEBUG) << LABELS{"slim"} << "Scheduler object was created (id=" << this << ")";
 			}
@@ -60,13 +39,6 @@ namespace slim
 			// using Rule Of Zero
 		   ~Scheduler()
 			{
-				// signalling monitor thread to stop and joining it
-				monitorFinish = true;
-				if (monitorThread.joinable())
-				{
-					monitorThread.join();
-				}
-
 				LOG(DEBUG) << LABELS{"slim"} << "Scheduler object was deleted (id=" << this << ")";
 			}
 
@@ -88,6 +60,29 @@ namespace slim
 				producerPtr->start();
 				consumerPtr->start();
 
+				// starting scheduler monitor thread
+				monitorThread = [&]
+				{
+					LOG(DEBUG) << LABELS{"slim"} << "Scheduler monitor thread was started (id=" << std::this_thread::get_id() << ")";
+
+					while (!monitorFinish)
+					{
+						std::this_thread::sleep_for(std::chrono::milliseconds{100});
+
+						if (requestTaskLater)
+						{
+							requestTaskLater = false;
+
+							processorProxyPtr->process([&]
+							{
+								processTask();
+							});
+						}
+					}
+
+					LOG(DEBUG) << LABELS{"slim"} << "Scheduler monitor thread was stopped (id=" << std::this_thread::get_id() << ")";
+				};
+
 				// asking monitor thread to submit a new task
 				requestTaskLater = true;
 
@@ -98,6 +93,13 @@ namespace slim
 			{
 				producerPtr->stop();
 				consumerPtr->stop();
+
+				// signalling monitor thread to stop and joining it
+				monitorFinish = true;
+				if (monitorThread.joinable())
+				{
+					monitorThread.join();
+				}
 
 				LOG(DEBUG) << LABELS{"slim"} << "Streaming was stopped";
 			}
@@ -127,8 +129,8 @@ namespace slim
 			}
 
 		private:
-			std::unique_ptr<ProducerType>           producerPtr;
-			std::unique_ptr<ConsumerType>           consumerPtr;
+			std::unique_ptr<Producer>               producerPtr;
+			std::unique_ptr<Consumer>               consumerPtr;
 			std::thread                             monitorThread;
 			std::atomic<bool>                       monitorFinish{false};
 			std::atomic<bool>                       requestTaskLater{false};
