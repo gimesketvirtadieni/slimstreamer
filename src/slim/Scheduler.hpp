@@ -61,7 +61,7 @@ namespace slim
 				consumerPtr->start();
 
 				// starting scheduler monitor thread
-				monitorThread = [&]
+				monitorThread = std::thread{[&]
 				{
 					LOG(DEBUG) << LABELS{"slim"} << "Scheduler monitor thread was started (id=" << std::this_thread::get_id() << ")";
 
@@ -81,7 +81,7 @@ namespace slim
 					}
 
 					LOG(DEBUG) << LABELS{"slim"} << "Scheduler monitor thread was stopped (id=" << std::this_thread::get_id() << ")";
-				};
+				}};
 
 				// asking monitor thread to submit a new task
 				requestTaskLater = true;
