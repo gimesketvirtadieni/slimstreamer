@@ -10,6 +10,7 @@
  * Author: gimesketvirtadieni at gmail dot com (Andrej Kislovskij)
  */
 
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <conwrap/ProcessorAsio.hpp>
@@ -33,6 +34,7 @@
 #include "slim/conn/udp/Server.hpp"
 #include "slim/Consumer.hpp"
 #include "slim/Container.hpp"
+#include "slim/Demultiplexor.hpp"
 #include "slim/EncoderBase.hpp"
 #include "slim/Exception.hpp"
 #include "slim/FileConsumer.hpp"
@@ -139,7 +141,33 @@ auto createDiscoveryCallbacks()
 }
 
 
-auto createSources(Parameters parameters)
+auto createFileConsumers(std::vector<std::unique_ptr<Source>>& producers, EncoderBuilder& encoderBuilder)
+{
+	// creating a container for files objects
+	std::vector<std::unique_ptr<FileConsumer>> fileConsumers;
+
+	std::for_each(producers.begin(), producers.end(), [&](auto& producerPtr)
+	{
+		// creating a file writer
+		auto parameters{producerPtr->getParameters()};
+		auto streamPtr{std::make_unique<std::ofstream>(std::to_string(parameters.getSamplingRate()) + "." + encoderBuilder.getExtention(), std::ios::binary)};
+		auto writerPtr{std::make_unique<StreamAsyncWriter>(std::move(streamPtr))};
+
+		// creating an encoder for writing to files
+		encoderBuilder.setChannels(parameters.getLogicalChannels());
+		encoderBuilder.setSamplingRate(parameters.getSamplingRate());
+		encoderBuilder.setBitsPerSample(parameters.getBitsPerSample());
+		encoderBuilder.setBitsPerValue(parameters.getBitsPerValue());
+		encoderBuilder.setWriter(writerPtr.get());
+
+		fileConsumers.emplace_back(std::make_unique<FileConsumer>(std::move(writerPtr), std::move(encoderBuilder.build())));
+	});
+
+	return fileConsumers;
+}
+
+
+auto createProducers(Parameters parameters)
 {
 	std::vector<std::tuple<unsigned int, std::string>> rates
 	{
@@ -159,7 +187,7 @@ auto createSources(Parameters parameters)
 	};
 
 	unsigned int                         chunkDurationMilliSecond{100};
-	std::vector<std::unique_ptr<Source>> sources;
+	std::vector<std::unique_ptr<Source>> producers;
 
 	for (auto& rate : rates)
 	{
@@ -169,13 +197,13 @@ auto createSources(Parameters parameters)
 		parameters.setDeviceName(deviceValue);
 		parameters.setFramesPerChunk((rateValue * chunkDurationMilliSecond) / 1000);
 
-		sources.push_back(std::make_unique<Source>(parameters, []
+		producers.push_back(std::make_unique<Source>(parameters, []
 		{
 			LOG(ERROR) << LABELS{"slim"} << "Buffer overflow error: a chunk was skipped";
 		}));
 	}
 
-	return std::move(sources);
+	return std::move(producers);
 }
 
 
@@ -285,14 +313,18 @@ int main(int argc, const char *argv[])
 				throw cxxopts::OptionException("Invalid streaming format, only 'FLAC' or 'PCM' values are supported");
 			}
 
-			// creating source objects and store them in a Multiplexor object
+			// creating 'template' parameters
 			Parameters parameters{"", 3, SND_PCM_FORMAT_S32_LE, 0, 128, 0, 8};
-			auto       multiplexorPtr{std::make_unique<Multiplexor<Source>>(createSources(parameters))};
 
 			// pre-configuring an encoder builder
 			encoderBuilder.setChannels(parameters.getLogicalChannels());
 			encoderBuilder.setBitsPerSample(parameters.getBitsPerSample());
 			encoderBuilder.setBitsPerValue(parameters.getBitsPerValue());
+
+			// creating producers and consumers in (De)Multiplexors
+			auto producers{createProducers(parameters)};
+			//auto demultiplexorPtr{std::make_unique<Demultiplexor<FileConsumer>>(std::move(createFileConsumers(producers, encoderBuilder)))};
+			auto multiplexorPtr{std::make_unique<Multiplexor<Source>>(std::move(producers))};
 
 			// Callbacks objects 'glue' SlimProto Streamer with TCP Command Servers
 			auto streamerPtr
@@ -311,32 +343,12 @@ int main(int argc, const char *argv[])
 			{
 				std::make_unique<UDPServer>(3483, std::move(createDiscoveryCallbacks()))
 			};
-/*
-			// TODO: work in progress
-			// creating a container for files objects
-			std::vector<std::unique_ptr<FileConsumer>> files;
 
-			// creating a file writer
-			//auto parameters{sourcePtr->getParameters()};
-			//auto streamPtr{std::make_unique<std::ofstream>(std::to_string(parameters.getSamplingRate()) + "." + encoderBuilder.getExtention(), std::ios::binary)};
-			//auto writerPtr{std::make_unique<StreamAsyncWriter>(std::move(streamPtr))};
-
-			// creating an encoder for writing to files
-			//encoderBuilder.setChannels(parameters.getLogicalChannels());
-			//encoderBuilder.setSamplingRate(parameters.getSamplingRate());
-			//encoderBuilder.setBitsPerSample(parameters.getBitsPerSample());
-			//encoderBuilder.setBitsPerValue(parameters.getBitsPerValue());
-			//encoderBuilder.setWriter(writerPtr.get());
-			//auto encoderPtr{std::move(encoderBuilder.build())};
-			//auto filePtr{std::make_unique<FileConsumer>(std::move(writerPtr), std::move(encoderPtr))};
-
-			//pipelines.emplace_back(std::ref<Producer>(*sourcePtr), std::ref<Consumer>(*filePtr));
-			//files.push_back(std::move(filePtr));
-*/
 			// creating Scheduler object with destination directed to slimproto Streamer
 			auto schedulerPtr
 			{
 				std::make_unique<Scheduler<Multiplexor<Source>, Streamer<TCPConnection>>>(std::move(multiplexorPtr), std::move(streamerPtr))
+				//std::make_unique<Scheduler<Multiplexor<Source>, Demultiplexor<FileConsumer>>>(std::move(multiplexorPtr), std::move(demultiplexorPtr))
 			};
 
 			// creating Container object within Asio Processor with Scheduler and Servers
@@ -345,6 +357,7 @@ int main(int argc, const char *argv[])
 				std::unique_ptr<ContainerBase>
 				{
 					new Container<TCPServer, TCPServer, UDPServer, Scheduler<Multiplexor<Source>, Streamer<TCPConnection>>>(std::move(commandServerPtr), std::move(streamingServerPtr), std::move(discoveryServerPtr), std::move(schedulerPtr))
+					//new Container<TCPServer, TCPServer, UDPServer, Scheduler<Multiplexor<Source>, Demultiplexor<FileConsumer>>>(std::move(commandServerPtr), std::move(streamingServerPtr), std::move(discoveryServerPtr), std::move(schedulerPtr))
 				}
 			};
 

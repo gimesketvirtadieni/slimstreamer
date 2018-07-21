@@ -52,7 +52,8 @@ namespace slim
 
 			public:
 				Streamer(unsigned int sp, EncoderBuilder eb, std::optional<unsigned int> g)
-				: streamingPort{sp}
+				: Consumer{0}
+				, streamingPort{sp}
 				, encoderBuilder{eb}
 				, gain{g}
 				, monitorThread{[&]
@@ -108,6 +109,7 @@ namespace slim
 				virtual bool consumeChunk(Chunk& chunk) override
 				{
 					auto result{false};
+					auto samplingRate{getSamplingRate()};
 					auto chunkSamplingRate{chunk.getSamplingRate()};
 
 					if (samplingRate != chunkSamplingRate)
@@ -199,7 +201,7 @@ namespace slim
 						LOG(INFO) << LABELS{"proto"} << "Client ID was parsed (clientID=" << clientID.value() << ")";
 
 						// configuring an encoder builder
-						encoderBuilder.setSamplingRate(samplingRate);
+						encoderBuilder.setSamplingRate(getSamplingRate());
 						encoderBuilder.setWriter(&connection);
 
 						// creating streaming session object
@@ -263,12 +265,26 @@ namespace slim
 					// enable streaming for this session if required
 					if (streaming)
 					{
-						commandSessionPtr->setSamplingRate(samplingRate);
+						commandSessionPtr->setSamplingRate(getSamplingRate());
 						commandSessionPtr->start();
 					}
 
 					// saving command session in the map
 					addSession(commandSessions, connection, std::move(commandSessionPtr));
+				}
+
+				virtual void setSamplingRate(unsigned int s) override
+				{
+					Consumer::setSamplingRate(s);
+
+					for (auto& entry : commandSessions)
+					{
+						// setting new sampling rate to all the clients
+						entry.second->setSamplingRate(s);
+
+						// resetting links between SlimProto and HTTP sessions to keep track on HTTP sessions reconnects
+						entry.second->setStreamingSession(nullptr);
+					}
 				}
 
 				virtual void start() override
@@ -428,20 +444,6 @@ namespace slim
 					return std::move(sessionPtr);
 				}
 
-				void setSamplingRate(unsigned int newSamplingRate)
-				{
-					samplingRate = newSamplingRate;
-
-					for (auto& entry : commandSessions)
-					{
-						// setting new sampling rate to all the clients
-						entry.second->setSamplingRate(samplingRate);
-
-						// resetting links between SlimProto and HTTP sessions to keep track on HTTP sessions reconnects
-						entry.second->setStreamingSession(nullptr);
-					}
-				}
-
 			private:
 				unsigned int                      streamingPort;
 				EncoderBuilder                    encoderBuilder;
@@ -449,7 +451,6 @@ namespace slim
 				SessionsMap<CommandSessionType>   commandSessions;
 				SessionsMap<StreamingSessionType> streamingSessions;
 				bool                              streaming{false};
-				unsigned int                      samplingRate{0};
 				unsigned long                     nextID{0};
 				std::atomic<bool>                 monitorFinish{false};
 				std::thread                       monitorThread;

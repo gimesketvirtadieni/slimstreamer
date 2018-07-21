@@ -23,6 +23,9 @@ namespace slim
 	class Consumer
 	{
 		public:
+			Consumer(unsigned int s)
+			: samplingRate{s} {}
+
 			virtual     ~Consumer() = default;
 			virtual bool consumeChunk(Chunk&) = 0;
 
@@ -31,9 +34,19 @@ namespace slim
 				return processorProxyPtr;
 			}
 
+			virtual unsigned int getSamplingRate()
+			{
+				return samplingRate;
+			}
+
 			virtual void setProcessorProxy(conwrap::ProcessorProxy<ContainerBase>* p)
 			{
 				processorProxyPtr = p;
+			}
+
+			virtual void setSamplingRate(unsigned int s)
+			{
+				samplingRate = s;
 			}
 
 			virtual void start() = 0;
@@ -41,5 +54,6 @@ namespace slim
 
 		private:
 			conwrap::ProcessorProxy<ContainerBase>* processorProxyPtr{nullptr};
+			unsigned int                            samplingRate;
 	};
 }

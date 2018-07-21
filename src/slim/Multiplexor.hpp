@@ -13,11 +13,10 @@
 #pragma once
 
 #include <conwrap/ProcessorProxy.hpp>
-#include <functional>  // reference_wrapper
+#include <memory>
 #include <thread>
 #include <vector>
 
-#include "slim/ContainerBase.hpp"
 #include "slim/log/log.hpp"
 
 
@@ -71,7 +70,7 @@ namespace slim
 
 			virtual bool produceChunk(Consumer& consumer) override
 			{
-				auto available{false};
+				auto result{false};
 
 				// setting the current producer if needed
 				if (!currentProducerPtr && producers.size() > 0)
@@ -81,24 +80,24 @@ namespace slim
 
 				if (currentProducerPtr)
 				{
-					available = currentProducerPtr->produceChunk(consumer);
+					result = currentProducerPtr->produceChunk(consumer);
 
-					if (!available && !currentProducerPtr->isProducing())
+					// if no more data available from the current producer then switching over to a next one
+					if (!result && !currentProducerPtr->isProducing())
 					{
-						// trying to switch over to a different source
 						for (auto& producerPtr : producers)
 						{
 							if (producerPtr->isProducing())
 							{
 								currentProducerPtr = producerPtr.get();
-								available          = true;
+								result          = true;
 								break;
 							}
 						}
 					}
 				}
 
-				return available;
+				return result;
 			}
 
 			virtual void start() override

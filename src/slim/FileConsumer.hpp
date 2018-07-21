@@ -27,7 +27,8 @@ namespace slim
 	{
 		public:
 			FileConsumer(std::unique_ptr<util::AsyncWriter> w, std::unique_ptr<EncoderBase> e)
-			: writerPtr{std::move(w)}
+			: Consumer{e->getSamplingRate()}
+			, writerPtr{std::move(w)}
 			, encoderPtr{std::move(e)} {}
 
 			virtual ~FileConsumer() = default;
@@ -48,6 +49,9 @@ namespace slim
 				// deferring chunk is irrelevant for a file
 				return true;
 			}
+
+			virtual void start() override {}
+			virtual void stop(bool gracefully = true) override {}
 
 		private:
 			std::unique_ptr<util::AsyncWriter> writerPtr;
