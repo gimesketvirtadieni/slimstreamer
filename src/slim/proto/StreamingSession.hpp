@@ -78,7 +78,7 @@ namespace slim
 					}
 					else
 					{
-						LOG(WARNING) << LABELS{"proto"} << "Closing HTTP connection due to different sampling rate used by a client";
+						LOG(WARNING) << LABELS{"proto"} << "Closing HTTP connection due to different sampling rate used by a client (session rate=" << encoderPtr->getSamplingRate() << "; chunk rate=" << chunk.getSamplingRate() << ")";
 						connection.get().stop();
 					}
 				}
