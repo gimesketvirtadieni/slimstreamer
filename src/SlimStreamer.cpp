@@ -244,6 +244,7 @@ int main(int argc, const char *argv[])
 			.custom_help("[options]")
 			.add_options()
 				("c,maxclients", "Maximum amount of clients able to connect", cxxopts::value<int>()->default_value("10"), "<number>")
+				("F,files", "Dump PCM to files", cxxopts::value<bool>())
 				("f,format", "Streaming format", cxxopts::value<std::string>()->default_value("FLAC"), "<PCM|FLAC>")
 				("g,gain", "Client audio gain", cxxopts::value<unsigned int>(), "<0-100>")
 				("h,help", "Print this help message", cxxopts::value<bool>())
@@ -292,7 +293,7 @@ int main(int argc, const char *argv[])
 			{
 				encoderBuilder.setBuilder([](unsigned int c, unsigned int bs, unsigned int bv, unsigned int s, std::reference_wrapper<AsyncWriter> w, bool h, std::string ex, std::string m)
 				{
-					return std::move(std::unique_ptr<EncoderBase>{new wave::Encoder{c, bs, s, bv, w, h, ex, m}});
+					return std::move(std::unique_ptr<EncoderBase>{new wave::Encoder{c, bs, bv, s, w, h, ex, m}});
 				});
 				encoderBuilder.setFormat(slim::proto::FormatSelection::PCM);
 				encoderBuilder.setExtention("wav");
@@ -323,8 +324,6 @@ int main(int argc, const char *argv[])
 
 			// creating producers and consumers in (De)Multiplexors
 			auto producers{createProducers(parameters)};
-			//auto demultiplexorPtr{std::make_unique<Demultiplexor<FileConsumer>>(std::move(createFileConsumers(producers, encoderBuilder)))};
-			auto multiplexorPtr{std::make_unique<Multiplexor<Source>>(std::move(producers))};
 
 			// Callbacks objects 'glue' SlimProto Streamer with TCP Command Servers
 			auto streamerPtr
@@ -344,20 +343,30 @@ int main(int argc, const char *argv[])
 				std::make_unique<UDPServer>(3483, std::move(createDiscoveryCallbacks()))
 			};
 
-			// creating Scheduler object with destination directed to slimproto Streamer
-			auto schedulerPtr
+			// choosing consumer based on parameters provided
+			std::unique_ptr<Consumer> consumerPtr;
+			if (result.count("files"))
 			{
-				std::make_unique<Scheduler<Multiplexor<Source>, Streamer<TCPConnection>>>(std::move(multiplexorPtr), std::move(streamerPtr))
-				//std::make_unique<Scheduler<Multiplexor<Source>, Demultiplexor<FileConsumer>>>(std::move(multiplexorPtr), std::move(demultiplexorPtr))
-			};
+				encoderBuilder.setHeader(true);
+				consumerPtr = std::make_unique<Demultiplexor<FileConsumer>>(std::move(createFileConsumers(producers, encoderBuilder)));
+			}
+			else
+			{
+				consumerPtr = std::move(streamerPtr);
+			}
+
+			// creating a producer
+			auto multiplexorPtr{std::make_unique<Multiplexor<Source>>(std::move(producers))};
+
+			// creating a scheduler
+			auto schedulerPtr{std::make_unique<Scheduler>(std::move(multiplexorPtr), std::move(consumerPtr))};
 
 			// creating Container object within Asio Processor with Scheduler and Servers
 			conwrap::ProcessorAsio<ContainerBase> processorAsio
 			{
 				std::unique_ptr<ContainerBase>
 				{
-					new Container<TCPServer, TCPServer, UDPServer, Scheduler<Multiplexor<Source>, Streamer<TCPConnection>>>(std::move(commandServerPtr), std::move(streamingServerPtr), std::move(discoveryServerPtr), std::move(schedulerPtr))
-					//new Container<TCPServer, TCPServer, UDPServer, Scheduler<Multiplexor<Source>, Demultiplexor<FileConsumer>>>(std::move(commandServerPtr), std::move(streamingServerPtr), std::move(discoveryServerPtr), std::move(schedulerPtr))
+					new Container<TCPServer, TCPServer, UDPServer, Scheduler>(std::move(commandServerPtr), std::move(streamingServerPtr), std::move(discoveryServerPtr), std::move(schedulerPtr))
 				}
 			};
 
