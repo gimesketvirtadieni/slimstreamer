@@ -56,47 +56,12 @@ namespace slim
 				, streamingPort{sp}
 				, encoderBuilder{eb}
 				, gain{g}
-				, monitorThread{[&]
-				{
-					LOG(DEBUG) << LABELS{"proto"} << "Monitor thread was started (id=" << std::this_thread::get_id() << ")";
-
-					for(unsigned int counter{0}; !monitorFinish; counter++, std::this_thread::sleep_for(std::chrono::milliseconds{200}))
-			        {
-						// TODO: make configurable
-						if (counter > 24)
-						{
-							auto processorProxyPtr{getProcessorProxy()};
-							if (processorProxyPtr)
-							{
-								processorProxyPtr->process([&]
-								{
-									// sending ping command to measure round-trip latency
-									for (auto& entry : commandSessions)
-									{
-										entry.second->ping();
-									}
-								});
-							}
-
-							counter = 0;
-						}
-			        }
-
-					LOG(DEBUG) << LABELS{"proto"} << "Monitor thread was stopped (id=" << std::this_thread::get_id() << ")";
-				}}
 				{
 					LOG(DEBUG) << LABELS{"proto"} << "Streamer object was created (id=" << this << ")";
 				}
 
 				virtual ~Streamer()
 				{
-					// stopping monitor thread
-					monitorFinish = true;
-					if (monitorThread.joinable())
-					{
-						monitorThread.join();
-					}
-
 					LOG(DEBUG) << LABELS{"proto"} << "Streamer object was deleted (id=" << this << ")";
 				}
 
@@ -296,6 +261,36 @@ namespace slim
 
 					// saving when streaming was started - required for calculating defer time-out
 					startedAt = std::chrono::steady_clock::now();
+
+					// starting monitor thread
+					monitorThread = std::move(std::thread{[&]
+					{
+						LOG(DEBUG) << LABELS{"proto"} << "Monitor thread was started (id=" << std::this_thread::get_id() << ")";
+
+						for(unsigned int counter{0}; !monitorFinish; counter++, std::this_thread::sleep_for(std::chrono::milliseconds{200}))
+				        {
+							// TODO: make configurable
+							if (counter > 24)
+							{
+								auto processorProxyPtr{getProcessorProxy()};
+								if (processorProxyPtr)
+								{
+									processorProxyPtr->process([&]
+									{
+										// sending ping command to measure round-trip latency
+										for (auto& entry : commandSessions)
+										{
+											entry.second->ping();
+										}
+									});
+								}
+
+								counter = 0;
+							}
+				        }
+
+						LOG(DEBUG) << LABELS{"proto"} << "Monitor thread was stopped (id=" << std::this_thread::get_id() << ")";
+					}});
 				}
 
 				virtual void stop(bool gracefully = true) override
@@ -305,6 +300,13 @@ namespace slim
 					{
 						// stopping SlimProto session will send end-of-stream command which normally triggers close of HTTP connection
 						entry.second->stop();
+					}
+
+					// stopping monitor thread
+					monitorFinish = true;
+					if (monitorThread.joinable())
+					{
+						monitorThread.join();
 					}
 				}
 
