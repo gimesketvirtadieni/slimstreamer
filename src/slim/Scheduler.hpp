@@ -65,10 +65,8 @@ namespace slim
 				{
 					LOG(DEBUG) << LABELS{"slim"} << "Scheduler monitor thread was started (id=" << std::this_thread::get_id() << ")";
 
-					while (!monitorFinish)
+					for (;!monitorFinish; std::this_thread::sleep_for(std::chrono::milliseconds{100}))
 					{
-						std::this_thread::sleep_for(std::chrono::milliseconds{100});
-
 						if (requestTaskLater)
 						{
 							requestTaskLater = false;

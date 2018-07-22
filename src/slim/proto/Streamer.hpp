@@ -82,7 +82,7 @@ namespace slim
 						if (samplingRate)
 						{
 							// propogating end-of-stream to all the clients
-							stop();
+							stopStreaming();
 
 							// changing state to not streaming
 							streaming = false;
@@ -94,7 +94,7 @@ namespace slim
 						// if this is the beginning of a stream
 						if (chunkSamplingRate)
 						{
-							start();
+							startStreaming();
 						}
 					}
 					else if (samplingRate)
@@ -254,14 +254,6 @@ namespace slim
 
 				virtual void start() override
 				{
-					for (auto& entry : commandSessions)
-					{
-						entry.second->start();
-					}
-
-					// saving when streaming was started - required for calculating defer time-out
-					startedAt = std::chrono::steady_clock::now();
-
 					// starting monitor thread
 					monitorThread = std::move(std::thread{[&]
 					{
@@ -295,13 +287,6 @@ namespace slim
 
 				virtual void stop(bool gracefully = true) override
 				{
-					// it is enough to send stop SlimProto command here
-					for (auto& entry : commandSessions)
-					{
-						// stopping SlimProto session will send end-of-stream command which normally triggers close of HTTP connection
-						entry.second->stop();
-					}
-
 					// stopping monitor thread
 					monitorFinish = true;
 					if (monitorThread.joinable())
@@ -444,6 +429,27 @@ namespace slim
 					}
 
 					return std::move(sessionPtr);
+				}
+
+				inline void startStreaming()
+				{
+					for (auto& entry : commandSessions)
+					{
+						entry.second->start();
+					}
+
+					// saving when streaming was started - required for calculating defer time-out
+					startedAt = std::chrono::steady_clock::now();
+				}
+
+				inline void stopStreaming()
+				{
+					// it is enough to send stop SlimProto command here
+					for (auto& entry : commandSessions)
+					{
+						// stopping SlimProto session will send end-of-stream command which normally triggers close of HTTP connection
+						entry.second->stop();
+					}
 				}
 
 			private:
