@@ -40,7 +40,7 @@ namespace slim
 		{
 			using CommandHandlersMap   = std::unordered_map<std::string, std::function<std::size_t(unsigned char*, std::size_t)>>;
 			using EventHandlersMap     = std::unordered_map<std::string, std::function<void()>>;
-			using TimePoint            = std::chrono::time_point<std::chrono::steady_clock>;
+			using TimePointType        = std::chrono::time_point<std::chrono::steady_clock>;
 			using StreamingSessionType = StreamingSession<ConnectionType>;
 
 			public:
@@ -181,7 +181,7 @@ namespace slim
 						// saving ping time as close as possible to the moment of sending data out
 						lastPingAt = std::chrono::steady_clock::now();
 
-						// sending 'ping' command as close as possing to capturing local time
+						// sending 'ping' command as close as possible to the local time capture point
 						while (result >= 0 && sent < size)
 						{
 							result  = nativeSocket.send(asio::buffer(buffer + sent, size - sent));
@@ -323,7 +323,7 @@ namespace slim
 				util::ExpandableBuffer                 commandBuffer{std::size_t{0}, std::size_t{2048}};
 				std::optional<CommandHELO>             commandHELO{std::nullopt};
 				std::optional<CommandSTAT>             commandSTAT{std::nullopt};
-				std::optional<TimePoint>               lastPingAt{std::nullopt};
+				std::optional<TimePointType>           lastPingAt{std::nullopt};
 		};
 	}
 }
