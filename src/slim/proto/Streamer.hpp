@@ -255,7 +255,7 @@ namespace slim
 						//	}
 						//});
 					});
-					encoderPtr = std::move(encoderBuilder.build());
+					//encoderPtr = std::move(encoderBuilder.build());
 
 					for (auto& entry : commandSessions)
 					{
@@ -356,7 +356,7 @@ namespace slim
 						auto streamingSessionPtr{entry.second->getStreamingSession()};
 						if (streamingSessionPtr)
 						{
-							streamingSessionPtr->onChunk(chunk);
+							streamingSessionPtr->onEncodedData(chunk.getData(), chunk.getSize(), chunk.getSamplingRate());
 							counter--;
 						}
 					}

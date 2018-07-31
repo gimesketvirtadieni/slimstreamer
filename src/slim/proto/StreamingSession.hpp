@@ -18,7 +18,6 @@
 #include <sstream>  // std::stringstream
 #include <string>
 
-#include "slim/Chunk.hpp"
 #include "slim/EncoderBase.hpp"
 #include "slim/log/log.hpp"
 #include "slim/util/AsyncWriter.hpp"
@@ -70,24 +69,24 @@ namespace slim
 					return clientID;
 				}
 
-				inline void onChunk(Chunk& chunk)
+				inline void onEncodedData(unsigned char* data, std::size_t size, unsigned int samplingRate)
 				{
-					if (encoderPtr->getSamplingRate() == chunk.getSamplingRate())
+					if (encoderPtr->getSamplingRate() == samplingRate)
 					{
-						encoderPtr->encode(chunk.getData(), chunk.getSize());
+						encoderPtr->encode(data, size);
 					}
 					else
 					{
-						LOG(WARNING) << LABELS{"proto"} << "Closing HTTP connection due to different sampling rate used by a client (session rate=" << encoderPtr->getSamplingRate() << "; chunk rate=" << chunk.getSamplingRate() << ")";
+						LOG(WARNING) << LABELS{"proto"} << "Closing HTTP connection due to different sampling rate used by a client (session rate=" << encoderPtr->getSamplingRate() << "; data rate=" << samplingRate << ")";
 						connection.get().stop();
 					}
 				}
 
-				inline void onRequest(unsigned char* buffer, std::size_t size)
+				inline void onRequest(unsigned char* data, std::size_t size)
 				{
 					// TODO: make more strick validation
 					std::string get{"GET"};
-					std::string s{(char*)buffer, get.size()};
+					std::string s{(char*)data, get.size()};
 					if (get.compare(s))
 					{
 						// stopping this session due an error
