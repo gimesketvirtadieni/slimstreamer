@@ -119,6 +119,12 @@ namespace slim
 					return result;
 				}
 
+				virtual bool skipChunk() override
+				{
+					// TODO: work in progress
+					return false;
+				}
+
 				virtual void start() override;
 				virtual void stop(bool gracefully = true) override;
 

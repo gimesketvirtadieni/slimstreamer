@@ -16,6 +16,7 @@
 #include <conwrap/ProcessorProxy.hpp>
 #include <functional>
 #include <memory>
+#include <scope_guard.hpp>
 #include <thread>
 
 #include "slim/Consumer.hpp"
@@ -105,11 +106,33 @@ namespace slim
 		protected:
 			void processTask()
 			{
-				bool available;
-
 				// TODO: calculate total chunks per processing quantum
 				// processing up to max(count) chunks within one event-loop quantum
-				for (unsigned int count{0}; (available = producerPtr->produceChunk(*consumerPtr)) && count < 5; count++) {}
+				auto available{true};
+				for (unsigned int count{0}; available && count < 5; count++) try
+				{
+					::util::scope_guard_failure onError = [&]
+					{
+						// skipping one chunk in case of an exception while producing / consuming
+						available = producerPtr->skipChunk();
+
+						LOG(WARNING) << "A chunk was skipped due to an error";
+					};
+
+					available = producerPtr->produceChunk(*consumerPtr);
+				}
+				catch (const Exception& error)
+				{
+					LOG(ERROR) << error;
+				}
+				catch (const std::exception& error)
+				{
+					LOG(ERROR) << error.what();
+				}
+				catch (...)
+				{
+					std::cout << "Unexpected exception" << std::endl;
+				}
 
 				// if there is more PCM data to be processed
 				if (available)

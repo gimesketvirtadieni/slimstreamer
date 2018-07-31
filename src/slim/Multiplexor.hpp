@@ -100,6 +100,18 @@ namespace slim
 				return result;
 			}
 
+			virtual bool skipChunk() override
+			{
+				auto result{false};
+
+				if (!currentProducerPtr)
+				{
+					result = currentProducerPtr->skipChunk();
+				}
+
+				return result;
+			}
+
 			virtual void start() override
 			{
 				for (auto& producerPtr : producers)

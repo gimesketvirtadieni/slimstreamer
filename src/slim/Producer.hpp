@@ -39,6 +39,7 @@ namespace slim
 				processorProxyPtr = p;
 			}
 
+			virtual bool skipChunk() = 0;
 			virtual void start() = 0;
 			virtual void stop(bool gracefully = true) = 0;
 
