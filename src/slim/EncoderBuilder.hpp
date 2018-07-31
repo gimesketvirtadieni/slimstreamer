@@ -69,7 +69,7 @@ namespace slim
 				}
 				else
 				{
-					return 0;
+					return (std::function<void(unsigned char*, std::size_t)>)0;
 				}
 			}
 
