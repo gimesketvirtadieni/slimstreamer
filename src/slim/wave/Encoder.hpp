@@ -14,7 +14,6 @@
 
 #include <cstddef>   // std::size_t
 #include <cstdint>   // std::int..._t
-#include <functional>
 #include <string>
 
 #include "slim/EncoderBase.hpp"
@@ -30,10 +29,10 @@ namespace slim
 		class Encoder : public EncoderBase
 		{
 			public:
-				explicit Encoder(unsigned int c, unsigned int bs, unsigned int bv, unsigned int s, std::reference_wrapper<util::AsyncWriter> w, bool h, std::string ex, std::string m)
-				: EncoderBase{c, bs, bv, s, ex, m}
+				explicit Encoder(unsigned int ch, unsigned int bs, unsigned int bv, unsigned int sr, std::reference_wrapper<util::AsyncWriter> w, bool hd, std::string ex, std::string mm, EncodedCallbackType ec)
+				: EncoderBase{ch, bs, bv, sr, ex, mm, ec}
 				, bufferedWriter{w}
-				, headerRequired{h}
+				, headerRequired{hd}
 				{
 					if (headerRequired)
 					{

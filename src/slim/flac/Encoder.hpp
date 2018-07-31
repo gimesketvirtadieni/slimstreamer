@@ -30,8 +30,8 @@ namespace slim
 		class Encoder : public EncoderBase, protected FLAC::Encoder::Stream
 		{
 			public:
-				explicit Encoder(unsigned int c, unsigned int bs, unsigned int bv, unsigned int s, std::reference_wrapper<util::AsyncWriter> w, bool h, std::string ex, std::string m)
-				: EncoderBase{c, bs, bv, s, ex, m}
+				explicit Encoder(unsigned int ch, unsigned int bs, unsigned int bv, unsigned int sr, std::reference_wrapper<util::AsyncWriter> w, bool hd, std::string ex, std::string mm, EncodedCallbackType ec)
+				: EncoderBase{ch, bs, bv, sr, ex, mm, ec}
 				, bufferedWriter{w}
 				{
 					// do not validate FLAC encoded stream if it produces the same result
@@ -158,6 +158,8 @@ namespace slim
 			protected:
 				virtual ::FLAC__StreamEncoderWriteStatus write_callback(const FLAC__byte* data, std::size_t size, unsigned samples, unsigned current_frame) override
 				{
+					//getEncodedCallback()((unsigned char*)data, size);
+
 					bufferedWriter.writeAsync(data, size, [](auto error, auto written)
 					{
 						if (error)
@@ -170,9 +172,10 @@ namespace slim
 				}
 
 			private:
+				bool downScale{false};
+
 				// TODO: parametrize
 				util::BufferedAsyncWriter<128> bufferedWriter;
-				bool                           downScale{false};
 		};
 	}
 }

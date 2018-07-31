@@ -22,14 +22,18 @@ namespace slim
 {
 	class EncoderBase
 	{
+		protected:
+			using EncodedCallbackType = std::function<void(unsigned char*, std::size_t)>;
+
 		public:
-			EncoderBase(unsigned int c, unsigned int bs, unsigned int bv, unsigned int s, std::string ex, std::string m)
-			: channels{c}
+			EncoderBase(unsigned int ch, unsigned int bs, unsigned int bv, unsigned int sr, std::string ex, std::string mm, EncodedCallbackType ec)
+			: channels{ch}
 			, bitsPerSample{bs}
 			, bitsPerValue{bv}
-			, samplingRate{s}
+			, samplingRate{sr}
 			, extention{ex}
-			, mime{m}{}
+			, mime{mm}
+			, encodedCallback{ec}{}
 
 			virtual ~EncoderBase() = default;
 			EncoderBase(const EncoderBase&) = delete;             // non-copyable
@@ -54,6 +58,11 @@ namespace slim
 				return channels;
 			}
 
+			inline auto& getEncodedCallback()
+			{
+				return encodedCallback;
+			}
+
 			inline auto getExtention()
 			{
 				return extention;
@@ -70,11 +79,12 @@ namespace slim
 			}
 
 		private:
-			unsigned int channels;
-			unsigned int bitsPerSample;
-			unsigned int bitsPerValue;
-			unsigned int samplingRate;
-			std::string  extention;
-			std::string  mime;
+			unsigned int        channels;
+			unsigned int        bitsPerSample;
+			unsigned int        bitsPerValue;
+			unsigned int        samplingRate;
+			std::string         extention;
+			std::string         mime;
+			EncodedCallbackType encodedCallback;
 	};
 }

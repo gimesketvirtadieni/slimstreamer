@@ -46,7 +46,7 @@ namespace slim
 		{
 			template<typename SessionType>
 			using SessionsMap          = std::unordered_map<ConnectionType*, std::unique_ptr<SessionType>>;
-			using TimePoint            = std::chrono::time_point<std::chrono::steady_clock>;
+			using TimePointType        = std::chrono::time_point<std::chrono::steady_clock>;
 			using CommandSessionType   = CommandSession<ConnectionType>;
 			using StreamingSessionType = StreamingSession<ConnectionType>;
 
@@ -241,6 +241,21 @@ namespace slim
 				virtual void setSamplingRate(unsigned int s) override
 				{
 					Consumer::setSamplingRate(s);
+
+					encoderBuilder.setSamplingRate(s);
+					encoderBuilder.setEncodedCallback([](auto* data, auto size)
+					{
+						// TODO: work in progress
+						LOG(ERROR) << LABELS{"proto"} << "Work in progress";
+						//bufferedWriter.writeAsync(data, size, [](auto error, auto written)
+						//{
+						//	if (error)
+						//	{
+						//		LOG(ERROR) << LABELS{"flac"} << "Error while transferring encoded data: " << error.message();
+						//	}
+						//});
+					});
+					encoderPtr = std::move(encoderBuilder.build());
 
 					for (auto& entry : commandSessions)
 					{
@@ -458,11 +473,13 @@ namespace slim
 				std::optional<unsigned int>       gain;
 				SessionsMap<CommandSessionType>   commandSessions;
 				SessionsMap<StreamingSessionType> streamingSessions;
+				// TODO: should be part of generic consumer
+				std::unique_ptr<EncoderBase>      encoderPtr{nullptr};
 				bool                              streaming{false};
 				unsigned long                     nextID{0};
 				std::atomic<bool>                 monitorFinish{false};
 				std::thread                       monitorThread;
-				TimePoint                         startedAt;
+				TimePointType                     startedAt;
 		};
 	}
 }

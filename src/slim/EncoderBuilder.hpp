@@ -28,7 +28,7 @@ namespace slim
 {
 	class EncoderBuilder
 	{
-		using BuilderType = std::function<std::unique_ptr<EncoderBase>(unsigned int, unsigned int, unsigned int, unsigned int, std::reference_wrapper<util::AsyncWriter>, bool, std::string, std::string)>;
+		using BuilderType = std::function<std::unique_ptr<EncoderBase>(unsigned int, unsigned int, unsigned int, unsigned int, std::reference_wrapper<util::AsyncWriter>, bool, std::string, std::string, std::function<void(unsigned char*, std::size_t)>)>;
 
 		public:
 			EncoderBuilder() = default;
@@ -54,6 +54,23 @@ namespace slim
 					throw Exception("Bits-per-value parameter was not provided");
 				}
 				return bitsPerValue.value();
+			}
+
+			auto getEncodedCallback()
+			{
+				//if (!encodedCallback.has_value())
+				//{
+				//	throw Exception("Encoded data callback was not provided");
+				//}
+				//return encodedCallback.value();
+				if (encodedCallback.has_value())
+				{
+					return encodedCallback.value();
+				}
+				else
+				{
+					return 0;
+				}
 			}
 
 			auto getChannels()
@@ -125,7 +142,7 @@ namespace slim
 				{
 					throw Exception("Builder function was not provided");
 				}
-				return std::move(builder(getChannels(), getBitsPerSample(), getBitsPerValue(), getSamplingRate(), std::ref(*getWriter()), getHeader(), getExtention(), getMIME()));
+				return std::move(builder(getChannels(), getBitsPerSample(), getBitsPerValue(), getSamplingRate(), std::ref(*getWriter()), getHeader(), getExtention(), getMIME(), getEncodedCallback()));
 			}
 
 			void setBitsPerSample(unsigned int bs)
@@ -146,6 +163,11 @@ namespace slim
 			void setChannels(unsigned int c)
 			{
 				channels = c;
+			}
+
+			void setEncodedCallback(std::function<void(unsigned char*, std::size_t)> ec)
+			{
+				encodedCallback = ec;
 			}
 
 			void setExtention(std::string e)
@@ -179,15 +201,16 @@ namespace slim
 			}
 
 		private:
-			BuilderType                                 builder{0};
-			std::optional<unsigned int>                 channels{std::nullopt};
-			std::optional<unsigned int>                 samplingRate{std::nullopt};
-			std::optional<unsigned int>                 bitsPerSample{std::nullopt};
-			std::optional<unsigned int>                 bitsPerValue{std::nullopt};
-			std::optional<std::string>                  extention{std::nullopt};
-			std::optional<slim::proto::FormatSelection> format{std::nullopt};
-			std::optional<bool>                         header{std::nullopt};
-			std::optional<std::string>                  mime{std::nullopt};
-			util::AsyncWriter*                          writerPtr{nullptr};
+			BuilderType                                                     builder{0};
+			std::optional<unsigned int>                                     channels{std::nullopt};
+			std::optional<unsigned int>                                     samplingRate{std::nullopt};
+			std::optional<unsigned int>                                     bitsPerSample{std::nullopt};
+			std::optional<unsigned int>                                     bitsPerValue{std::nullopt};
+			std::optional<std::string>                                      extention{std::nullopt};
+			std::optional<slim::proto::FormatSelection>                     format{std::nullopt};
+			std::optional<bool>                                             header{std::nullopt};
+			std::optional<std::string>                                      mime{std::nullopt};
+			std::optional<std::function<void(unsigned char*, std::size_t)>> encodedCallback{std::nullopt};
+			util::AsyncWriter*                                              writerPtr{nullptr};
 	};
 }

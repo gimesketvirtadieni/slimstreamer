@@ -291,9 +291,9 @@ int main(int argc, const char *argv[])
 			encoderBuilder.setHeader(false);
 			if (format == pcm)
 			{
-				encoderBuilder.setBuilder([](unsigned int c, unsigned int bs, unsigned int bv, unsigned int s, std::reference_wrapper<AsyncWriter> w, bool h, std::string ex, std::string m)
+				encoderBuilder.setBuilder([](unsigned int ch, unsigned int bs, unsigned int bv, unsigned int sr, std::reference_wrapper<AsyncWriter> w, bool hd, std::string ex, std::string mm, std::function<void(unsigned char*, std::size_t)> ec)
 				{
-					return std::move(std::unique_ptr<EncoderBase>{new wave::Encoder{c, bs, bv, s, w, h, ex, m}});
+					return std::move(std::unique_ptr<EncoderBase>{new wave::Encoder{ch, bs, bv, sr, w, hd, ex, mm, ec}});
 				});
 				encoderBuilder.setFormat(slim::proto::FormatSelection::PCM);
 				encoderBuilder.setExtention("wav");
@@ -301,9 +301,9 @@ int main(int argc, const char *argv[])
 			}
 			else if (format == flac)
 			{
-				encoderBuilder.setBuilder([](unsigned int c, unsigned int bs, unsigned int bv, unsigned int s, std::reference_wrapper<AsyncWriter> w, bool h, std::string ex, std::string m)
+				encoderBuilder.setBuilder([](unsigned int ch, unsigned int bs, unsigned int bv, unsigned int sr, std::reference_wrapper<AsyncWriter> w, bool hd, std::string ex, std::string mm, std::function<void(unsigned char*, std::size_t)> ec)
 				{
-					return std::move(std::unique_ptr<EncoderBase>{new flac::Encoder{c, bs, bv, s, w, h, ex, m}});
+					return std::move(std::unique_ptr<EncoderBase>{new flac::Encoder{ch, bs, bv, sr, w, hd, ex, mm, ec}});
 				});
 				encoderBuilder.setFormat(slim::proto::FormatSelection::FLAC);
 				encoderBuilder.setExtention("flac");
