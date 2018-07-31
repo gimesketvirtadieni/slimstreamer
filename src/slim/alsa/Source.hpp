@@ -86,34 +86,13 @@ namespace slim
 				virtual bool produceChunk(Consumer& consumer) override
 				{
 					auto result{false};
-					auto underflow{false};
 
 					if (chunkCounter > parameters.getStartThreshold() && !isOnPause())
 					{
-						if (queuePtr->dequeue([&](Chunk& chunk)
+						result = produce([&](auto& chunk)
 						{
-							// if it is end-of-stream then changing state to 'not producing'
-							if (!chunk.getSamplingRate())
-							{
-								producing    = false;
-								chunkCounter = 0;
-							}
-
 							return consumer.consumeChunk(chunk);
-						}, [&]
-						{
-							underflow = true;
-						}))
-						{
-							// more chunks may be available if there were no undedflow
-							result = !underflow;
-						}
-						else
-						{
-							// TODO: cruise control should be implemented
-							// if consumer did not accept a chunk then deferring further processing
-							pause(50);
-						}
+						});
 					}
 
 					return result;
@@ -121,8 +100,11 @@ namespace slim
 
 				virtual bool skipChunk() override
 				{
-					// TODO: work in progress
-					return false;
+					// using an empty lambda that returns 'true' to 'consume' chunk without a real consumer
+					return produce([](auto&)
+					{
+						return true;
+					});
 				}
 
 				virtual void start() override;
@@ -155,6 +137,40 @@ namespace slim
 				inline void pause(unsigned int millisec)
 				{
 					pauseUntil = std::chrono::steady_clock::now() + std::chrono::milliseconds{millisec};
+				}
+
+				template<typename ConsumerType>
+				inline bool produce(ConsumerType consumer)
+				{
+					auto result{false};
+					auto underflow{false};
+
+					if (queuePtr->dequeue([&](Chunk& chunk)
+					{
+						// if it is end-of-stream then changing state to 'not producing'
+						if (!chunk.getSamplingRate())
+						{
+							producing    = false;
+							chunkCounter = 0;
+						}
+
+						return consumer(chunk);
+					}, [&]
+					{
+						underflow = true;
+					}))
+					{
+						// more chunks may be available if there were no undedflow
+						result = !underflow;
+					}
+					else
+					{
+						// TODO: cruise control should be implemented
+						// if consumer did not accept a chunk then deferring further processing
+						pause(50);
+					}
+
+					return result;
 				}
 
 				bool restore(snd_pcm_sframes_t error);
