@@ -13,6 +13,7 @@
 #pragma once
 
 #include <conwrap/ProcessorProxy.hpp>
+#include <functional>
 #include <memory>
 #include <thread>
 #include <vector>
@@ -68,7 +69,7 @@ namespace slim
 				return result;
 			}
 
-			virtual bool produceChunk(Consumer& consumer) override
+			virtual bool produceChunk(std::function<bool(Chunk&)>&& consumer) override
 			{
 				auto result{false};
 
@@ -80,7 +81,7 @@ namespace slim
 
 				if (currentProducerPtr)
 				{
-					result = currentProducerPtr->produceChunk(consumer);
+					result = currentProducerPtr->produceChunk(std::move(consumer));
 
 					// if no more data available from the current producer then switching over to a next one
 					if (!result && !currentProducerPtr->isProducing())
@@ -90,7 +91,7 @@ namespace slim
 							if (producerPtr->isProducing())
 							{
 								currentProducerPtr = producerPtr.get();
-								result          = true;
+								result             = true;
 								break;
 							}
 						}

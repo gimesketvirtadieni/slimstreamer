@@ -119,7 +119,10 @@ namespace slim
 						LOG(WARNING) << "A chunk was skipped due to an error";
 					};
 
-					available = producerPtr->produceChunk(*consumerPtr);
+					available = producerPtr->produceChunk([&](auto& chunk)
+					{
+						return consumerPtr->consumeChunk(chunk);
+					});
 				}
 				catch (const Exception& error)
 				{

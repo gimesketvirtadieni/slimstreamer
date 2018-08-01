@@ -13,8 +13,9 @@
 #pragma once
 
 #include <conwrap/ProcessorProxy.hpp>
+#include <functional>
 
-#include "slim/Consumer.hpp"
+#include "slim/Chunk.hpp"
 #include "slim/ContainerBase.hpp"
 
 
@@ -32,7 +33,7 @@ namespace slim
 
 			virtual bool isProducing() = 0;
 			virtual bool isRunning() = 0;
-			virtual bool produceChunk(Consumer&) = 0;
+			virtual bool produceChunk(std::function<bool(Chunk&)>&& consumer) = 0;
 
 			virtual void setProcessorProxy(conwrap::ProcessorProxy<ContainerBase>* p)
 			{

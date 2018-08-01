@@ -83,15 +83,15 @@ namespace slim
 					return running;
 				}
 
-				virtual bool produceChunk(Consumer& consumer) override
+				virtual bool produceChunk(std::function<bool(Chunk&)>&& consumer) override
 				{
 					auto result{false};
 
 					if (chunkCounter > parameters.getStartThreshold() && !isOnPause())
 					{
-						result = produce([&](auto& chunk)
+						result = producer([&](auto& chunk)
 						{
-							return consumer.consumeChunk(chunk);
+							return consumer(chunk);
 						});
 					}
 
@@ -101,7 +101,7 @@ namespace slim
 				virtual bool skipChunk() override
 				{
 					// using an empty lambda that returns 'true' to 'consume' chunk without a real consumer
-					return produce([](auto&)
+					return producer([](auto&)
 					{
 						return true;
 					});
@@ -140,7 +140,7 @@ namespace slim
 				}
 
 				template<typename ConsumerType>
-				inline bool produce(ConsumerType consumer)
+				inline bool producer(ConsumerType consumer)
 				{
 					auto result{false};
 					auto underflow{false};
