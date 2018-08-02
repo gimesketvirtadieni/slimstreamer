@@ -83,7 +83,7 @@ namespace slim
 					return running;
 				}
 
-				virtual bool produceChunk(std::function<bool(Chunk&)>&& consumer) override
+				virtual bool produceChunk(std::function<bool(Chunk&)>& consumer) override
 				{
 					auto result{false};
 

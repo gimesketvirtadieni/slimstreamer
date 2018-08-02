@@ -106,6 +106,12 @@ namespace slim
 		protected:
 			void processTask()
 			{
+				// defining consumer function
+				std::function<bool(Chunk&)> consumer{[&](auto& chunk)
+				{
+					return consumerPtr->consumeChunk(chunk);
+				}};
+
 				// TODO: calculate total chunks per processing quantum
 				// processing up to max(count) chunks within one event-loop quantum
 				auto available{true};
@@ -119,10 +125,8 @@ namespace slim
 						LOG(WARNING) << "A chunk was skipped due to an error";
 					};
 
-					available = producerPtr->produceChunk([&](auto& chunk)
-					{
-						return consumerPtr->consumeChunk(chunk);
-					});
+					// producing / consuming chunk
+					available = producerPtr->produceChunk(consumer);
 				}
 				catch (const Exception& error)
 				{

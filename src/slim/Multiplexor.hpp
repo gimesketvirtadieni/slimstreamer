@@ -69,7 +69,7 @@ namespace slim
 				return result;
 			}
 
-			virtual bool produceChunk(std::function<bool(Chunk&)>&& consumer) override
+			virtual bool produceChunk(std::function<bool(Chunk&)>& consumer) override
 			{
 				auto result{false};
 
@@ -81,7 +81,7 @@ namespace slim
 
 				if (currentProducerPtr)
 				{
-					result = currentProducerPtr->produceChunk(std::move(consumer));
+					result = currentProducerPtr->produceChunk(consumer);
 
 					// if no more data available from the current producer then switching over to a next one
 					if (!result && !currentProducerPtr->isProducing())
