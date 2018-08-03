@@ -241,21 +241,6 @@ namespace slim
 				{
 					Consumer::setSamplingRate(s);
 
-					encoderBuilder.setSamplingRate(s);
-					encoderBuilder.setEncodedCallback([](auto* data, auto size)
-					{
-						// TODO: work in progress
-						LOG(ERROR) << LABELS{"proto"} << "Work in progress";
-						//bufferedWriter.writeAsync(data, size, [](auto error, auto written)
-						//{
-						//	if (error)
-						//	{
-						//		LOG(ERROR) << LABELS{"flac"} << "Error while transferring encoded data: " << error.message();
-						//	}
-						//});
-					});
-					//encoderPtr = std::move(encoderBuilder.build());
-
 					for (auto& entry : commandSessions)
 					{
 						// setting new sampling rate to all the clients
@@ -472,8 +457,6 @@ namespace slim
 				std::optional<unsigned int>       gain;
 				SessionsMap<CommandSessionType>   commandSessions;
 				SessionsMap<StreamingSessionType> streamingSessions;
-				// TODO: should be part of generic consumer
-				std::unique_ptr<EncoderBase>      encoderPtr{nullptr};
 				bool                              streaming{false};
 				unsigned long                     nextID{0};
 				std::atomic<bool>                 monitorFinish{false};

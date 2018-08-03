@@ -13,10 +13,10 @@
 #pragma once
 
 #include <algorithm>
-#include <conwrap/ProcessorProxy.hpp>
 #include <memory>
 #include <vector>
 
+#include "slim/Exception.hpp"
 #include "slim/log/log.hpp"
 
 
@@ -28,14 +28,7 @@ namespace slim
 		public:
 			Demultiplexor(std::vector<std::unique_ptr<ConsumerType>> c)
 			: Consumer{0}
-			, consumers{std::move(c)}
-			{
-				// setting the current consumer to the first one among provided
-				if (consumers.size() > 0)
-				{
-					currentConsumerPtr = consumers.at(0).get();
-				}
-			}
+			, consumers{std::move(c)} {}
 
 			// using Rule Of Zero
 			virtual ~Demultiplexor() = default;
@@ -47,46 +40,42 @@ namespace slim
 			virtual bool consumeChunk(Chunk& chunk) override
 			{
 				auto result{false};
+				auto chunkSamplingRate{chunk.getSamplingRate()};
 
-				if (currentConsumerPtr)
+				// if sampling rate does not match to the provided chunk's sampling rate
+				if (currentConsumerPtr && currentConsumerPtr->getSamplingRate() != chunkSamplingRate)
 				{
-					auto chunkSamplingRate{chunk.getSamplingRate()};
+					currentConsumerPtr = nullptr;
+				}
 
-					// switching over to a different consumer with the same as chunk's sampling rate if needed
-					if (chunkSamplingRate != currentConsumerPtr->getSamplingRate())
+				// switching over to a different consumer with the same as chunk's sampling rate if needed
+				if (!currentConsumerPtr)
+				{
+					for (auto& consumerPtr : consumers)
 					{
-						for (auto& consumerPtr : consumers)
+						if (chunkSamplingRate == consumerPtr->getSamplingRate())
 						{
-							if (chunkSamplingRate == consumerPtr->getSamplingRate())
-							{
-								currentConsumerPtr = consumerPtr.get();
-								break;
-							}
-						}
-					}
-
-					// consuming chunk if sampling rates match
-					if (chunkSamplingRate == currentConsumerPtr->getSamplingRate())
-					{
-						result = currentConsumerPtr->consumeChunk(chunk);
-					}
-					else
-					{
-						// consume chunk without processing if there is no matching consumer
-						result = true;
-
-						// skipping end-of-stream chunks silencely
-						if (chunkSamplingRate)
-						{
-							LOG(WARNING) << LABELS{"slim"} << "Chunk was skipped as there is no matching consumer defined";
+							currentConsumerPtr = consumerPtr.get();
+							break;
 						}
 					}
 				}
+
+				// if there is a consumer with the same sampling rate
+				if (currentConsumerPtr)
+				{
+					result = currentConsumerPtr->consumeChunk(chunk);
+				}
 				else
 				{
-					// consume chunk without processing if there is no any consumer defined
+					// consuming chunk without processing if there is no matching consumer
 					result = true;
-					LOG(WARNING) << LABELS{"slim"} << "Chunk was skipped as there are no consumers defined";
+
+					// skipping end-of-stream chunks silencely
+					if (chunkSamplingRate)
+					{
+						LOG(WARNING) << LABELS{"slim"} << "Chunk was skipped as there is no matching consumer defined";
+					}
 				}
 
 				return result;
@@ -94,13 +83,19 @@ namespace slim
 
 			virtual unsigned int getSamplingRate() override
 			{
-				// TODO: work in progress
-				return 0;
+				unsigned int sr{0};
+
+				if (currentConsumerPtr)
+				{
+					sr = currentConsumerPtr->getSamplingRate();
+				}
+
+				return sr;
 			}
 
 			virtual void setSamplingRate(unsigned int s) override
 			{
-				// TODO: work in progress
+				throw Exception("Sampling rate cannot be set for demultiplexor");
 			}
 
 			virtual void start() override
