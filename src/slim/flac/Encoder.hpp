@@ -19,8 +19,6 @@
 #include "slim/EncoderBase.hpp"
 #include "slim/Exception.hpp"
 #include "slim/log/log.hpp"
-#include "slim/util/AsyncWriter.hpp"
-#include "slim/util/BufferedAsyncWriter.hpp"
 
 
 namespace slim
@@ -30,9 +28,8 @@ namespace slim
 		class Encoder : public EncoderBase, protected FLAC::Encoder::Stream
 		{
 			public:
-				explicit Encoder(unsigned int ch, unsigned int bs, unsigned int bv, unsigned int sr, std::reference_wrapper<util::AsyncWriter> w, bool hd, std::string ex, std::string mm, EncodedCallbackType ec)
+				explicit Encoder(unsigned int ch, unsigned int bs, unsigned int bv, unsigned int sr, bool hd, std::string ex, std::string mm, EncodedCallbackType ec)
 				: EncoderBase{ch, bs, bv, sr, ex, mm, ec}
-				, bufferedWriter{w}
 				{
 					// do not validate FLAC encoded stream if it produces the same result
 					if (!set_verify(false))
@@ -109,73 +106,54 @@ namespace slim
 
 				virtual void encode(unsigned char* data, const std::size_t size) override
 				{
-					// do not feed encoder with more data if there is no room in transfer buffer
-					if (bufferedWriter.isBufferAvailable())
+					std::size_t sampleSize{getBitsPerSample() >> 3};
+					std::size_t frameSize{sampleSize * getChannels()};
+					std::size_t frames{size / frameSize};
+
+					// if values contain more than 24 bits then downscaling to 24 bits, which is max supported by FLAC
+					if (downScale)
 					{
-						std::size_t sampleSize{getBitsPerSample() >> 3};
-						std::size_t frameSize{sampleSize * getChannels()};
-						std::size_t frames{size / frameSize};
-
-						// if values contain more than 24 bits then downscaling to 24 bits, which is max supported by FLAC
-						if (downScale)
+						for (std::size_t i = 0; i < size; i += sampleSize)
 						{
-							for (std::size_t i = 0; i < size; i += sampleSize)
-							{
-								data[i] = 0;
-							}
+							data[i] = 0;
 						}
+					}
 
-						// coverting data S32_LE to S24_LE by shifting data by 1 byte
-						if (frames > 1 && !process_interleaved((const FLAC__int32*)(data + 1), frames - 1))
+					// coverting data S32_LE to S24_LE by shifting data by 1 byte
+					if (frames > 1 && !process_interleaved((const FLAC__int32*)(data + 1), frames - 1))
+					{
+						LOG(ERROR) << LABELS{"flac"} << "Error while encoding: " << get_state().as_cstring();
+					}
+
+					// handling the last frame separately; shifting the last frame data by one byte
+					if (frames > 0)
+					{
+						unsigned char  frame[frameSize];
+						unsigned char* lastFrame{data + size - frameSize};
+
+						for (auto i{frameSize - 1}; i > 0; i--)
+						{
+							frame[i - 1] = lastFrame[i];
+						}
+						frame[frameSize - 1] = 0;
+
+						if (!process_interleaved((const FLAC__int32*)frame, 1))
 						{
 							LOG(ERROR) << LABELS{"flac"} << "Error while encoding: " << get_state().as_cstring();
 						}
-
-						// handling the last frame separately; shifting the last frame data by one byte
-						if (frames > 0)
-						{
-							unsigned char  frame[frameSize];
-							unsigned char* lastFrame{data + size - frameSize};
-
-							for (auto i{frameSize - 1}; i > 0; i--)
-							{
-								frame[i - 1] = lastFrame[i];
-							}
-							frame[frameSize - 1] = 0;
-
-							if (!process_interleaved((const FLAC__int32*)frame, 1))
-							{
-								LOG(ERROR) << LABELS{"flac"} << "Error while encoding: " << get_state().as_cstring();
-							}
-						}
-					}
-					else
-					{
-						LOG(WARNING) << LABELS{"flac"} << "Transfer buffer is full - skipping PCM chunk";
 					}
 				}
 
 			protected:
 				virtual ::FLAC__StreamEncoderWriteStatus write_callback(const FLAC__byte* data, std::size_t size, unsigned samples, unsigned current_frame) override
 				{
-					//getEncodedCallback()((unsigned char*)data, size);
-
-					bufferedWriter.writeAsync(data, size, [](auto error, auto written)
-					{
-						if (error)
-						{
-							LOG(ERROR) << LABELS{"flac"} << "Error while transferring encoded data: " << error.message();
-						}
-					});
+					getEncodedCallback()((unsigned char*)data, size);
 
 					return FLAC__STREAM_ENCODER_WRITE_STATUS_OK;
 				}
 
 			private:
 				bool downScale{false};
-
-				// TODO: parametrize
-				util::BufferedAsyncWriter<128> bufferedWriter;
 		};
 	}
 }

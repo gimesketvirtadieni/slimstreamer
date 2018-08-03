@@ -36,6 +36,7 @@
 #include "slim/Container.hpp"
 #include "slim/Demultiplexor.hpp"
 #include "slim/EncoderBase.hpp"
+#include "slim/EncoderBuilder.hpp"
 #include "slim/Exception.hpp"
 #include "slim/FileConsumer.hpp"
 #include "slim/flac/Encoder.hpp"
@@ -158,9 +159,8 @@ auto createFileConsumers(std::vector<std::unique_ptr<Source>>& producers, Encode
 		encoderBuilder.setSamplingRate(parameters.getSamplingRate());
 		encoderBuilder.setBitsPerSample(parameters.getBitsPerSample());
 		encoderBuilder.setBitsPerValue(parameters.getBitsPerValue());
-		encoderBuilder.setWriter(writerPtr.get());
 
-		fileConsumers.emplace_back(std::make_unique<FileConsumer>(std::move(writerPtr), std::move(encoderBuilder.build())));
+		fileConsumers.emplace_back(std::make_unique<FileConsumer>(std::move(writerPtr), encoderBuilder));
 	});
 
 	return fileConsumers;
@@ -291,9 +291,9 @@ int main(int argc, const char *argv[])
 			encoderBuilder.setHeader(false);
 			if (format == pcm)
 			{
-				encoderBuilder.setBuilder([](unsigned int ch, unsigned int bs, unsigned int bv, unsigned int sr, std::reference_wrapper<AsyncWriter> w, bool hd, std::string ex, std::string mm, std::function<void(unsigned char*, std::size_t)> ec)
+				encoderBuilder.setBuilder([](unsigned int ch, unsigned int bs, unsigned int bv, unsigned int sr, bool hd, std::string ex, std::string mm, std::function<void(unsigned char*, std::size_t)> ec)
 				{
-					return std::move(std::unique_ptr<EncoderBase>{new wave::Encoder{ch, bs, bv, sr, w, hd, ex, mm, ec}});
+					return std::move(std::unique_ptr<EncoderBase>{new wave::Encoder{ch, bs, bv, sr, hd, ex, mm, ec}});
 				});
 				encoderBuilder.setFormat(slim::proto::FormatSelection::PCM);
 				encoderBuilder.setExtention("wav");
@@ -301,9 +301,9 @@ int main(int argc, const char *argv[])
 			}
 			else if (format == flac)
 			{
-				encoderBuilder.setBuilder([](unsigned int ch, unsigned int bs, unsigned int bv, unsigned int sr, std::reference_wrapper<AsyncWriter> w, bool hd, std::string ex, std::string mm, std::function<void(unsigned char*, std::size_t)> ec)
+				encoderBuilder.setBuilder([](unsigned int ch, unsigned int bs, unsigned int bv, unsigned int sr, bool hd, std::string ex, std::string mm, std::function<void(unsigned char*, std::size_t)> ec)
 				{
-					return std::move(std::unique_ptr<EncoderBase>{new flac::Encoder{ch, bs, bv, sr, w, hd, ex, mm, ec}});
+					return std::move(std::unique_ptr<EncoderBase>{new flac::Encoder{ch, bs, bv, sr, hd, ex, mm, ec}});
 				});
 				encoderBuilder.setFormat(slim::proto::FormatSelection::FLAC);
 				encoderBuilder.setExtention("flac");
@@ -347,7 +347,10 @@ int main(int argc, const char *argv[])
 			std::unique_ptr<Consumer> consumerPtr;
 			if (result.count("files"))
 			{
-				encoderBuilder.setHeader(true);
+				if (encoderBuilder.getFormat() == slim::proto::FormatSelection::PCM)
+				{
+					encoderBuilder.setHeader(true);
+				}
 				consumerPtr = std::make_unique<Demultiplexor<FileConsumer>>(std::move(createFileConsumers(producers, encoderBuilder)));
 			}
 			else

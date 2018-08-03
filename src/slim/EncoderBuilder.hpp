@@ -21,14 +21,13 @@
 #include "slim/EncoderBase.hpp"
 #include "slim/Exception.hpp"
 #include "slim/proto/Command.hpp"
-#include "slim/util/AsyncWriter.hpp"
 
 
 namespace slim
 {
 	class EncoderBuilder
 	{
-		using BuilderType = std::function<std::unique_ptr<EncoderBase>(unsigned int, unsigned int, unsigned int, unsigned int, std::reference_wrapper<util::AsyncWriter>, bool, std::string, std::string, std::function<void(unsigned char*, std::size_t)>)>;
+		using BuilderType = std::function<std::unique_ptr<EncoderBase>(unsigned int, unsigned int, unsigned int, unsigned int, bool, std::string, std::string, std::function<void(unsigned char*, std::size_t)>)>;
 
 		public:
 			EncoderBuilder() = default;
@@ -58,19 +57,11 @@ namespace slim
 
 			auto getEncodedCallback()
 			{
-				//if (!encodedCallback.has_value())
-				//{
-				//	throw Exception("Encoded data callback was not provided");
-				//}
-				//return encodedCallback.value();
-				if (encodedCallback.has_value())
+				if (!encodedCallback.has_value())
 				{
-					return encodedCallback.value();
+					throw Exception("Encoded data callback was not provided");
 				}
-				else
-				{
-					return (std::function<void(unsigned char*, std::size_t)>)0;
-				}
+				return encodedCallback.value();
 			}
 
 			auto getChannels()
@@ -127,22 +118,13 @@ namespace slim
 				return samplingRate.value();
 			}
 
-			auto getWriter()
-			{
-				if (!writerPtr)
-				{
-					throw Exception("Stream writer was not provided");
-				}
-				return writerPtr;
-			}
-
 			std::unique_ptr<EncoderBase> build()
 			{
 				if (!builder)
 				{
 					throw Exception("Builder function was not provided");
 				}
-				return std::move(builder(getChannels(), getBitsPerSample(), getBitsPerValue(), getSamplingRate(), std::ref(*getWriter()), getHeader(), getExtention(), getMIME(), getEncodedCallback()));
+				return std::move(builder(getChannels(), getBitsPerSample(), getBitsPerValue(), getSamplingRate(), getHeader(), getExtention(), getMIME(), getEncodedCallback()));
 			}
 
 			void setBitsPerSample(unsigned int bs)
@@ -195,11 +177,6 @@ namespace slim
 				samplingRate = s;
 			}
 
-			void setWriter(util::AsyncWriter* w)
-			{
-				writerPtr = w;
-			}
-
 		private:
 			BuilderType                                                     builder{0};
 			std::optional<unsigned int>                                     channels{std::nullopt};
@@ -211,6 +188,5 @@ namespace slim
 			std::optional<bool>                                             header{std::nullopt};
 			std::optional<std::string>                                      mime{std::nullopt};
 			std::optional<std::function<void(unsigned char*, std::size_t)>> encodedCallback{std::nullopt};
-			util::AsyncWriter*                                              writerPtr{nullptr};
 	};
 }

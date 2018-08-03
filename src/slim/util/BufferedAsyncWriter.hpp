@@ -24,11 +24,11 @@ namespace slim
 {
 	namespace util
 	{
-		template<std::size_t TotalElements>
+		template<typename AsyncWriterType, std::size_t TotalElements>
 		class BufferedAsyncWriter : public AsyncWriter
 		{
 			public:
-				BufferedAsyncWriter(std::reference_wrapper<AsyncWriter> w)
+				BufferedAsyncWriter(std::reference_wrapper<AsyncWriterType> w)
 				: writer{w} {}
 
 				virtual ~BufferedAsyncWriter() = default;
@@ -100,7 +100,7 @@ namespace slim
 					return result;
 				}
 			private:
-				std::reference_wrapper<AsyncWriter>               writer;
+				std::reference_wrapper<AsyncWriterType>           writer;
 				std::array<util::ExpandableBuffer, TotalElements> buffers;
 		};
 	}

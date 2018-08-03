@@ -19,9 +19,9 @@
 #include <string>
 
 #include "slim/EncoderBase.hpp"
+#include "slim/EncoderBuilder.hpp"
 #include "slim/log/log.hpp"
-#include "slim/util/AsyncWriter.hpp"
-#include "slim/util/ExpandableBuffer.hpp"
+#include "slim/util/BufferedAsyncWriter.hpp"
 
 
 namespace slim
@@ -32,12 +32,32 @@ namespace slim
 		class StreamingSession
 		{
 			public:
-				StreamingSession(std::reference_wrapper<ConnectionType> co, std::unique_ptr<EncoderBase> e, std::string id)
+				StreamingSession(std::reference_wrapper<ConnectionType> co, std::string id, EncoderBuilder eb)
 				: connection{co}
-				, encoderPtr{std::move(e)}
 				, clientID{id}
+				, bufferedWriter{co}
 				{
 					LOG(DEBUG) << LABELS{"proto"} << "HTTP session object was created (id=" << this << ")";
+
+					eb.setEncodedCallback([&](auto* data, auto size)
+					{
+						// do not feed writer with more data if there is no room in transfer buffer
+						if (bufferedWriter.isBufferAvailable())
+						{
+							bufferedWriter.writeAsync(data, size, [](auto error, auto written)
+							{
+								if (error)
+								{
+									LOG(ERROR) << LABELS{"proto"} << "Error while transferring encoded data: " << error.message();
+								}
+							});
+						}
+						else
+						{
+							LOG(WARNING) << LABELS{"proto"} << "Transfer buffer is full - skipping encoded chunk";
+						}
+					});
+					encoderPtr = std::move(eb.build());
 
 					// creating response string
 					std::stringstream ss;
@@ -110,9 +130,11 @@ namespace slim
 				}
 
 			private:
-				std::reference_wrapper<ConnectionType> connection;
-				std::unique_ptr<EncoderBase>           encoderPtr;
-				std::string                            clientID;
+				std::reference_wrapper<ConnectionType>         connection;
+				std::string                                    clientID;
+				// TODO: parametrize
+				util::BufferedAsyncWriter<ConnectionType, 128> bufferedWriter;
+				std::unique_ptr<EncoderBase>                   encoderPtr;
 		};
 	}
 }

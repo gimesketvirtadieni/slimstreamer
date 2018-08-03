@@ -12,11 +12,14 @@
 
 #pragma once
 
+#include <cstddef>   // std::size_t
+#include <cstdint>   // std::int..._t
 #include <memory>
 
 #include "slim/Chunk.hpp"
 #include "slim/Consumer.hpp"
 #include "slim/EncoderBase.hpp"
+#include "slim/EncoderBuilder.hpp"
 #include "slim/log/log.hpp"
 #include "slim/util/AsyncWriter.hpp"
 
@@ -26,12 +29,38 @@ namespace slim
 	class FileConsumer : public Consumer
 	{
 		public:
-			FileConsumer(std::unique_ptr<util::AsyncWriter> w, std::unique_ptr<EncoderBase> e)
-			: Consumer{e->getSamplingRate()}
+			FileConsumer(std::unique_ptr<util::AsyncWriter> w, EncoderBuilder eb)
+			: Consumer{eb.getSamplingRate()}
 			, writerPtr{std::move(w)}
-			, encoderPtr{std::move(e)} {}
+			, headerRequired{eb.getHeader()}
+			{
+				LOG(ERROR) << LABELS{"slim"} << "HEADER=" << headerRequired;
+				eb.setEncodedCallback([&](auto* data, auto size)
+				{
+					writerPtr->writeAsync(data, size, [](auto error, auto written)
+					{
+						if (error)
+						{
+							LOG(ERROR) << LABELS{"slim"} << "Error while writing encoded data: " << error.message();
+						}
+					});
+				});
+				encoderPtr = std::move(eb.build());
 
-			virtual ~FileConsumer() = default;
+				if (headerRequired)
+				{
+					writeHeader();
+				}
+			}
+
+			virtual ~FileConsumer()
+			{
+				if (headerRequired)
+				{
+					writeHeader(bytesWritten);
+				}
+			}
+
 			FileConsumer(const FileConsumer&) = delete;             // non-copyable
 			FileConsumer& operator=(const FileConsumer&) = delete;  // non-assignable
 			FileConsumer(FileConsumer&& rhs) = delete;              // non-movable
@@ -43,6 +72,7 @@ namespace slim
 				auto  size{chunk.getSize()};
 
 				encoderPtr->encode(data, size);
+				bytesWritten += size;
 
 				LOG(DEBUG) << LABELS{"slim"} << "Written " << chunk.getFrames() << " frames";
 
@@ -53,8 +83,55 @@ namespace slim
 			virtual void start() override {}
 			virtual void stop(bool gracefully = true) override {}
 
+		protected:
+			void writeHeader(std::size_t s = 0)
+			{
+				auto               size{static_cast<std::uint32_t>(s)};
+				const unsigned int channels{encoderPtr->getChannels()};
+				const unsigned int bitsPerSample{encoderPtr->getBitsPerSample()};
+				const unsigned int samplingRate{encoderPtr->getSamplingRate()};
+				const unsigned int bytesPerFrame{channels * (bitsPerSample >> 3)};
+				const unsigned int byteRate{samplingRate * bytesPerFrame};
+				const char         chunkID[]     = {0x52, 0x49, 0x46, 0x46};
+				const char         format[]      = {0x57, 0x41, 0x56, 0x45};
+				const char         subchunk1ID[] = {0x66, 0x6D, 0x74, 0x20};
+				const char         size1[]       = {0x10, 0x00, 0x00, 0x00};
+				const char         format1[]     = {0x01, 0x00};  // PCM data = 0x01
+				const char         subchunk2ID[] = {0x64, 0x61, 0x74, 0x61};
+
+				// creating header string
+				std::stringstream ss;
+				ss.write(chunkID, sizeof(chunkID));
+				ss.write((const char*)&size, sizeof(size));
+				ss.write(format, sizeof(format));
+				ss.write(subchunk1ID, sizeof(subchunk1ID));
+				ss.write(size1, sizeof(size1));
+				ss.write(format1, sizeof(format1));
+				ss.write((const char*)&channels, sizeof(std::uint16_t));
+				ss.write((const char*)&samplingRate, sizeof(std::uint32_t));
+				ss.write((const char*)&byteRate, sizeof(std::uint32_t));
+				ss.write((const char*)&bytesPerFrame, sizeof(std::uint16_t));
+				ss.write((const char*)&bitsPerSample, sizeof(std::int16_t));
+				ss.write(subchunk2ID, sizeof(subchunk2ID));
+				ss.write((const char*)&size, sizeof(size));
+
+				// seeking to the beginning
+				writerPtr->rewind(0);
+
+				// no need to keep string to be sent as BufferedWriter uses its own buffer for async write
+				writerPtr->writeAsync(ss.str(), [&](auto error, auto written)
+				{
+					if (!error)
+					{
+						bytesWritten += written;
+					}
+				});
+			}
+
 		private:
 			std::unique_ptr<util::AsyncWriter> writerPtr;
 			std::unique_ptr<EncoderBase>       encoderPtr;
+			bool                               headerRequired;
+			std::size_t                        bytesWritten{0};
 	};
 }

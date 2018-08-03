@@ -13,13 +13,8 @@
 #pragma once
 
 #include <cstddef>   // std::size_t
-#include <cstdint>   // std::int..._t
-#include <string>
 
 #include "slim/EncoderBase.hpp"
-#include "slim/log/log.hpp"
-#include "slim/util/AsyncWriter.hpp"
-#include "slim/util/BufferedAsyncWriter.hpp"
 
 
 namespace slim
@@ -29,25 +24,10 @@ namespace slim
 		class Encoder : public EncoderBase
 		{
 			public:
-				explicit Encoder(unsigned int ch, unsigned int bs, unsigned int bv, unsigned int sr, std::reference_wrapper<util::AsyncWriter> w, bool hd, std::string ex, std::string mm, EncodedCallbackType ec)
-				: EncoderBase{ch, bs, bv, sr, ex, mm, ec}
-				, bufferedWriter{w}
-				, headerRequired{hd}
-				{
-					if (headerRequired)
-					{
-						writeHeader();
-					}
-				}
+				explicit Encoder(unsigned int ch, unsigned int bs, unsigned int bv, unsigned int sr, bool hd, std::string ex, std::string mm, EncodedCallbackType ec)
+				: EncoderBase{ch, bs, bv, sr, ex, mm, ec} {}
 
-				virtual ~Encoder()
-				{
-					if (headerRequired)
-					{
-						writeHeader(bytesWritten);
-					}
-				}
-
+				virtual ~Encoder() = default;
 				Encoder(const Encoder&) = delete;             // non-copyable
 				Encoder& operator=(const Encoder&) = delete;  // non-assignable
 				Encoder(Encoder&&) = delete;                  // non-movable
@@ -55,77 +35,8 @@ namespace slim
 
 				virtual void encode(unsigned char* data, const std::size_t size) override
 				{
-					// do not feed encoder with more data if there is no room in transfer buffer
-					if (bufferedWriter.isBufferAvailable())
-					{
-						bufferedWriter.writeAsync(data, size, [&](auto error, auto written)
-						{
-							if (!error)
-							{
-								bytesWritten += size;
-							}
-							else
-							{
-								LOG(ERROR) << LABELS{"wave"} << "Error while transferring encoded data: " << error.message();
-							}
-						});
-					}
-					else
-					{
-						LOG(WARNING) << LABELS{"flac"} << "Transfer buffer is full - skipping PCM chunk";
-					}
+					getEncodedCallback()(data, size);
 				}
-
-			protected:
-				void writeHeader(std::size_t s = 0)
-				{
-					auto               size{static_cast<std::uint32_t>(s)};
-					const unsigned int channels{getChannels()};
-					const unsigned int bitsPerSample{getBitsPerSample()};
-					const unsigned int samplingRate{getSamplingRate()};
-					const unsigned int bytesPerFrame{channels * (bitsPerSample >> 3)};
-					const unsigned int byteRate{samplingRate * bytesPerFrame};
-					const char         chunkID[]     = {0x52, 0x49, 0x46, 0x46};
-					const char         format[]      = {0x57, 0x41, 0x56, 0x45};
-					const char         subchunk1ID[] = {0x66, 0x6D, 0x74, 0x20};
-					const char         size1[]       = {0x10, 0x00, 0x00, 0x00};
-					const char         format1[]     = {0x01, 0x00};  // PCM data = 0x01
-					const char         subchunk2ID[] = {0x64, 0x61, 0x74, 0x61};
-
-					// creating header string
-					std::stringstream ss;
-					ss.write(chunkID, sizeof(chunkID));
-					ss.write((const char*)&size, sizeof(size));
-					ss.write(format, sizeof(format));
-					ss.write(subchunk1ID, sizeof(subchunk1ID));
-					ss.write(size1, sizeof(size1));
-					ss.write(format1, sizeof(format1));
-					ss.write((const char*)&channels, sizeof(std::uint16_t));
-					ss.write((const char*)&samplingRate, sizeof(std::uint32_t));
-					ss.write((const char*)&byteRate, sizeof(std::uint32_t));
-					ss.write((const char*)&bytesPerFrame, sizeof(std::uint16_t));
-					ss.write((const char*)&bitsPerSample, sizeof(std::int16_t));
-					ss.write(subchunk2ID, sizeof(subchunk2ID));
-					ss.write((const char*)&size, sizeof(size));
-
-					// seeking to the beginning
-					bufferedWriter.rewind(0);
-
-					// no need to keep string to be sent as BufferedWriter uses its own buffer for async write
-					bufferedWriter.writeAsync(ss.str(), [&](auto error, auto written)
-					{
-						if (!error)
-						{
-							bytesWritten += written;
-						}
-					});
-				}
-
-			private:
-				// TODO: parametrize
-				util::BufferedAsyncWriter<10> bufferedWriter;
-				bool                          headerRequired;
-				std::size_t                   bytesWritten{0};
 		};
 	}
 }

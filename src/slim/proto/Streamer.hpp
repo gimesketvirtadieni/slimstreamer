@@ -165,12 +165,11 @@ namespace slim
 
 						LOG(INFO) << LABELS{"proto"} << "Client ID was parsed (clientID=" << clientID.value() << ")";
 
-						// configuring an encoder builder
+						// setting encoder sampling rate
 						encoderBuilder.setSamplingRate(getSamplingRate());
-						encoderBuilder.setWriter(&connection);
 
 						// creating streaming session object
-						auto streamingSessionPtr{std::make_unique<StreamingSessionType>(std::ref<ConnectionType>(connection), std::move(encoderBuilder.build()), clientID.value())};
+						auto streamingSessionPtr{std::make_unique<StreamingSessionType>(std::ref<ConnectionType>(connection), clientID.value(), encoderBuilder)};
 
 						// saving Streaming session reference in the relevant Command session
 						auto commandSessionPtr{findSessionByID(commandSessions, clientID.value())};
