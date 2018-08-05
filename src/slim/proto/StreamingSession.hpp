@@ -89,10 +89,21 @@ namespace slim
 					return clientID;
 				}
 
-				inline void onEncodedData(unsigned char* data, std::size_t size, unsigned int samplingRate)
+				inline unsigned long getSamplesEncoded()
+				{
+					return encoderPtr->getSamplesEncoded();
+				}
+
+				inline unsigned long getSamplesProvided()
+				{
+					return samplesProvided;
+				}
+
+				inline void onData(unsigned char* data, std::size_t size, unsigned int samplingRate)
 				{
 					if (encoderPtr->getSamplingRate() == samplingRate)
 					{
+						samplesProvided += (size / (encoderPtr->getBitsPerSample() >> 3));
 						encoderPtr->encode(data, size);
 					}
 					else
@@ -121,7 +132,7 @@ namespace slim
 					auto separator{std::string{"="}};
 
 					auto index = header.find(separator);
-					if ( index != std::string::npos)
+					if (index != std::string::npos)
 					{
 						result = std::string{header.c_str() + index + separator.length(), header.length() - index - separator.length()};
 					}
@@ -135,6 +146,7 @@ namespace slim
 				// TODO: parametrize
 				util::BufferedAsyncWriter<ConnectionType, 128> bufferedWriter;
 				std::unique_ptr<EncoderBase>                   encoderPtr;
+				unsigned long                                  samplesProvided{0};
 		};
 	}
 }
