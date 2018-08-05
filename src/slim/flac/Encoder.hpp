@@ -144,16 +144,23 @@ namespace slim
 					}
 				}
 
+				virtual unsigned long getSamplesEncoded() override
+				{
+					return samplesEncoded;
+				}
+
 			protected:
 				virtual ::FLAC__StreamEncoderWriteStatus write_callback(const FLAC__byte* data, std::size_t size, unsigned samples, unsigned current_frame) override
 				{
+					samplesEncoded += samples;
 					getEncodedCallback()((unsigned char*)data, size);
 
 					return FLAC__STREAM_ENCODER_WRITE_STATUS_OK;
 				}
 
 			private:
-				bool downScale{false};
+				bool          downScale{false};
+				unsigned long samplesEncoded{0};
 		};
 	}
 }
