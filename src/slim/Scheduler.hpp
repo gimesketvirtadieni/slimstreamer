@@ -14,6 +14,7 @@
 
 #include <atomic>
 #include <conwrap/ProcessorProxy.hpp>
+#include <chrono>
 #include <functional>
 #include <memory>
 #include <scope_guard.hpp>

@@ -12,7 +12,6 @@
 
 #pragma once
 
-#include <chrono>
 #include <cstddef>  // std::size_t
 #include <functional>
 #include <optional>
@@ -42,7 +41,6 @@ namespace slim
 		{
 			using CommandHandlersMap   = std::unordered_map<std::string, std::function<std::size_t(unsigned char*, std::size_t, util::Timestamp)>>;
 			using EventHandlersMap     = std::unordered_map<std::string, std::function<void(CommandSTAT&, util::Timestamp)>>;
-			using TimePointType        = std::chrono::time_point<std::chrono::steady_clock>;
 			using StreamingSessionType = StreamingSession<ConnectionType>;
 
 			public:

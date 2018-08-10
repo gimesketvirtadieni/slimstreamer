@@ -13,7 +13,6 @@
 #pragma once
 
 #include <conwrap/ProcessorAsioProxy.hpp>
-#include <chrono>
 #include <cstddef>       // std::size_t
 #include <exception>     // std::exception
 #include <system_error>  // std::system_error
@@ -183,10 +182,6 @@ namespace slim
 									asio::mutable_buffer(buffer.data(), buffer.size()),
 									[&](const std::error_code error, std::size_t bytes_transferred)
 									{
-										//auto timestamp{std::chrono::steady_clock::now()};
-										//auto microsec{std::chrono::duration_cast<std::chrono::microseconds>(timestamp.time_since_epoch()).count()};
-										//LOG(DEBUG) << LABELS{"conn"} << "DATA RECEIVED=" << microsec;
-
 										processorProxyPtr->wrap([=, timestamp{util::Timestamp()}]
 										{
 											onData(error, bytes_transferred, timestamp);

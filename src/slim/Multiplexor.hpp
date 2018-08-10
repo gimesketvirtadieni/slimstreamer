@@ -13,6 +13,7 @@
 #pragma once
 
 #include <conwrap/ProcessorProxy.hpp>
+#include <chrono>
 #include <functional>
 #include <memory>
 #include <thread>

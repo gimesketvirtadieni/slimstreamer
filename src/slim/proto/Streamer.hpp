@@ -48,7 +48,6 @@ namespace slim
 		{
 			template<typename SessionType>
 			using SessionsMap          = std::unordered_map<ConnectionType*, std::unique_ptr<SessionType>>;
-			using TimePointType        = std::chrono::time_point<std::chrono::steady_clock>;
 			using CommandSessionType   = CommandSession<ConnectionType>;
 			using StreamingSessionType = StreamingSession<ConnectionType>;
 
@@ -385,7 +384,7 @@ namespace slim
 				inline auto isReadyToStream()
 				{
 					// TODO: deferring time-out should be configurable
-					auto result{500 < std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - startedAt).count()};
+					auto result{500000 < (util::Timestamp{}.getMicroSeconds() - startedAt.getMicroSeconds())};
 					auto missingSessionsTotal{std::count_if(commandSessions.begin(), commandSessions.end(), [&](auto& entry)
 					{
 						return !entry.second->getStreamingSession();
@@ -439,8 +438,8 @@ namespace slim
 						entry.second->start();
 					}
 
-					// saving when streaming was started - required for calculating defer time-out
-					startedAt = std::chrono::steady_clock::now();
+					// capturing stream time point - required for calculations like defer time-out, etc.
+					startedAt = util::Timestamp{};
 				}
 
 				inline void stopStreaming()
@@ -464,8 +463,7 @@ namespace slim
 				std::atomic<bool>                 monitorFinish{false};
 				std::thread                       monitorThread;
 				util::TimestampCache              timestampCache;
-				// TODO: replace with util::Timestamp
-				TimePointType                     startedAt;
+				util::Timestamp                   startedAt;
 		};
 	}
 }

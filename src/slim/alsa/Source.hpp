@@ -28,6 +28,7 @@
 #include "slim/log/log.hpp"
 #include "slim/Producer.hpp"
 #include "slim/util/RealTimeQueue.hpp"
+#include "slim/util/Timestamp.hpp"
 
 
 namespace slim
@@ -43,9 +44,8 @@ namespace slim
 
 		class Source : public Producer
 		{
-			using QueueType     = util::RealTimeQueue<Chunk>;
-			using TimePointType = std::chrono::time_point<std::chrono::steady_clock>;
-			using CounterType   = unsigned long long;
+			using QueueType   = util::RealTimeQueue<Chunk>;
+			using CounterType = unsigned long long;
 
 			public:
 				Source(Parameters p, std::function<void()> oc = [] {})
@@ -124,7 +124,8 @@ namespace slim
 				{
 					auto result{false};
 
-					if (pauseUntil > std::chrono::steady_clock::now())
+					// TODO: overload > operator for util::Timestamp
+					if (pauseUntil.getMicroSeconds() > util::Timestamp{}.getMicroSeconds())
 					{
 						result = true;
 					}
@@ -136,7 +137,7 @@ namespace slim
 
 				inline void pause(unsigned int millisec)
 				{
-					pauseUntil = std::chrono::steady_clock::now() + std::chrono::milliseconds{millisec};
+					pauseUntil = util::Timestamp{std::chrono::high_resolution_clock::now() + std::chrono::milliseconds{millisec}};
 				}
 
 				template<typename ConsumerType>
@@ -185,7 +186,7 @@ namespace slim
 				std::atomic<CounterType>   chunkCounter{0};
 				bool                       streaming{true};
 				std::mutex                 lock;
-				TimePointType              pauseUntil{std::chrono::steady_clock::now()};
+				util::Timestamp            pauseUntil;
 		};
 	}
 }
