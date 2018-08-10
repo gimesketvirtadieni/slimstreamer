@@ -21,6 +21,7 @@
 #include "slim/conn/tcp/Callbacks.hpp"
 #include "slim/conn/tcp/Connection.hpp"
 #include "slim/log/log.hpp"
+#include "slim/util/Timestamp.hpp"
 
 
 namespace slim
@@ -78,11 +79,11 @@ namespace slim
 								stopAcceptor();
 							}
 						}));
-						callbacksPtr->setDataCallback(std::move([&, dataCallback = std::move(c->getDataCallback())](auto& connection, unsigned char* buffer, const std::size_t size)
+						callbacksPtr->setDataCallback(std::move([&, dataCallback = std::move(c->getDataCallback())](auto& connection, unsigned char* buffer, const std::size_t size, const util::Timestamp timestamp)
 						{
 							try
 							{
-								dataCallback(connection, buffer, size);
+								dataCallback(connection, buffer, size, timestamp);
 							}
 							catch (const std::exception& e)
 							{

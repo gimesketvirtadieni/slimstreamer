@@ -48,6 +48,7 @@
 #include "slim/proto/Streamer.hpp"
 #include "slim/Scheduler.hpp"
 #include "slim/util/StreamAsyncWriter.hpp"
+#include "slim/util/Timestamp.hpp"
 #include "slim/wave/Encoder.hpp"
 
 
@@ -115,9 +116,9 @@ auto createCommandCallbacks(Streamer<TCPConnection>& streamer)
 	{
 		streamer.onSlimProtoOpen(connection);
 	});
-	callbacksPtr->setDataCallback([&](auto& connection, unsigned char* buffer, const std::size_t size)
+	callbacksPtr->setDataCallback([&](auto& connection, unsigned char* buffer, const std::size_t size, const slim::util::Timestamp timestamp)
 	{
-		streamer.onSlimProtoData(connection, buffer, size);
+		streamer.onSlimProtoData(connection, buffer, size, timestamp);
 	});
 	callbacksPtr->setCloseCallback([&](auto& connection)
 	{
@@ -189,13 +190,11 @@ auto createProducers(Parameters parameters)
 	unsigned int                         chunkDurationMilliSecond{100};
 	std::vector<std::unique_ptr<Source>> producers;
 
-	for (auto& rate : rates)
+	for (auto& [rate, device] : rates)
 	{
-		auto[rateValue, deviceValue] = rate;
-
-		parameters.setSamplingRate(rateValue);
-		parameters.setDeviceName(deviceValue);
-		parameters.setFramesPerChunk((rateValue * chunkDurationMilliSecond) / 1000);
+		parameters.setSamplingRate(rate);
+		parameters.setDeviceName(device);
+		parameters.setFramesPerChunk((rate * chunkDurationMilliSecond) / 1000);
 
 		producers.push_back(std::make_unique<Source>(parameters, []
 		{
@@ -215,7 +214,7 @@ auto createStreamingCallbacks(Streamer<TCPConnection>& streamer)
 	{
 		streamer.onHTTPOpen(connection);
 	});
-	callbacksPtr->setDataCallback([&](auto& connection, unsigned char* buffer, const std::size_t size)
+	callbacksPtr->setDataCallback([&](auto& connection, unsigned char* buffer, const std::size_t size, const slim::util::Timestamp timestamp)
 	{
 		streamer.onHTTPData(connection, buffer, size);
 	});

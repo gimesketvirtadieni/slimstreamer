@@ -29,6 +29,8 @@
 #include "slim/proto/CommandSTRM.hpp"
 #include "slim/proto/StreamingSession.hpp"
 #include "slim/util/ExpandableBuffer.hpp"
+#include "slim/util/Timestamp.hpp"
+#include "slim/util/TimestampCache.hpp"
 
 
 namespace slim
@@ -38,34 +40,35 @@ namespace slim
 		template<typename ConnectionType>
 		class CommandSession
 		{
-			using CommandHandlersMap   = std::unordered_map<std::string, std::function<std::size_t(unsigned char*, std::size_t)>>;
-			using EventHandlersMap     = std::unordered_map<std::string, std::function<void()>>;
+			using CommandHandlersMap   = std::unordered_map<std::string, std::function<std::size_t(unsigned char*, std::size_t, util::Timestamp)>>;
+			using EventHandlersMap     = std::unordered_map<std::string, std::function<void(CommandSTAT&, util::Timestamp)>>;
 			using TimePointType        = std::chrono::time_point<std::chrono::steady_clock>;
 			using StreamingSessionType = StreamingSession<ConnectionType>;
 
 			public:
-				CommandSession(std::reference_wrapper<ConnectionType> co, std::string id, unsigned int p, FormatSelection f, std::optional<unsigned int> g)
+				CommandSession(std::reference_wrapper<ConnectionType> co, std::string id, unsigned int p, FormatSelection f, std::optional<unsigned int> g, std::reference_wrapper<util::TimestampCache> tc)
 				: connection{co}
 				, clientID{id}
 				, streamingPort{p}
 				, formatSelection{f}
 				, gain{g}
+				, timestampCache{tc}
 				, commandHandlers
 				{
 					{"DSCO", 0},
-					{"HELO", [&](auto* buffer, auto size) {return onHELO(buffer, size);}},
+					{"HELO", [&](auto* buffer, auto size, auto timestamp) {return onHELO(buffer, size);}},
 					{"RESP", 0},
 					{"SETD", 0},
-					{"STAT", [&](auto* buffer, auto size) {return onSTAT(buffer, size);}},
+					{"STAT", [&](auto* buffer, auto size, auto timestamp) {return onSTAT(buffer, size, timestamp);}},
 				}
 				, eventHandlers
 				{
-					{"STMc", [&] {onSTMc();}},
+					{"STMc", [&](auto& commandSTAT, auto timestamp) {onSTMc(commandSTAT);}},
 					{"STMd", 0},
 					{"STMf", 0},
-					{"STMo", [&] {onSTMo();}},
-					{"STMs", 0},
-					{"STMt", [&] {onSTMt();}},
+					{"STMo", [&](auto& commandSTAT, auto timestamp) {onSTMo(commandSTAT);}},
+					{"STMs", [&](auto& commandSTAT, auto timestamp) {onSTMs(commandSTAT);}},
+					{"STMt", [&](auto& commandSTAT, auto timestamp) {onSTMt(commandSTAT, timestamp);}},
 					{"STMu", 0},
 				}
 				{
@@ -107,7 +110,7 @@ namespace slim
 					return responseReceived;
 				}
 
-				inline void onRequest(unsigned char* buffer, std::size_t size)
+				inline void onRequest(unsigned char* buffer, std::size_t size, util::Timestamp timestamp)
 				{
 					// adding data to the buffer
 					commandBuffer.append(buffer, size);
@@ -140,7 +143,7 @@ namespace slim
 							{
 								if ((*found).second)
 								{
-									processedSize = (*found).second(b, s);
+									processedSize = (*found).second(b, s, timestamp);
 								}
 								else
 								{
@@ -152,7 +155,7 @@ namespace slim
 						}
 						else
 						{
-							LOG(DEBUG) << LABELS{"proto"} << "Unsupported SlimProto command received (header='" << s << "')";
+							LOG(INFO) << LABELS{"proto"} << "Unsupported SlimProto command received (header='" << s << "')";
 
 							processedSize = commandBuffer.size();
 						}
@@ -165,21 +168,28 @@ namespace slim
 
 					if (nativeSocket.is_open())
 					{
-						auto        command{CommandSTRM{CommandSelection::Time}};
-						auto        buffer{command.getBuffer()};
-						auto        size{command.getSize()};
-						std::size_t sent{0};
-						int         result{0};
+						auto          command{CommandSTRM{CommandSelection::Time}};
+						auto          buffer{command.getBuffer()};
+						auto          size{command.getSize()};
+						std::uint32_t newTimestampKey{0};
+						int           result{0};
+						std::size_t   sent{0};
 
-						// restoring the last ping time value in case of an error or exception
-						auto onError = [&, tmp = lastPingAt]
+						auto onError = [&]
 						{
-							lastPingAt = tmp;
+							// deleting a new timestamp entry if it was created
+							if (newTimestampKey > 0)
+							{
+								timestampCache.get().erase(newTimestampKey);
+							}
 						};
-						::util::scope_guard_failure onExceptionGuard{onError};
+						::util::scope_guard_failure onErrorGuard{onError};
 
-						// saving ping time as close as possible to the moment of sending data out
-						lastPingAt = std::chrono::steady_clock::now();
+						newTimestampKey = timestampCache.get().create();
+						command.getBuffer()->data.replayGain = newTimestampKey;
+
+						// capturing ping time as close as possible to the moment of sending data out
+						util::Timestamp timestamp;
 
 						// sending 'ping' command as close as possible to the local time capture point
 						while (result >= 0 && sent < size)
@@ -188,8 +198,18 @@ namespace slim
 							sent   += (result >= 0 ? result : 0);
 						}
 
-						// handling send error
-						if (result < 0)
+						// saving actual timestamp; otherwise - handling send error
+						if (result >= 0)
+						{
+							timestampCache.get().update(newTimestampKey, timestamp);
+
+							if (pingTimestampKey > 0)
+							{
+								timestampCache.get().erase(pingTimestampKey);
+							}
+							pingTimestampKey = newTimestampKey;
+						}
+						else
 						{
 							onError();
 						}
@@ -257,22 +277,19 @@ namespace slim
 					return result;
 				}
 
-				inline auto onSTAT(unsigned char* buffer, std::size_t size)
+				inline auto onSTAT(unsigned char* buffer, std::size_t size, util::Timestamp timestamp)
 				{
-					std::size_t result{0};
+					CommandSTAT commandSTAT{buffer, size};
+					std::size_t result{commandSTAT.getSize()};
 
-					// deserializing STAT command and saving in this object
-					commandSTAT = CommandSTAT{buffer, size};
-					result      = commandSTAT.value().getSize();
-
-					auto event{commandSTAT.value().getEvent()};
+					auto event{commandSTAT.getEvent()};
 					auto found{eventHandlers.find(event)};
 					if (found != eventHandlers.end())
 					{
 						LOG(DEBUG) << LABELS{"proto"} << event << " event received";
 						if ((*found).second)
 						{
-							(*found).second();
+							(*found).second(commandSTAT, timestamp);
 						}
 					}
 					else
@@ -283,47 +300,57 @@ namespace slim
 					return result;
 				}
 
-				inline void onSTMc()
+				inline void onSTMc(CommandSTAT& commandSTAT)
 				{
 					connectedReceived = true;
 				}
 
-				inline void onSTMo()
+				inline void onSTMo(CommandSTAT& commandSTAT)
 				{
 					LOG(WARNING) << LABELS{"proto"} << "xRUN notification sent by a client";
 				}
 
-				inline void onSTMt()
+				inline void onSTMs(CommandSTAT& commandSTAT)
 				{
-					//if (commandSTAT.has_value())
-					//{
-					//	LOG(DEBUG) << LABELS{"proto"} << "played by client=" << commandSTAT.value().getElapsed();
-					//}
+					// TODO: work in progress
+					LOG(DEBUG) << LABELS{"proto"} << "1 STARTED=" << commandSTAT.getBuffer()->elapsedMilliseconds;
+					if (streamingSessionPtr)
+					{
+						LOG(DEBUG) << LABELS{"proto"} << "2 STARTED=" << streamingSessionPtr->getSamplesProvided();
+						LOG(DEBUG) << LABELS{"proto"} << "3 STARTED=" << streamingSessionPtr->getSamplesEncoded();
+					}
+				}
+
+				inline void onSTMt(CommandSTAT& commandSTAT, util::Timestamp receiveTimestamp)
+				{
+					// TODO: work in progress
+					auto sendTimestamp  = timestampCache.get().get(commandSTAT.getBuffer()->serverTimestamp).value();
+					LOG(DEBUG) << LABELS{"proto"} << "round trip latency=" << receiveTimestamp.getMicroSeconds() - sendTimestamp.getMicroSeconds();
 				}
 
 				template<typename CommandType>
-				inline void send(CommandType command)
+				inline void send(CommandType&& command)
 				{
 					connection.get().write(command.getBuffer(), command.getSize());
 				}
 
 			private:
-				std::reference_wrapper<ConnectionType> connection;
-				std::string                            clientID;
-				unsigned int                           streamingPort{0};
-				FormatSelection                        formatSelection;
-				std::optional<unsigned int>            gain;
-				CommandHandlersMap                     commandHandlers;
-				EventHandlersMap                       eventHandlers;
-				bool                                   streaming{false};
-				unsigned int                           samplingRate{0};
-				StreamingSessionType*                  streamingSessionPtr{nullptr};
-				bool                                   connectedReceived{false};
-				bool                                   responseReceived{false};
-				util::ExpandableBuffer                 commandBuffer{std::size_t{0}, std::size_t{2048}};
-				std::optional<CommandHELO>             commandHELO{std::nullopt};
-				std::optional<CommandSTAT>             commandSTAT{std::nullopt};
-				std::optional<TimePointType>           lastPingAt{std::nullopt};
+				std::reference_wrapper<ConnectionType>       connection;
+				std::string                                  clientID;
+				unsigned int                                 streamingPort{0};
+				FormatSelection                              formatSelection;
+				std::optional<unsigned int>                  gain;
+				std::reference_wrapper<util::TimestampCache> timestampCache;
+				CommandHandlersMap                           commandHandlers;
+				EventHandlersMap                             eventHandlers;
+				bool                                         streaming{false};
+				unsigned int                                 samplingRate{0};
+				StreamingSessionType*                        streamingSessionPtr{nullptr};
+				bool                                         connectedReceived{false};
+				bool                                         responseReceived{false};
+				util::ExpandableBuffer                       commandBuffer{std::size_t{0}, std::size_t{2048}};
+				std::optional<CommandHELO>                   commandHELO{std::nullopt};
+				std::uint32_t                                pingTimestampKey{0};
 		};
 	}
 }

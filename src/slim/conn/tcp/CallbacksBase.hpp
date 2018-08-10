@@ -15,6 +15,8 @@
 #include <cstddef>  // std::size_t
 #include <functional>
 
+#include "slim/util/Timestamp.hpp"
+
 
 namespace slim
 {
@@ -25,6 +27,12 @@ namespace slim
 			template<typename ConnectionType>
 			class CallbacksBase
 			{
+				using StartCallbackType = std::function<void(ConnectionType&)>;
+				using OpenCallbackType  = std::function<void(ConnectionType&)>;
+				using DataCallbackType  = std::function<void(ConnectionType&, unsigned char*, const std::size_t, const util::Timestamp timestamp)>;
+				using CloseCallbackType = std::function<void(ConnectionType&)>;
+				using StopCallbackType  = std::function<void(ConnectionType&)>;
+
 				public:
 					CallbacksBase() = default;
 
@@ -74,7 +82,7 @@ namespace slim
 						return (*this);
 					}
 
-					inline auto& setDataCallback(std::function<void(ConnectionType&, unsigned char*, const std::size_t)> c)
+					inline auto& setDataCallback(std::function<void(ConnectionType&, unsigned char*, const std::size_t, const util::Timestamp)> c)
 					{
 						if (c)
 						{
@@ -82,7 +90,7 @@ namespace slim
 						}
 						else
 						{
-							dataCallback = [](auto& connection, unsigned char* buffer, const std::size_t size) {};
+							dataCallback = [](auto& connection, unsigned char* buffer, const std::size_t size, const util::Timestamp) {};
 						}
 						return (*this);
 					}
@@ -127,11 +135,11 @@ namespace slim
 					}
 
 				private:
-					std::function<void(ConnectionType&)>                                    startCallback{[](auto& connection) {}};
-					std::function<void(ConnectionType&)>                                    openCallback{[](auto& connection) {}};
-					std::function<void(ConnectionType&, unsigned char*, const std::size_t)> dataCallback{[](auto& connection, auto* buffer, auto size) {}};
-					std::function<void(ConnectionType&)>                                    closeCallback{[](auto& connection) {}};
-					std::function<void(ConnectionType&)>                                    stopCallback{[](auto& connection) {}};
+					StartCallbackType startCallback{[](auto& connection) {}};
+					OpenCallbackType  openCallback{[](auto& connection) {}};
+					DataCallbackType  dataCallback{[](auto& connection, auto* buffer, auto size, auto timestamp) {}};
+					CloseCallbackType closeCallback{[](auto& connection) {}};
+					StopCallbackType  stopCallback{[](auto& connection) {}};
 			};
 		}
 	}

@@ -13,6 +13,7 @@
 #pragma once
 
 #include <conwrap/ProcessorAsioProxy.hpp>
+#include <chrono>
 #include <cstddef>       // std::size_t
 #include <exception>     // std::exception
 #include <system_error>  // std::system_error
@@ -20,6 +21,7 @@
 #include "slim/conn/tcp/CallbacksBase.hpp"
 #include "slim/log/log.hpp"
 #include "slim/util/AsyncWriter.hpp"
+#include "slim/util/Timestamp.hpp"
 
 
 namespace slim
@@ -158,7 +160,7 @@ namespace slim
 						LOG(DEBUG) << LABELS{"conn"} << "Connection was closed (id=" << this << ", error='" << error.message() << "')";
 					}
 
-					void onData(const std::error_code error, const std::size_t receivedSize)
+					void onData(const std::error_code error, const std::size_t receivedSize, const util::Timestamp timestamp)
 					{
 						// if error then closing this connection
 						if (error)
@@ -170,7 +172,7 @@ namespace slim
 							// calling onData callback that does all the usefull work
 							if (receivedSize > 0)
 							{
-								callbacks.getDataCallback()(*this, buffer.data(), receivedSize);
+								callbacks.getDataCallback()(*this, buffer.data(), receivedSize, timestamp);
 							}
 
 							// submitting a new task here allows other tasks to progress
@@ -181,9 +183,13 @@ namespace slim
 									asio::mutable_buffer(buffer.data(), buffer.size()),
 									[&](const std::error_code error, std::size_t bytes_transferred)
 									{
-										processorProxyPtr->wrap([=]
+										//auto timestamp{std::chrono::steady_clock::now()};
+										//auto microsec{std::chrono::duration_cast<std::chrono::microseconds>(timestamp.time_since_epoch()).count()};
+										//LOG(DEBUG) << LABELS{"conn"} << "DATA RECEIVED=" << microsec;
+
+										processorProxyPtr->wrap([=, timestamp{util::Timestamp()}]
 										{
-											onData(error, bytes_transferred);
+											onData(error, bytes_transferred, timestamp);
 										})();
 									}
 								);
@@ -207,7 +213,7 @@ namespace slim
 							}
 
 							// start receiving data
-							onData(error, 0);
+							onData(error, 0, util::Timestamp{});
 
 							LOG(DEBUG) << LABELS{"conn"} << "Connection was opened (id=" << this << ")";
 						}
