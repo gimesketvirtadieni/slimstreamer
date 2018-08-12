@@ -67,7 +67,7 @@ namespace slim
 					memcpy(&strm.data.opcode, "strm", sizeof(strm.data.opcode));
 
 					strm.data.command    = static_cast<char>(commandSelection);
-					strm.data.autostart  = '1';  // autostart
+					strm.data.autostart  = '0';  // autostart
 
 					if (formatSelection == FormatSelection::PCM)
 					{

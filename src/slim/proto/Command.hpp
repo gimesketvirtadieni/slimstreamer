@@ -21,9 +21,10 @@ namespace slim
 	{
 		enum class CommandSelection : char
 		{
-			Start = 's',
-			Stop  = 'q',
-			Time  = 't',
+			Start   = 's',
+			Stop    = 'q',
+			Time    = 't',
+			Unpause = 'u',
 		};
 
 		enum class FormatSelection

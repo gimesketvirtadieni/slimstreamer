@@ -64,7 +64,9 @@ namespace slim
 					{"STMc", [&](auto& commandSTAT, auto timestamp) {onSTMc(commandSTAT);}},
 					{"STMd", 0},
 					{"STMf", 0},
+					{"STMl", [&](auto& commandSTAT, auto timestamp) {onSTMl(commandSTAT);}},
 					{"STMo", [&](auto& commandSTAT, auto timestamp) {onSTMo(commandSTAT);}},
+					{"STMr", 0},
 					{"STMs", [&](auto& commandSTAT, auto timestamp) {onSTMs(commandSTAT);}},
 					{"STMt", [&](auto& commandSTAT, auto timestamp) {onSTMt(commandSTAT, timestamp);}},
 					{"STMu", 0},
@@ -303,6 +305,12 @@ namespace slim
 					connectedReceived = true;
 				}
 
+				inline void onSTMl(CommandSTAT& commandSTAT)
+				{
+					LOG(DEBUG) << LABELS{"proto"} << "Client playback threshold was reached";
+					send(CommandSTRM{CommandSelection::Unpause});
+				}
+
 				inline void onSTMo(CommandSTAT& commandSTAT)
 				{
 					LOG(WARNING) << LABELS{"proto"} << "xRUN notification sent by a client";
@@ -322,8 +330,22 @@ namespace slim
 				inline void onSTMt(CommandSTAT& commandSTAT, util::Timestamp receiveTimestamp)
 				{
 					// TODO: work in progress
-					auto sendTimestamp  = timestampCache.get().get(commandSTAT.getBuffer()->serverTimestamp).value();
-					LOG(DEBUG) << LABELS{"proto"} << "round trip latency=" << receiveTimestamp.getMicroSeconds() - sendTimestamp.getMicroSeconds();
+					if (commandSTAT.getBuffer()->serverTimestamp)
+					{
+						auto sendTimestamp = timestampCache.get().get(commandSTAT.getBuffer()->serverTimestamp);
+						if (sendTimestamp.has_value())
+						{
+							LOG(DEBUG) << LABELS{"proto"} << "round trip latency=" << receiveTimestamp.getMicroSeconds() - sendTimestamp.value().getMicroSeconds();
+						}
+						else
+						{
+							LOG(WARNING) << LABELS{"proto"} << "invalid server timestamp data sent by a client";
+						}
+					}
+					else
+					{
+						LOG(DEBUG) << LABELS{"proto"} << "client initiated ping request received";
+					}
 				}
 
 				template<typename CommandType>
