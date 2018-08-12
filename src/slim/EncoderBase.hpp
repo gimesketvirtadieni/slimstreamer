@@ -73,8 +73,6 @@ namespace slim
 				return mime;
 			}
 
-			virtual unsigned long getSamplesEncoded() = 0;
-
 			inline auto getSamplingRate()
 			{
 				return samplingRate;

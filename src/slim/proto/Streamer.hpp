@@ -349,11 +349,11 @@ namespace slim
 					// if there are command sessions without relevant HTTP session
 					if (counter > 0)
 					{
-						LOG(WARNING) << LABELS{"proto"} << "A chunk was not delivered to all clients (clients=" << commandSessions.size() << ", skipped=" << counter << ", size=" << chunk.getSize() << ")";
+						LOG(WARNING) << LABELS{"proto"} << "A chunk was not delivered to all clients (clients=" << commandSessions.size() << ", skipped=" << counter << ", frames=" << chunk.getFrames() << ")";
 					}
 					else
 					{
-						LOG(DEBUG) << LABELS{"proto"} << "A chunk was delivered (clients=" << commandSessions.size() << ", size=" << chunk.getSize() << ")";
+						LOG(DEBUG) << LABELS{"proto"} << "A chunk was delivered (clients=" << commandSessions.size() << ", frames=" << chunk.getFrames() << ")";
 					}
 				}
 

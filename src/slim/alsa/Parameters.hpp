@@ -25,7 +25,7 @@ namespace slim
 		class Parameters
 		{
 			public:
-				Parameters(std::string d, unsigned int c, snd_pcm_format_t f, unsigned int r, size_t qs, snd_pcm_uframes_t fc, unsigned int p)
+				Parameters(std::string d, unsigned int c, snd_pcm_format_t f, unsigned int r, std::size_t qs, snd_pcm_uframes_t fc, unsigned int p)
 				: deviceName{d}
 				, channels{c}
 				, format{f}
@@ -51,30 +51,9 @@ namespace slim
 					return static_cast<unsigned int>(snd_pcm_format_width(format));
 				}
 
-				inline const unsigned int getLogicalChannels() const
-				{
-					return channels - 1;
-				}
-
-				inline const unsigned int getTotalChannels() const
-				{
-					return channels;
-				}
-
 				inline const std::string getDeviceName() const
 				{
 					return deviceName;
-				}
-
-				inline const size_t getQueueSize() const
-				{
-					// TODO: calculate based on latency
-					return queueSize;
-				}
-
-				inline const unsigned int getSamplingRate() const
-				{
-					return samplingRate;
 				}
 
 				inline const snd_pcm_format_t getFormat() const
@@ -87,15 +66,36 @@ namespace slim
 					return framesPerChunk;
 				}
 
+				inline const unsigned int getLogicalChannels() const
+				{
+					return channels - 1;
+				}
+
+				inline const std::size_t getQueueSize() const
+				{
+					// TODO: calculate based on latency
+					return queueSize;
+				}
+
 				inline const unsigned int getPeriods() const
 				{
 					return periods;
+				}
+
+				inline const unsigned int getSamplingRate() const
+				{
+					return samplingRate;
 				}
 
 				inline const unsigned int getStartThreshold() const
 				{
 					// TODO: parametrize
 					return 5;
+				}
+
+				inline const unsigned int getTotalChannels() const
+				{
+					return channels;
 				}
 
 				inline void setDeviceName(std::string d)
@@ -118,7 +118,7 @@ namespace slim
 				unsigned int      channels;
 				snd_pcm_format_t  format;
 				unsigned int      samplingRate;
-				size_t            queueSize;
+				std::size_t       queueSize;
 				snd_pcm_uframes_t framesPerChunk;
 				unsigned int      periods;
 		};

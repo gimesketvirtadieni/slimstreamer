@@ -322,8 +322,7 @@ namespace slim
 					LOG(DEBUG) << LABELS{"proto"} << "1 STARTED=" << commandSTAT.getBuffer()->elapsedMilliseconds;
 					if (streamingSessionPtr)
 					{
-						LOG(DEBUG) << LABELS{"proto"} << "2 STARTED=" << streamingSessionPtr->getSamplesProvided();
-						LOG(DEBUG) << LABELS{"proto"} << "3 STARTED=" << streamingSessionPtr->getSamplesEncoded();
+						LOG(DEBUG) << LABELS{"proto"} << "2 STARTED=" << ((streamingSessionPtr->getFramesProvided() * 1000) / samplingRate) - latency;
 					}
 				}
 
@@ -335,7 +334,8 @@ namespace slim
 						auto sendTimestamp = timestampCache.get().get(commandSTAT.getBuffer()->serverTimestamp);
 						if (sendTimestamp.has_value())
 						{
-							LOG(DEBUG) << LABELS{"proto"} << "round trip latency=" << receiveTimestamp.getMicroSeconds() - sendTimestamp.value().getMicroSeconds();
+							latency = (receiveTimestamp.getMicroSeconds() - sendTimestamp.value().getMicroSeconds()) / 2;
+							LOG(DEBUG) << LABELS{"proto"} << "client latency=" << latency;
 						}
 						else
 						{
@@ -371,6 +371,7 @@ namespace slim
 				util::ExpandableBuffer                       commandBuffer{std::size_t{0}, std::size_t{2048}};
 				std::optional<CommandHELO>                   commandHELO{std::nullopt};
 				std::uint32_t                                pingTimestampKey{0};
+				unsigned int                                 latency{0};
 		};
 	}
 }

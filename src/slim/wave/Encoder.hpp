@@ -36,17 +36,8 @@ namespace slim
 
 				virtual void encode(unsigned char* data, const std::size_t size) override
 				{
-					samplesEncoded += (size / (getBitsPerSample() >> 3));
 					getEncodedCallback()(data, size);
 				}
-
-				virtual unsigned long getSamplesEncoded() override
-				{
-					return samplesEncoded;
-				}
-
-			private:
-				unsigned long samplesEncoded{0};
 		};
 	}
 }
