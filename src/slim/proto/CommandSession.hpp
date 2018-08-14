@@ -116,15 +116,15 @@ namespace slim
 					// adding data to the buffer
 					commandBuffer.append(buffer, size);
 
-					std::size_t processedSize{commandBuffer.size()};
+					std::size_t processedSize{0};
 					std::size_t keySize{4};
-					if (processedSize > keySize)
+					if (commandBuffer.size() > keySize)
 					{
 						// removing processed data from the buffer in an exception safe way
-						::util::scope_guard guard = [&]
+						::util::scope_guard_failure onError = [&]
 						{
-							// TODO: this is the only use of shrinkLeft, consider alternative
-							commandBuffer.shrinkLeft(processedSize);
+							// TODO: shrinking memory means moving data towards the beginning of the buffer; thing a better way
+							commandBuffer.shrinkLeft(commandBuffer.size());
 						};
 
 						std::string s{(char*)commandBuffer.data(), keySize};
@@ -161,6 +161,9 @@ namespace slim
 							processedSize = commandBuffer.size();
 						}
 					}
+
+					// removing processed data from the buffer
+					commandBuffer.shrinkLeft(processedSize);
 				}
 
 				inline void ping()
