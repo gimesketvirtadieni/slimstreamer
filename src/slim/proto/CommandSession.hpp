@@ -23,6 +23,7 @@
 #include "slim/proto/CommandAUDE.hpp"
 #include "slim/proto/CommandAUDG.hpp"
 #include "slim/proto/CommandHELO.hpp"
+#include "slim/proto/CommandRESP.hpp"
 #include "slim/proto/CommandSETD.hpp"
 #include "slim/proto/CommandSTAT.hpp"
 #include "slim/proto/CommandSTRM.hpp"
@@ -55,7 +56,7 @@ namespace slim
 				{
 					{"DSCO", 0},
 					{"HELO", [&](auto* buffer, auto size, auto timestamp) {return onHELO(buffer, size);}},
-					{"RESP", 0},
+					{"RESP", [&](auto* buffer, auto size, auto timestamp) {return onRESP(buffer, size);}},
 					{"SETD", 0},
 					{"STAT", [&](auto* buffer, auto size, auto timestamp) {return onSTAT(buffer, size, timestamp);}},
 				}
@@ -273,6 +274,18 @@ namespace slim
 					{
 						send(CommandSTRM{CommandSelection::Start, formatSelection, streamingPort, samplingRate, clientID});
 					}
+
+					return result;
+				}
+
+				inline auto onRESP(unsigned char* buffer, std::size_t size)
+				{
+					std::size_t result{0};
+
+					LOG(INFO) << LABELS{"proto"} << "RESP command received";
+
+					// deserializing RESP command
+					result = CommandRESP{buffer, size}.getSize();
 
 					return result;
 				}
