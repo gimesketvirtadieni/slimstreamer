@@ -120,7 +120,7 @@ namespace slim
 					std::size_t keySize{4};
 					if (commandBuffer.size() > keySize)
 					{
-						// removing processed data from the buffer in an exception safe way
+						// removing data from the buffer in case of an error
 						::util::scope_guard_failure onError = [&]
 						{
 							// TODO: shrinking memory means moving data towards the beginning of the buffer; thing a better way
@@ -351,16 +351,16 @@ namespace slim
 						if (sendTimestamp.has_value())
 						{
 							latency = (receiveTimestamp.getMicroSeconds() - sendTimestamp.value().getMicroSeconds()) / 2;
-							LOG(DEBUG) << LABELS{"proto"} << "client latency=" << latency;
+							LOG(DEBUG) << LABELS{"proto"} << "Client latency=" << latency;
 						}
 						else
 						{
-							LOG(WARNING) << LABELS{"proto"} << "invalid server timestamp data sent by a client";
+							LOG(WARNING) << LABELS{"proto"} << "Invalid server timestamp data sent by a client (key received=" << commandSTAT.getBuffer()->serverTimestamp << ")";
 						}
 					}
 					else
 					{
-						LOG(DEBUG) << LABELS{"proto"} << "client initiated ping request received";
+						LOG(DEBUG) << LABELS{"proto"} << "Client initiated ping request received";
 					}
 				}
 

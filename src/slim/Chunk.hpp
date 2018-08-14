@@ -39,27 +39,27 @@ namespace slim
 			Chunk(Chunk&& rhs) = delete;
 			Chunk& operator=(Chunk&& rhs) = delete;
 
-			inline auto getChannels()
+			inline auto getChannels() const
 			{
 				return channels;
 			}
 
-			inline auto* getData()
+			inline auto* getData() const
 			{
 				return buffer.data();
 			}
 
-			inline std::size_t getFrames()
+			inline std::size_t getFrames() const
 			{
 				return getSize() / (channels * (bitsPerSample >> 3));
 			}
 
-			inline auto getSamplingRate()
+			inline auto getSamplingRate() const
 			{
 				return samplingRate;
 			}
 
-			inline std::size_t getSize()
+			inline std::size_t getSize() const
 			{
 				return buffer.size();
 			}

@@ -341,7 +341,7 @@ namespace slim
 						auto streamingSessionPtr{entry.second->getStreamingSession()};
 						if (streamingSessionPtr)
 						{
-							streamingSessionPtr->onData(chunk.getData(), chunk.getSize(), chunk.getSamplingRate());
+							streamingSessionPtr->onChunk(chunk);
 							counter--;
 						}
 					}

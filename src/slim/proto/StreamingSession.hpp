@@ -18,6 +18,7 @@
 #include <sstream>  // std::stringstream
 #include <string>
 
+#include "slim/Chunk.hpp"
 #include "slim/EncoderBase.hpp"
 #include "slim/EncoderBuilder.hpp"
 #include "slim/log/log.hpp"
@@ -94,17 +95,16 @@ namespace slim
 					return framesProvided;
 				}
 
-				// TODO: get rid of sampling rate parameter
-				inline void onData(unsigned char* data, std::size_t size, unsigned int samplingRate)
+				inline void onChunk(const Chunk& chunk)
 				{
-					if (encoderPtr->getSamplingRate() == samplingRate)
+					if (encoderPtr->getSamplingRate() == chunk.getSamplingRate())
 					{
-						framesProvided += (size / ((encoderPtr->getBitsPerSample() >> 3) * encoderPtr->getChannels()));
-						encoderPtr->encode(data, size);
+						framesProvided += (chunk.getSize() / ((encoderPtr->getBitsPerSample() >> 3) * encoderPtr->getChannels()));
+						encoderPtr->encode(chunk.getData(), chunk.getSize());
 					}
 					else
 					{
-						LOG(WARNING) << LABELS{"proto"} << "Closing HTTP connection due to different sampling rate used by a client (session rate=" << encoderPtr->getSamplingRate() << "; data rate=" << samplingRate << ")";
+						LOG(WARNING) << LABELS{"proto"} << "Closing HTTP connection due to different sampling rate used by a client (session rate=" << encoderPtr->getSamplingRate() << "; data rate=" << chunk.getSamplingRate() << ")";
 						connection.get().stop();
 					}
 				}
