@@ -78,6 +78,12 @@ namespace slim
 							{
 								processorProxyPtr->wrap([=]
 								{
+									// disabling Nagle's algorithm
+									if (!error && nativeSocket.is_open())
+									{
+										nativeSocket.set_option(asio::ip::tcp::no_delay{true});
+									}
+
 									onOpen(error);
 								})();
 							}
