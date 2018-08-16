@@ -54,20 +54,20 @@ namespace slim
 				, timestampCache{tc}
 				, commandHandlers
 				{
-					{"DSCO", 0},
+					{"DSCO", [&](auto* buffer, auto size, auto timestamp) {return onDSCO(buffer, size);}},
 					{"HELO", [&](auto* buffer, auto size, auto timestamp) {return onHELO(buffer, size);}},
 					{"RESP", [&](auto* buffer, auto size, auto timestamp) {return onRESP(buffer, size);}},
-					{"SETD", 0},
+					{"SETD", [&](auto* buffer, auto size, auto timestamp) {return onSETD(buffer, size);}},
 					{"STAT", [&](auto* buffer, auto size, auto timestamp) {return onSTAT(buffer, size, timestamp);}},
 				}
 				, eventHandlers
 				{
 					{"STMc", [&](auto& commandSTAT, auto timestamp) {onSTMc(commandSTAT);}},
-					{"STMd", 0},
-					{"STMf", 0},
+					{"STMd", [&](auto& commandSTAT, auto timestamp) {}},
+					{"STMf", [&](auto& commandSTAT, auto timestamp) {}},
 					{"STMl", [&](auto& commandSTAT, auto timestamp) {onSTMl(commandSTAT);}},
-					{"STMo", [&](auto& commandSTAT, auto timestamp) {onSTMo(commandSTAT);}},
-					{"STMr", 0},
+					{"STMo", [&](auto& commandSTAT, auto timestamp) {}},
+					{"STMr", [&](auto& commandSTAT, auto timestamp) {}},
 					{"STMs", [&](auto& commandSTAT, auto timestamp) {onSTMs(commandSTAT);}},
 					{"STMt", [&](auto& commandSTAT, auto timestamp) {onSTMt(commandSTAT, timestamp);}},
 					{"STMu", 0},
@@ -113,57 +113,46 @@ namespace slim
 
 				inline void onRequest(unsigned char* buffer, std::size_t size, util::Timestamp timestamp)
 				{
+					// removing data from the buffer in case of an error
+					::util::scope_guard_failure onError = [&]
+					{
+						commandBuffer.size(0);
+					};
+
 					// adding data to the buffer
 					commandBuffer.append(buffer, size);
 
-					std::size_t processedSize{0};
 					std::size_t keySize{4};
-					if (commandBuffer.size() > keySize)
+					std::size_t processedSize;
+					do
 					{
-						// removing data from the buffer in case of an error
-						::util::scope_guard_failure onError = [&]
-						{
-							// TODO: shrinking memory means moving data towards the beginning of the buffer; thing a better way
-							commandBuffer.shrinkLeft(commandBuffer.size());
-						};
+						processedSize = 0;
 
-						std::string s{(char*)commandBuffer.data(), keySize};
-						auto found{commandHandlers.find(s)};
+						// searching for a SlimProto Command based on a label in the buffer
+						std::string label{(char*)commandBuffer.data(), commandBuffer.size() > keySize ? keySize : 0};
+						auto        found{commandHandlers.find(label)};
 						if (found != commandHandlers.end())
 						{
-							// making sure session HELO is the first command provided by a client
-							if (!commandHELO.has_value() && (*found).first.compare("HELO"))
-							{
-								throw slim::Exception("Did not receive HELO command");
-							}
-
 							// if there is enough data to process this message
-							auto b{commandBuffer.data()};
-							auto s{commandBuffer.size()};
-							if (Command<char>::isEnoughData(b, s))
+							auto data{commandBuffer.data()};
+							auto size{commandBuffer.size()};
+							if (Command<char>::isEnoughData(data, size))
 							{
-								if ((*found).second)
-								{
-									processedSize = (*found).second(b, s, timestamp);
-								}
-								else
-								{
-									// this is a dummy command processing routine
-									LOG(INFO) << LABELS{"proto"} << (*found).first << " command received";
-									processedSize = s;
-								}
+								processedSize = (*found).second(data, size, timestamp);
+
+								// removing processed data from the buffer
+								// TODO: shrinking memory means moving data towards the beginning of the buffer; thing a better way
+								commandBuffer.shrinkLeft(processedSize);
 							}
 						}
-						else
+						else if (label.length() > 0)
 						{
-							LOG(INFO) << LABELS{"proto"} << "Unsupported SlimProto command received (header='" << s << "')";
+							LOG(WARNING) << LABELS{"proto"} << "Unsupported SlimProto command received (header='" << label << "')";
 
-							processedSize = commandBuffer.size();
+							// flushing command buffer
+							commandBuffer.size(0);
 						}
-					}
-
-					// removing processed data from the buffer
-					commandBuffer.shrinkLeft(processedSize);
+					} while (processedSize > 0);
 				}
 
 				inline void ping()
@@ -175,22 +164,22 @@ namespace slim
 						auto          command{CommandSTRM{CommandSelection::Time}};
 						auto          buffer{command.getBuffer()};
 						auto          size{command.getSize()};
-						std::uint32_t newTimestampKey{0};
+						std::uint32_t timestampKey{0};
 						int           result{0};
 						std::size_t   sent{0};
 
 						auto onError = [&]
 						{
 							// deleting a new timestamp entry if it was created
-							if (newTimestampKey > 0)
+							if (timestampKey > 0)
 							{
-								timestampCache.get().erase(newTimestampKey);
+								timestampCache.get().erase(timestampKey);
 							}
 						};
 						::util::scope_guard_failure onErrorGuard{onError};
 
-						newTimestampKey = timestampCache.get().create();
-						command.getBuffer()->data.replayGain = newTimestampKey;
+						timestampKey = timestampCache.get().create();
+						command.getBuffer()->data.replayGain = timestampKey;
 
 						// capturing ping time as close as possible to the moment of sending data out
 						util::Timestamp timestamp;
@@ -205,13 +194,7 @@ namespace slim
 						// saving actual timestamp; otherwise - handling send error
 						if (result >= 0)
 						{
-							timestampCache.get().update(newTimestampKey, timestamp);
-
-							if (pingTimestampKey > 0)
-							{
-								timestampCache.get().erase(pingTimestampKey);
-							}
-							pingTimestampKey = newTimestampKey;
+							timestampCache.get().update(timestampKey, timestamp);
 						}
 						else
 						{
@@ -257,6 +240,22 @@ namespace slim
 				}
 
 			protected:
+				inline auto onDSCO(unsigned char* buffer, std::size_t size)
+				{
+					LOG(INFO) << LABELS{"proto"} << "DSCO command received";
+
+					// TODO: work in progress
+					std::size_t result{0};
+					std::size_t offset{4};
+
+					if (size >= offset + sizeof(std::uint32_t))
+					{
+						result = ntohl(*(std::uint32_t*)(buffer + offset)) + offset + sizeof(std::uint32_t);
+					}
+
+					return result;
+				}
+
 				inline auto onHELO(unsigned char* buffer, std::size_t size)
 				{
 					std::size_t result{0};
@@ -267,12 +266,17 @@ namespace slim
 					commandHELO = CommandHELO{buffer, size};
 					result      = commandHELO.value().getSize();
 
-					send(CommandSTRM{CommandSelection::Stop});
 					send(CommandSETD{DeviceID::RequestName});
 					send(CommandSETD{DeviceID::Squeezebox3});
 					send(CommandAUDE{true, true});
 					send(CommandAUDG{gain});
 
+					// sending SlimProto Stop command will flush client's buffer which will initiate STAT/STMf message
+					send(CommandSTRM{CommandSelection::Stop});
+
+					ping();
+
+					// TODO: work in progress
 					if (streaming)
 					{
 						send(CommandSTRM{CommandSelection::Start, formatSelection, streamingPort, samplingRate, clientID});
@@ -293,6 +297,22 @@ namespace slim
 					return result;
 				}
 
+				inline auto onSETD(unsigned char* buffer, std::size_t size)
+				{
+					LOG(INFO) << LABELS{"proto"} << "SETD command received";
+
+					// TODO: work in progress
+					std::size_t result{0};
+					std::size_t offset{4};
+
+					if (size >= offset + sizeof(std::uint32_t))
+					{
+						result = ntohl(*(std::uint32_t*)(buffer + offset)) + offset + sizeof(std::uint32_t);
+					}
+
+					return result;
+				}
+
 				inline auto onSTAT(unsigned char* buffer, std::size_t size, util::Timestamp timestamp)
 				{
 					CommandSTAT commandSTAT{buffer, size};
@@ -303,10 +323,9 @@ namespace slim
 					if (found != eventHandlers.end())
 					{
 						LOG(DEBUG) << LABELS{"proto"} << event << " event received";
-						if ((*found).second)
-						{
-							(*found).second(commandSTAT, timestamp);
-						}
+
+						// invoking STAT event handler
+						(*found).second(commandSTAT, timestamp);
 					}
 					else
 					{
@@ -323,22 +342,16 @@ namespace slim
 
 				inline void onSTMl(CommandSTAT& commandSTAT)
 				{
-					LOG(DEBUG) << LABELS{"proto"} << "Client playback threshold was reached";
 					send(CommandSTRM{CommandSelection::Unpause});
-				}
-
-				inline void onSTMo(CommandSTAT& commandSTAT)
-				{
-					LOG(WARNING) << LABELS{"proto"} << "xRUN notification sent by a client";
 				}
 
 				inline void onSTMs(CommandSTAT& commandSTAT)
 				{
 					// TODO: work in progress
-					LOG(DEBUG) << LABELS{"proto"} << "1 STARTED=" << commandSTAT.getBuffer()->elapsedMilliseconds;
+					LOG(DEBUG) << LABELS{"proto"} << "client played=" << commandSTAT.getBuffer()->elapsedMilliseconds;
 					if (streamingSessionPtr)
 					{
-						LOG(DEBUG) << LABELS{"proto"} << "2 STARTED=" << ((streamingSessionPtr->getFramesProvided() * 1000) / samplingRate) - latency;
+						LOG(DEBUG) << LABELS{"proto"} << "server played=" << ((streamingSessionPtr->getFramesProvided() / samplingRate) * 1000);
 					}
 				}
 
@@ -347,11 +360,21 @@ namespace slim
 					// TODO: work in progress
 					if (commandSTAT.getBuffer()->serverTimestamp)
 					{
-						auto sendTimestamp = timestampCache.get().get(commandSTAT.getBuffer()->serverTimestamp);
+						auto sendTimestamp = timestampCache.get().find(commandSTAT.getBuffer()->serverTimestamp);
 						if (sendTimestamp.has_value())
 						{
 							latency = (receiveTimestamp.getMicroSeconds() - sendTimestamp.value().getMicroSeconds()) / 2;
 							LOG(DEBUG) << LABELS{"proto"} << "Client latency=" << latency;
+
+							if (timestampCache.get().size() > 10)
+							{
+								// TODO: should be removing the oldest
+								timestampCache.get().erase(commandSTAT.getBuffer()->serverTimestamp);
+							}
+							else
+							{
+								ping();
+							}
 						}
 						else
 						{
@@ -360,7 +383,7 @@ namespace slim
 					}
 					else
 					{
-						LOG(DEBUG) << LABELS{"proto"} << "Client initiated ping request received";
+						LOG(DEBUG) << LABELS{"proto"} << "Client sent ping request";
 					}
 				}
 
@@ -386,7 +409,6 @@ namespace slim
 				bool                                         responseReceived{false};
 				util::ExpandableBuffer                       commandBuffer{std::size_t{0}, std::size_t{2048}};
 				std::optional<CommandHELO>                   commandHELO{std::nullopt};
-				std::uint32_t                                pingTimestampKey{0};
 				unsigned int                                 latency{0};
 		};
 	}

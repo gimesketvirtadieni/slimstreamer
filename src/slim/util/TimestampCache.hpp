@@ -44,7 +44,7 @@ namespace slim
 					timestampMap.erase(key);
 				}
 
-				inline auto get(std::uint32_t key)
+				inline auto find(std::uint32_t key)
 				{
 					std::optional<Timestamp> result{std::nullopt};
 
