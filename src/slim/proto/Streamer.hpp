@@ -36,7 +36,6 @@
 #include "slim/proto/CommandSession.hpp"
 #include "slim/proto/StreamingSession.hpp"
 #include "slim/util/Timestamp.hpp"
-#include "slim/util/TimestampCache.hpp"
 
 
 namespace slim
@@ -225,7 +224,7 @@ namespace slim
 					ss << (++nextID);
 
 					// creating command session object
-					auto commandSessionPtr{std::make_unique<CommandSessionType>(std::ref<ConnectionType>(connection), ss.str(), streamingPort, encoderBuilder.getFormat(), gain, std::ref(timestampCache))};
+					auto commandSessionPtr{std::make_unique<CommandSessionType>(std::ref<ConnectionType>(connection), ss.str(), streamingPort, encoderBuilder.getFormat(), gain)};
 
 					// enable streaming for this session if required
 					if (streaming)
@@ -462,7 +461,6 @@ namespace slim
 				unsigned long                     nextID{0};
 				std::atomic<bool>                 monitorFinish{false};
 				std::thread                       monitorThread;
-				util::TimestampCache              timestampCache;
 				util::Timestamp                   startedAt;
 		};
 	}

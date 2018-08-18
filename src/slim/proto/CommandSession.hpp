@@ -45,13 +45,12 @@ namespace slim
 			using StreamingSessionType = StreamingSession<ConnectionType>;
 
 			public:
-				CommandSession(std::reference_wrapper<ConnectionType> co, std::string id, unsigned int p, FormatSelection f, std::optional<unsigned int> g, std::reference_wrapper<util::TimestampCache> tc)
+				CommandSession(std::reference_wrapper<ConnectionType> co, std::string id, unsigned int p, FormatSelection f, std::optional<unsigned int> g)
 				: connection{co}
 				, clientID{id}
 				, streamingPort{p}
 				, formatSelection{f}
 				, gain{g}
-				, timestampCache{tc}
 				, commandHandlers
 				{
 					{"DSCO", [&](auto* buffer, auto size, auto timestamp) {return onDSCO(buffer, size);}},
@@ -138,6 +137,13 @@ namespace slim
 							auto size{commandBuffer.size()};
 							if (Command<char>::isEnoughData(data, size))
 							{
+								// if this is not STAT command then reseting measuring flag
+								// TODO: consider proper usage of Command label
+								if (label.compare("STAT") != 0)
+								{
+									measuringLatency = false;
+								}
+
 								processedSize = (*found).second(data, size, timestamp);
 
 								// removing processed data from the buffer
@@ -173,13 +179,16 @@ namespace slim
 							// deleting a new timestamp entry if it was created
 							if (timestampKey > 0)
 							{
-								timestampCache.get().erase(timestampKey);
+								timestampCache.erase(timestampKey);
 							}
 						};
 						::util::scope_guard_failure onErrorGuard{onError};
 
-						timestampKey = timestampCache.get().create();
+						timestampKey = timestampCache.create();
 						command.getBuffer()->data.replayGain = timestampKey;
+
+						// setting measuring flag to make sure there were no other commends processed inbetween
+						measuringLatency = true;
 
 						// capturing ping time as close as possible to the moment of sending data out
 						util::Timestamp timestamp;
@@ -194,7 +203,7 @@ namespace slim
 						// saving actual timestamp; otherwise - handling send error
 						if (result >= 0)
 						{
-							timestampCache.get().update(timestampKey, timestamp);
+							timestampCache.update(timestampKey, timestamp);
 						}
 						else
 						{
@@ -324,6 +333,13 @@ namespace slim
 					{
 						LOG(DEBUG) << LABELS{"proto"} << event << " event received";
 
+						// if this is not STMt event then reseting measuring flag
+						// TODO: consider proper usage of STAT event label
+						if (event.compare("STMt") != 0)
+						{
+							measuringLatency = false;
+						}
+
 						// invoking STAT event handler
 						(*found).second(commandSTAT, timestamp);
 					}
@@ -357,19 +373,29 @@ namespace slim
 
 				inline void onSTMt(CommandSTAT& commandSTAT, util::Timestamp receiveTimestamp)
 				{
+					auto timestampKey{commandSTAT.getBuffer()->serverTimestamp};
+
 					// TODO: work in progress
-					if (commandSTAT.getBuffer()->serverTimestamp)
+					if (timestampKey)
 					{
-						auto sendTimestamp = timestampCache.get().find(commandSTAT.getBuffer()->serverTimestamp);
+						auto sendTimestamp = timestampCache.find(timestampKey);
 						if (sendTimestamp.has_value())
 						{
-							latency = (receiveTimestamp.getMicroSeconds() - sendTimestamp.value().getMicroSeconds()) / 2;
-							LOG(DEBUG) << LABELS{"proto"} << "Client latency=" << latency;
+							if (measuringLatency)
+							{
+								latency = (receiveTimestamp.getMicroSeconds() - sendTimestamp.value().getMicroSeconds()) / 2;
 
-							if (timestampCache.get().size() > 10)
+								LOG(DEBUG) << LABELS{"proto"} << "Client latency=" << latency;
+							}
+							else
+							{
+								timestampCache.erase(timestampKey);
+							}
+
+							if (timestampCache.size() > 10)
 							{
 								// TODO: should be removing the oldest
-								timestampCache.get().erase(commandSTAT.getBuffer()->serverTimestamp);
+								timestampCache.erase(commandSTAT.getBuffer()->serverTimestamp);
 							}
 							else
 							{
@@ -390,6 +416,9 @@ namespace slim
 				template<typename CommandType>
 				inline void send(CommandType&& command)
 				{
+					measuringLatency = false;
+
+					// TODO: use local buffer and async API to prevent from interfering while measuring latency
 					connection.get().write(command.getBuffer(), command.getSize());
 				}
 
@@ -399,7 +428,6 @@ namespace slim
 				unsigned int                                 streamingPort{0};
 				FormatSelection                              formatSelection;
 				std::optional<unsigned int>                  gain;
-				std::reference_wrapper<util::TimestampCache> timestampCache;
 				CommandHandlersMap                           commandHandlers;
 				EventHandlersMap                             eventHandlers;
 				bool                                         streaming{false};
@@ -409,6 +437,8 @@ namespace slim
 				bool                                         responseReceived{false};
 				util::ExpandableBuffer                       commandBuffer{std::size_t{0}, std::size_t{2048}};
 				std::optional<CommandHELO>                   commandHELO{std::nullopt};
+				util::TimestampCache                         timestampCache;
+				bool                                         measuringLatency{false};
 				unsigned int                                 latency{0};
 		};
 	}

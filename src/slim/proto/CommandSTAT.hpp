@@ -91,11 +91,6 @@ namespace slim
 					return &stat;
 				}
 
-				virtual std::size_t getSize() override
-				{
-					return sizeof(STAT);
-				}
-
 				inline auto getElapsed()
 				{
 					return stat.elapsedMilliseconds;
@@ -104,6 +99,11 @@ namespace slim
 				inline auto getEvent()
 				{
 					return std::string{stat.event, sizeof(stat.event)};
+				}
+
+				virtual std::size_t getSize() override
+				{
+					return sizeof(STAT);
 				}
 
 			private:
