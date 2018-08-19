@@ -20,13 +20,13 @@
 
 #include "slim/Exception.hpp"
 #include "slim/log/log.hpp"
-#include "slim/proto/CommandAUDE.hpp"
-#include "slim/proto/CommandAUDG.hpp"
-#include "slim/proto/CommandHELO.hpp"
-#include "slim/proto/CommandRESP.hpp"
-#include "slim/proto/CommandSETD.hpp"
-#include "slim/proto/CommandSTAT.hpp"
-#include "slim/proto/CommandSTRM.hpp"
+#include "slim/proto/client/CommandHELO.hpp"
+#include "slim/proto/client/CommandRESP.hpp"
+#include "slim/proto/client/CommandSTAT.hpp"
+#include "slim/proto/server/CommandAUDE.hpp"
+#include "slim/proto/server/CommandAUDG.hpp"
+#include "slim/proto/server/CommandSETD.hpp"
+#include "slim/proto/server/CommandSTRM.hpp"
 #include "slim/proto/StreamingSession.hpp"
 #include "slim/util/ExpandableBuffer.hpp"
 #include "slim/util/Timestamp.hpp"
@@ -41,7 +41,7 @@ namespace slim
 		class CommandSession
 		{
 			using CommandHandlersMap   = std::unordered_map<std::string, std::function<std::size_t(unsigned char*, std::size_t, util::Timestamp)>>;
-			using EventHandlersMap     = std::unordered_map<std::string, std::function<void(CommandSTAT&, util::Timestamp)>>;
+			using EventHandlersMap     = std::unordered_map<std::string, std::function<void(client::CommandSTAT&, util::Timestamp)>>;
 			using StreamingSessionType = StreamingSession<ConnectionType>;
 
 			public:
@@ -167,7 +167,7 @@ namespace slim
 
 					if (nativeSocket.is_open())
 					{
-						auto          command{CommandSTRM{CommandSelection::Time}};
+						auto          command{server::CommandSTRM{CommandSelection::Time}};
 						auto          buffer{command.getBuffer()};
 						auto          size{command.getSize()};
 						std::uint32_t timestampKey{0};
@@ -233,7 +233,7 @@ namespace slim
 					// if not streaming and handshake was received
 					if (!streaming && commandHELO.has_value())
 					{
-						send(CommandSTRM{CommandSelection::Start, formatSelection, streamingPort, samplingRate, clientID});
+						send(server::CommandSTRM{CommandSelection::Start, formatSelection, streamingPort, samplingRate, clientID});
 					}
 					streaming = true;
 				}
@@ -243,7 +243,7 @@ namespace slim
 					// if streaming and handshake was received
 					if (streaming && commandHELO.has_value())
 					{
-						send(CommandSTRM{CommandSelection::Stop});
+						send(server::CommandSTRM{CommandSelection::Stop});
 					}
 					streaming = false;
 				}
@@ -272,23 +272,23 @@ namespace slim
 					LOG(INFO) << LABELS{"proto"} << "HELO command received";
 
 					// deserializing HELO command
-					commandHELO = CommandHELO{buffer, size};
+					commandHELO = client::CommandHELO{buffer, size};
 					result      = commandHELO.value().getSize();
 
-					send(CommandSETD{DeviceID::RequestName});
-					send(CommandSETD{DeviceID::Squeezebox3});
-					send(CommandAUDE{true, true});
-					send(CommandAUDG{gain});
+					send(server::CommandSETD{server::DeviceID::RequestName});
+					send(server::CommandSETD{server::DeviceID::Squeezebox3});
+					send(server::CommandAUDE{true, true});
+					send(server::CommandAUDG{gain});
 
 					// sending SlimProto Stop command will flush client's buffer which will initiate STAT/STMf message
-					send(CommandSTRM{CommandSelection::Stop});
+					send(server::CommandSTRM{CommandSelection::Stop});
 
 					ping();
 
 					// TODO: work in progress
 					if (streaming)
 					{
-						send(CommandSTRM{CommandSelection::Start, formatSelection, streamingPort, samplingRate, clientID});
+						send(server::CommandSTRM{CommandSelection::Start, formatSelection, streamingPort, samplingRate, clientID});
 					}
 
 					return result;
@@ -301,7 +301,7 @@ namespace slim
 					LOG(INFO) << LABELS{"proto"} << "RESP command received";
 
 					// deserializing RESP command
-					result = CommandRESP{buffer, size}.getSize();
+					result = client::CommandRESP{buffer, size}.getSize();
 
 					return result;
 				}
@@ -324,8 +324,8 @@ namespace slim
 
 				inline auto onSTAT(unsigned char* buffer, std::size_t size, util::Timestamp timestamp)
 				{
-					CommandSTAT commandSTAT{buffer, size};
-					std::size_t result{commandSTAT.getSize()};
+					client::CommandSTAT commandSTAT{buffer, size};
+					std::size_t         result{commandSTAT.getSize()};
 
 					auto event{commandSTAT.getEvent()};
 					auto found{eventHandlers.find(event)};
@@ -351,17 +351,17 @@ namespace slim
 					return result;
 				}
 
-				inline void onSTMc(CommandSTAT& commandSTAT)
+				inline void onSTMc(client::CommandSTAT& commandSTAT)
 				{
 					connectedReceived = true;
 				}
 
-				inline void onSTMl(CommandSTAT& commandSTAT)
+				inline void onSTMl(client::CommandSTAT& commandSTAT)
 				{
-					send(CommandSTRM{CommandSelection::Unpause});
+					send(server::CommandSTRM{CommandSelection::Unpause});
 				}
 
-				inline void onSTMs(CommandSTAT& commandSTAT)
+				inline void onSTMs(client::CommandSTAT& commandSTAT)
 				{
 					// TODO: work in progress
 					LOG(DEBUG) << LABELS{"proto"} << "client played=" << commandSTAT.getBuffer()->elapsedMilliseconds;
@@ -371,7 +371,7 @@ namespace slim
 					}
 				}
 
-				inline void onSTMt(CommandSTAT& commandSTAT, util::Timestamp receiveTimestamp)
+				inline void onSTMt(client::CommandSTAT& commandSTAT, util::Timestamp receiveTimestamp)
 				{
 					auto timestampKey{commandSTAT.getBuffer()->serverTimestamp};
 
@@ -436,7 +436,7 @@ namespace slim
 				bool                                         connectedReceived{false};
 				bool                                         responseReceived{false};
 				util::ExpandableBuffer                       commandBuffer{std::size_t{0}, std::size_t{2048}};
-				std::optional<CommandHELO>                   commandHELO{std::nullopt};
+				std::optional<client::CommandHELO>           commandHELO{std::nullopt};
 				util::TimestampCache                         timestampCache;
 				bool                                         measuringLatency{false};
 				unsigned int                                 latency{0};
