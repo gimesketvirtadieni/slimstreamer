@@ -137,7 +137,7 @@ namespace slim
 
 				inline void pause(unsigned int millisec)
 				{
-					pauseUntil = util::Timestamp{std::chrono::high_resolution_clock::now() + std::chrono::milliseconds{millisec}};
+					pauseUntil = util::Timestamp{std::chrono::steady_clock::now() + std::chrono::milliseconds{millisec}};
 				}
 
 				template<typename ConsumerType>

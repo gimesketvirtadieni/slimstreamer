@@ -23,9 +23,9 @@ namespace slim
 		{
 			public:
 				Timestamp()
-				: timestamp{std::chrono::high_resolution_clock::now()} {}
+				: timestamp{std::chrono::steady_clock::now()} {}
 
-				Timestamp(const std::chrono::high_resolution_clock::time_point& t)
+				Timestamp(const std::chrono::steady_clock::time_point& t)
 				: timestamp{t} {}
 
 			   ~Timestamp() = default;
@@ -40,7 +40,7 @@ namespace slim
 				}
 
 			private:
-				std::chrono::high_resolution_clock::time_point timestamp;
+				std::chrono::steady_clock::time_point timestamp;
 		};
 	}
 }
