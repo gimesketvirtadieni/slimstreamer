@@ -20,8 +20,10 @@
 
 #include "slim/Exception.hpp"
 #include "slim/log/log.hpp"
+#include "slim/proto/client/CommandDSCO.hpp"
 #include "slim/proto/client/CommandHELO.hpp"
 #include "slim/proto/client/CommandRESP.hpp"
+#include "slim/proto/client/CommandSETD.hpp"
 #include "slim/proto/client/CommandSTAT.hpp"
 #include "slim/proto/server/CommandAUDE.hpp"
 #include "slim/proto/server/CommandAUDG.hpp"
@@ -251,16 +253,12 @@ namespace slim
 			protected:
 				inline auto onDSCO(unsigned char* buffer, std::size_t size)
 				{
+					std::size_t result{0};
+
 					LOG(INFO) << LABELS{"proto"} << "DSCO command received";
 
-					// TODO: work in progress
-					std::size_t result{0};
-					std::size_t offset{4};
-
-					if (size >= offset + sizeof(std::uint32_t))
-					{
-						result = ntohl(*(std::uint32_t*)(buffer + offset)) + offset + sizeof(std::uint32_t);
-					}
+					// deserializing DSCO command
+					result = client::CommandDSCO{buffer, size}.getSize();
 
 					return result;
 				}
@@ -308,16 +306,12 @@ namespace slim
 
 				inline auto onSETD(unsigned char* buffer, std::size_t size)
 				{
+					std::size_t result{0};
+
 					LOG(INFO) << LABELS{"proto"} << "SETD command received";
 
-					// TODO: work in progress
-					std::size_t result{0};
-					std::size_t offset{4};
-
-					if (size >= offset + sizeof(std::uint32_t))
-					{
-						result = ntohl(*(std::uint32_t*)(buffer + offset)) + offset + sizeof(std::uint32_t);
-					}
+					// deserializing SETD command
+					result = client::CommandSETD{buffer, size}.getSize();
 
 					return result;
 				}
