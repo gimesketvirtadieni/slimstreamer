@@ -78,6 +78,7 @@ namespace slim
 						}
 
 						// converting used fields
+						stat.jiffies             = ntohl(stat.jiffies);
 						stat.elapsedMilliseconds = ntohl(stat.elapsedMilliseconds);
 					}
 

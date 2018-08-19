@@ -360,9 +360,22 @@ namespace slim
 						{
 							if (measuringLatency)
 							{
-								latency = (receiveTimestamp.getMicroSeconds() - sendTimestamp.value().getMicroSeconds()) / 2;
+								if (latency.has_value())
+								{
+									auto l1 = latency.value();
+									auto l2 = (receiveTimestamp.getMicroSeconds() - sendTimestamp.value().getMicroSeconds()) / 2;
+									latency = l1 * 8 / 10 + l2 * 2 / 10;
+								}
+								else
+								{
+									latency = (receiveTimestamp.getMicroSeconds() - sendTimestamp.value().getMicroSeconds()) / 2;
+								}
+								LOG(DEBUG) << LABELS{"proto"} << "Client latency=" << latency.value();
 
-								LOG(DEBUG) << LABELS{"proto"} << "Client latency=" << latency;
+								//auto n = std::chrono::steady_clock::now();
+								//auto d = std::chrono::duration_cast<std::chrono::milliseconds>(n.time_since_epoch()).count();
+								//LOG(DEBUG) << LABELS{"proto"} << "jiffies=" << commandSTAT.getBuffer()->jiffies;
+								//LOG(DEBUG) << LABELS{"proto"} << "server=" << d;
 							}
 						}
 						else
@@ -403,8 +416,8 @@ namespace slim
 				util::ExpandableBuffer                       commandBuffer{std::size_t{0}, std::size_t{2048}};
 				std::optional<client::CommandHELO>           commandHELO{std::nullopt};
 				util::TimestampCache<10>                     timestampCache;
+				std::optional<unsigned int>                  latency{std::nullopt};
 				bool                                         measuringLatency{false};
-				unsigned int                                 latency{0};
 		};
 	}
 }
