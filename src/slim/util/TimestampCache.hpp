@@ -12,8 +12,10 @@
 
 #pragma once
 
+#include <algorithm>
+#include <array>
 #include <cstdint>  // std::u..._t types
-#include <unordered_map>
+#include <optional>
 
 #include "slim/util/Timestamp.hpp"
 
@@ -22,55 +24,80 @@ namespace slim
 {
 	namespace util
 	{
+		template<std::uint32_t TotalElements>
 		class TimestampCache
 		{
 			public:
-				TimestampCache() = default;
+				TimestampCache()
+				{
+					std::for_each(timestamps.begin(), timestamps.end(), [](auto& timestamp)
+					{
+						timestamp.reset();
+					});
+				}
+
 			   ~TimestampCache() = default;
 				TimestampCache(const TimestampCache&) = delete;             // non-copyable
 				TimestampCache& operator=(const TimestampCache&) = delete;  // non-assignable
 				TimestampCache(TimestampCache&&) = default;
 				TimestampCache& operator=(TimestampCache&&) = default;
 
-				inline auto create(const Timestamp& timestamp = Timestamp{})
-				{
-					timestampMap.emplace(++counter, timestamp);
-
-					return counter;
-				}
-
-				inline void erase(std::uint32_t key)
-				{
-					timestampMap.erase(key);
-				}
-
-				inline auto find(std::uint32_t key)
+				inline auto load(std::uint32_t key)
 				{
 					std::optional<Timestamp> result{std::nullopt};
+					auto                     index{key - 1};
 
-					auto found{timestampMap.find(key)};
-					if (found != timestampMap.end())
+					if (index < timestamps.size())
 					{
-						result = found->second;
+						result = timestamps[index];
 					}
 
 					return result;
 				}
 
-				inline auto size()
+				inline std::uint32_t elements()
 				{
-					return timestampMap.size();
+					return std::count_if(timestamps.begin(), timestamps.end(), [](const auto& timestamp)
+					{
+						return timestamp.has_value();
+					});
 				}
 
-				inline void update(std::uint32_t key, const Timestamp& timestamp)
+				inline std::uint32_t size()
 				{
-					// throws std::out_of_range if key does not exist
-					timestampMap.at(key) = timestamp;
+					return timestamps.size();
+				}
+
+				inline auto store(const Timestamp& timestamp = Timestamp{})
+				{
+					if (next >= timestamps.size())
+					{
+						next = 0;
+					}
+
+					auto index{next++};
+					timestamps[index] = timestamp;
+
+					return index + 1;
+				}
+
+				inline bool update(std::uint32_t key, const Timestamp& timestamp)
+				{
+					auto result{false};
+					auto index{key - 1};
+
+					if (index < timestamps.size() && timestamps[index].has_value())
+					{
+						timestamps[index] = timestamp;
+						result            = true;
+					}
+
+					return result;
 				}
 
 			private:
-				std::unordered_map<std::uint32_t, Timestamp> timestampMap;
-				std::uint32_t                                counter{0};
+				std::array<std::optional<Timestamp>, TotalElements> timestamps;
+				std::uint32_t                                       next{0};
 		};
 	}
 }

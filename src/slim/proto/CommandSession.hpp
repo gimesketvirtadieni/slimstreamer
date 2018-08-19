@@ -176,17 +176,7 @@ namespace slim
 						int           result{0};
 						std::size_t   sent{0};
 
-						auto onError = [&]
-						{
-							// deleting a new timestamp entry if it was created
-							if (timestampKey > 0)
-							{
-								timestampCache.erase(timestampKey);
-							}
-						};
-						::util::scope_guard_failure onErrorGuard{onError};
-
-						timestampKey = timestampCache.create();
+						timestampKey = timestampCache.store();
 						command.getBuffer()->data.replayGain = timestampKey;
 
 						// setting measuring flag to make sure there were no other commends processed inbetween
@@ -202,15 +192,8 @@ namespace slim
 							sent   += (result >= 0 ? result : 0);
 						}
 
-						// saving actual timestamp; otherwise - handling send error
-						if (result >= 0)
-						{
-							timestampCache.update(timestampKey, timestamp);
-						}
-						else
-						{
-							onError();
-						}
+						// saving actual timestamp in the cache
+						timestampCache.update(timestampKey, timestamp);
 					}
 				}
 
@@ -369,10 +352,10 @@ namespace slim
 				{
 					auto timestampKey{commandSTAT.getBuffer()->serverTimestamp};
 
-					// TODO: work in progress
+					// if request originated by a server then use it for measuring latency
 					if (timestampKey)
 					{
-						auto sendTimestamp = timestampCache.find(timestampKey);
+						auto sendTimestamp = timestampCache.load(timestampKey);
 						if (sendTimestamp.has_value())
 						{
 							if (measuringLatency)
@@ -381,29 +364,17 @@ namespace slim
 
 								LOG(DEBUG) << LABELS{"proto"} << "Client latency=" << latency;
 							}
-							else
-							{
-								timestampCache.erase(timestampKey);
-							}
-
-							if (timestampCache.size() > 10)
-							{
-								// TODO: should be removing the oldest
-								timestampCache.erase(commandSTAT.getBuffer()->serverTimestamp);
-							}
-							else
-							{
-								ping();
-							}
 						}
 						else
 						{
 							LOG(WARNING) << LABELS{"proto"} << "Invalid server timestamp data sent by a client (key received=" << commandSTAT.getBuffer()->serverTimestamp << ")";
 						}
 					}
-					else
+
+					// collecting enough round-trip samples to measure latency
+					if (timestampCache.elements() < timestampCache.size())
 					{
-						LOG(DEBUG) << LABELS{"proto"} << "Client sent ping request";
+						ping();
 					}
 				}
 
@@ -431,7 +402,7 @@ namespace slim
 				bool                                         responseReceived{false};
 				util::ExpandableBuffer                       commandBuffer{std::size_t{0}, std::size_t{2048}};
 				std::optional<client::CommandHELO>           commandHELO{std::nullopt};
-				util::TimestampCache                         timestampCache;
+				util::TimestampCache<10>                     timestampCache;
 				bool                                         measuringLatency{false};
 				unsigned int                                 latency{0};
 		};

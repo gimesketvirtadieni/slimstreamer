@@ -12,6 +12,7 @@
 
 #pragma once
 
+#include <array>
 #include <cstddef>  // std::size_t
 #include <functional>
 #include <string>
