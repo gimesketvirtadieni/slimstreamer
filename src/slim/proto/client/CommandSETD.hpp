@@ -58,9 +58,11 @@ namespace slim
 						// serializing fixed part of SETD command
 						memcpy(&setd, buffer, sizeof(setd));
 
+						// converting command size data
+						setd.size = ntohl(setd.size);
+
 						// TODO: work in progress
 						// validating length attribute from SETD command (last -1 accounts for tailing zero)
-						//setd.size = ntohl(setd.size);
 						//if (setd.size > sizeof(setd) + sizeof(capabilities) - sizeof(setd.opcode) - sizeof(setd.size) - 1)
 						//{
 						//	throw slim::Exception("Length provided in SETD command is too big");

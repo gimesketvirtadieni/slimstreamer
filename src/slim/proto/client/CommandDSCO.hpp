@@ -58,9 +58,11 @@ namespace slim
 						// serializing fixed part of DSCO command
 						memcpy(&dsco, buffer, sizeof(dsco));
 
+						// converting command size data
+						dsco.size = ntohl(dsco.size);
+
 						// TODO: work in progress
 						// validating length attribute from DSCO command (last -1 accounts for tailing zero)
-						//dsco.size = ntohl(dsco.size);
 						//if (dsco.size > sizeof(dsco) + sizeof(capabilities) - sizeof(dsco.opcode) - sizeof(dsco.size) - 1)
 						//{
 						//	throw slim::Exception("Length provided in DSCO command is too big");

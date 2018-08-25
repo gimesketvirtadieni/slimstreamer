@@ -58,9 +58,11 @@ namespace slim
 						// serializing fixed part of RESP command
 						memcpy(&resp, buffer, sizeof(resp));
 
+						// converting command size data
+						resp.size = ntohl(resp.size);
+
 						// TODO: work in progress
 						// validating length attribute from RESP command (last -1 accounts for tailing zero)
-						//resp.size = ntohl(resp.size);
 						//if (resp.size > sizeof(resp) + sizeof(capabilities) - sizeof(resp.opcode) - sizeof(resp.size) - 1)
 						//{
 						//	throw slim::Exception("Length provided in RESP command is too big");

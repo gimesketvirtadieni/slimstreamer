@@ -70,8 +70,10 @@ namespace slim
 						}
 						memcpy(&stat, buffer, sizeof(STAT));
 
-						// validating length attribute from STAT command
+						// converting command size data
 						stat.size = ntohl(stat.size);
+
+						// validating length attribute from STAT command
 						if (stat.size > sizeof(stat) - sizeof(stat.opcode) - sizeof(stat.size))
 						{
 							throw slim::Exception("Length provided in STAT command is too big");

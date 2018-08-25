@@ -66,8 +66,10 @@ namespace slim
 						// serializing fixed part of HELO command
 						memcpy(&helo, buffer, sizeof(helo));
 
-						// validating length attribute from HELO command (last -1 accounts for tailing zero)
+						// converting command size data
 						helo.size = ntohl(helo.size);
+
+						// validating length attribute from HELO command (last -1 accounts for tailing zero)
 						if (helo.size > sizeof(helo) + sizeof(capabilities) - sizeof(helo.opcode) - sizeof(helo.size) - 1)
 						{
 							throw slim::Exception("Length provided in HELO command is too big");
