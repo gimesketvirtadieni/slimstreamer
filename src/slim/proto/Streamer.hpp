@@ -77,8 +77,10 @@ namespace slim
 					auto samplingRate{getSamplingRate()};
 					auto chunkSamplingRate{chunk.getSamplingRate()};
 
+					// if PCM stream changes
 					if (samplingRate != chunkSamplingRate)
 					{
+						// if streaming is ongoing
 						if (samplingRate)
 						{
 							// propogating end-of-stream to all the clients
@@ -97,13 +99,17 @@ namespace slim
 							startStreaming();
 						}
 					}
+					// if streaming is ongoing without changes
 					else if (samplingRate)
 					{
+						// if streaming is being initialized
 						if (!streaming)
 						{
 							// checking if all conditions for streaming were met
 							streaming = isReadyToStream();
 						}
+
+						// if streaming is all set
 						if (streaming)
 						{
 							// sending out Chunk to all the clients
@@ -382,19 +388,16 @@ namespace slim
 
 				inline auto isReadyToStream()
 				{
+					auto result{false};
 					// TODO: deferring time-out should be configurable
-					auto result{500000 < (util::Timestamp{}.getMicroSeconds() - startedAt.getMicroSeconds())};
+					auto waitThresholdReached{500000 < (util::Timestamp{}.getMicroSeconds() - startedAt.getMicroSeconds())};
 					auto missingSessionsTotal{std::count_if(commandSessions.begin(), commandSessions.end(), [&](auto& entry)
 					{
 						return !entry.second->getStreamingSession();
 					})};
 
-					// if deferring time-out has expired
-					if (result && missingSessionsTotal)
-					{
-						LOG(WARNING) << LABELS{"proto"} << "Could not defer chunk processing due to reached threashold";
-					}
-					else if (!result)
+					// if deferring time-out has not expired
+					if (!waitThresholdReached)
 					{
 						// if all HTTP sessions were established
 						if (!missingSessionsTotal)
@@ -403,12 +406,19 @@ namespace slim
 						}
 						else
 						{
-							LOG(DEBUG) << LABELS{"proto"} << "Deferring chunk transmition due to missing HTTP sessions";
-
 							// TODO: implement cruise control; for now sleep is good enough
 							// this sleep prevents from busy spinning until all HTTP sessions reconnect
-							std::this_thread::sleep_for(std::chrono::milliseconds{20});
+							// potentially this sleep may interfere with latency measuments so it should be as low as possible
+							std::this_thread::sleep_for(std::chrono::microseconds{500});
 						}
+					}
+					else
+					{
+						if (missingSessionsTotal)
+						{
+							LOG(WARNING) << LABELS{"proto"} << "Could not defer chunk processing due to reached threshold";
+						}
+						result = true;
 					}
 
 					return result;

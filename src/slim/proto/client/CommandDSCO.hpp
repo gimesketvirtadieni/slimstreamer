@@ -61,12 +61,11 @@ namespace slim
 						// converting command size data
 						dsco.size = ntohl(dsco.size);
 
-						// TODO: work in progress
-						// validating length attribute from DSCO command (last -1 accounts for tailing zero)
-						//if (dsco.size > sizeof(dsco) + sizeof(capabilities) - sizeof(dsco.opcode) - sizeof(dsco.size) - 1)
-						//{
-						//	throw slim::Exception("Length provided in DSCO command is too big");
-						//}
+						// validating length attribute from DSCO command
+						if (dsco.size > sizeof(dsco) - sizeof(dsco.opcode) - sizeof(dsco.size))
+						{
+							throw slim::Exception("Length provided in DSCO command is too big");
+						}
 
 						// making sure there is enough data provided for the dynamic part of DSCO command
 						if (!Command::isEnoughData(buffer, size))

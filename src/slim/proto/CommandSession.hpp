@@ -114,8 +114,8 @@ namespace slim
 
 				inline void onRequest(unsigned char* buffer, std::size_t size, util::Timestamp timestamp)
 				{
-					// removing data from the buffer in case of an error
-					::util::scope_guard_failure onError = [&]
+					// removing data from the buffer in case of an exception
+					::util::scope_guard_failure onException = [&]
 					{
 						commandBuffer.size(0);
 					};
@@ -194,6 +194,8 @@ namespace slim
 
 						// saving actual timestamp in the cache
 						timestampCache.update(timestampKey, timestamp);
+
+						LOG(DEBUG) << LABELS{"proto"} << "PING timestampKey=" << timestampKey << " timestamp=" << timestamp.getMicroSeconds();
 					}
 				}
 
@@ -352,19 +354,27 @@ namespace slim
 				{
 					auto timestampKey{commandSTAT.getBuffer()->serverTimestamp};
 
+					LOG(DEBUG) << LABELS{"proto"} << "PONG timestampKey=" << timestampKey;
+
 					// if request originated by a server then use it for measuring latency
 					if (timestampKey)
 					{
 						auto sendTimestamp = timestampCache.load(timestampKey);
 						if (sendTimestamp.has_value())
 						{
+							LOG(DEBUG) << LABELS{"proto"} << "PONG sendTimestamp=" << sendTimestamp.value().getMicroSeconds();
+
 							if (measuringLatency)
 							{
 								if (latency.has_value())
 								{
+									LOG(DEBUG) << LABELS{"proto"} << "PONG latency=" << latency.value();
+
 									auto l1 = latency.value();
 									auto l2 = (receiveTimestamp.getMicroSeconds() - sendTimestamp.value().getMicroSeconds()) / 2;
 									latency = l1 * 8 / 10 + l2 * 2 / 10;
+
+									LOG(DEBUG) << LABELS{"proto"} << "PONG new latency=" << l2;
 								}
 								else
 								{

@@ -52,7 +52,7 @@ namespace slim
 						// validating provided data is sufficient for the fixed part of SETD command
 						if (size < sizeof(setd))
 						{
-							throw slim::Exception("Message is too small for the fixed part of SETD command");
+							throw slim::Exception("Message is too small for SETD command");
 						}
 
 						// serializing fixed part of SETD command
@@ -62,8 +62,8 @@ namespace slim
 						setd.size = ntohl(setd.size);
 
 						// TODO: work in progress
-						// validating length attribute from SETD command (last -1 accounts for tailing zero)
-						//if (setd.size > sizeof(setd) + sizeof(capabilities) - sizeof(setd.opcode) - sizeof(setd.size) - 1)
+						// validating length attribute from SETD command
+						//if (setd.size > sizeof(setd) - sizeof(setd.opcode) - sizeof(setd.size))
 						//{
 						//	throw slim::Exception("Length provided in SETD command is too big");
 						//}
