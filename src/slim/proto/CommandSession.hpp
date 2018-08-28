@@ -363,6 +363,7 @@ namespace slim
 						if (sendTimestamp.has_value())
 						{
 							LOG(DEBUG) << LABELS{"proto"} << "PONG sendTimestamp=" << sendTimestamp.value().getMicroSeconds();
+							LOG(DEBUG) << LABELS{"proto"} << "PONG clientTimestamp=" << commandSTAT.getBuffer()->jiffies;
 
 							if (measuringLatency)
 							{
