@@ -32,6 +32,7 @@ namespace slim
 			{
 				char          opcode[4];
 				std::uint32_t size;
+				std::uint8_t  id;
 			};
 			#pragma pack(pop)
 
@@ -61,18 +62,20 @@ namespace slim
 						// converting command size data
 						setd.size = ntohl(setd.size);
 
-						// TODO: work in progress
 						// validating length attribute from SETD command
-						//if (setd.size > sizeof(setd) - sizeof(setd.opcode) - sizeof(setd.size))
-						//{
-						//	throw slim::Exception("Length provided in SETD command is too big");
-						//}
+						if (setd.size > sizeof(setd) + sizeof(preferences) - sizeof(setd.opcode) - sizeof(setd.size))
+						{
+							throw slim::Exception("Length provided in SETD command is too big");
+						}
 
 						// making sure there is enough data provided for the dynamic part of SETD command
 						if (!Command::isEnoughData(buffer, size))
 						{
 							throw slim::Exception("Message is too small for SETD command");
 						}
+
+						// serializing dynamic part of SETD command
+						memcpy(preferences, buffer + sizeof(setd), setd.size + sizeof(setd.opcode) + sizeof(setd.size) - sizeof(setd) - 1);
 					}
 
 					// using Rule Of Zero
@@ -89,11 +92,12 @@ namespace slim
 
 					virtual std::size_t getSize() override
 					{
-						return sizeof(setd) + setd.size;
+						return sizeof(setd) + std::strlen(preferences) + 1;
 					}
 
 				private:
 					SETD setd;
+					char preferences[2048]{0};
 			};
 		}
 	}
