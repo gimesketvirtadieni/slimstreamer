@@ -94,41 +94,49 @@ namespace slim
 				RealTimeQueue& operator=(const RealTimeQueue&) = delete;  // non-assignable
 				RealTimeQueue& operator=(RealTimeQueue&&) = delete;       // non-movable
 
-				template<typename M, typename H = std::function<void()>>
-				inline bool dequeue(M&& mover, H&& underfowHandler = [] {})
+				template<typename M, typename H>
+				inline bool dequeue(M&& mover, H&& underfowHandler)
 				{
 					const size_t tail{_tail.load(std::memory_order_relaxed)};
-					auto         done{true};
 
-					if (((_head.load(std::memory_order_acquire) - tail) & _mask) >= 1) {
-						if ((done = mover(_buffer[_tail & _mask]))) {
-							_tail.store(tail + 1, std::memory_order_release);
-						}
-					} else {
+					if (((_head.load(std::memory_order_acquire) - tail) & _mask) >= 1)
+                    {
+						if (mover(_buffer[_tail & _mask]))
+                        {
+                            _tail.store(tail + 1, std::memory_order_release);
+                            return true;
+                        }
+					}
+					else
+                    {
 						underfowHandler();
 					}
 
-					return done;
+					return false;
 				}
 
-				template<typename M, typename H = std::function<void()>>
-				inline bool enqueue(M&& mover, H&& overflowHandler = [] {})
+				template<typename M, typename H>
+				inline bool enqueue(M&& mover, H&& overflowHandler)
 				{
 					const size_t head{_head.load(std::memory_order_relaxed)};
-					auto         done{true};
 
-					if (((_tail.load(std::memory_order_acquire) - (head + 1)) & _mask) >= 1) {
-						if ((done = mover(_buffer[head & _mask]))) {
-							_head.store(head + 1, std::memory_order_release);
-						}
-					} else {
+					if (((_tail.load(std::memory_order_acquire) - (head + 1)) & _mask) >= 1)
+                    {
+						if (mover(_buffer[head & _mask]))
+                        {
+                            _head.store(head + 1, std::memory_order_release);
+                            return true;
+                        }
+					}
+					else
+                    {
 						overflowHandler();
 					}
 
-					return done;
+					return false;
 				}
 
-				inline auto getSize()
+				inline auto getSize() const
 				{
 					return _size;
 				}
