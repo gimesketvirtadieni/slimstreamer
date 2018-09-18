@@ -23,9 +23,9 @@ namespace slim
 		{
 			public:
 				Timestamp()
-				: timestamp{std::chrono::steady_clock::now()} {}
+				: timestamp{std::chrono::high_resolution_clock::now()} {}
 
-				Timestamp(const std::chrono::steady_clock::time_point& t)
+				Timestamp(const std::chrono::high_resolution_clock::time_point& t)
 				: timestamp{t} {}
 
 			   ~Timestamp() = default;
@@ -39,8 +39,13 @@ namespace slim
 					return std::chrono::duration_cast<std::chrono::microseconds>(timestamp.time_since_epoch()).count();
 				}
 
+				inline unsigned long long getMilliSeconds()
+				{
+					return std::chrono::duration_cast<std::chrono::milliseconds>(timestamp.time_since_epoch()).count();
+				}
+
 			private:
-				std::chrono::steady_clock::time_point timestamp;
+				std::chrono::high_resolution_clock::time_point timestamp;
 		};
 	}
 }

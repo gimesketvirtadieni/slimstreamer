@@ -17,6 +17,7 @@
 #include <optional>
 #include <scope_guard.hpp>
 #include <string>
+#include <type_safe/optional.hpp>
 
 #include "slim/Exception.hpp"
 #include "slim/log/log.hpp"
@@ -39,6 +40,8 @@ namespace slim
 {
 	namespace proto
 	{
+		namespace ts = type_safe;
+
 		template<typename ConnectionType>
 		class CommandSession
 		{
@@ -365,6 +368,18 @@ namespace slim
 							LOG(DEBUG) << LABELS{"proto"} << "PONG sendTimestamp=" << sendTimestamp.value().getMicroSeconds();
 							LOG(DEBUG) << LABELS{"proto"} << "PONG clientTimestamp=" << commandSTAT.getBuffer()->jiffies;
 
+							// TODO: work in progress
+							if (!difff)
+							{
+								difff = sendTimestamp.value().getMilliSeconds() - commandSTAT.getBuffer()->jiffies;
+							}
+							else
+							{
+								auto d{difff};
+								d = sendTimestamp.value().getMilliSeconds() - commandSTAT.getBuffer()->jiffies;
+								LOG(DEBUG) << LABELS{"proto"} << "PONG diff=" << difff - d;
+							}
+
 							if (measuringLatency)
 							{
 								if (latency.has_value())
@@ -425,10 +440,11 @@ namespace slim
 				bool                                         connectedReceived{false};
 				bool                                         responseReceived{false};
 				util::ExpandableBuffer                       commandBuffer{std::size_t{0}, std::size_t{2048}};
-				std::optional<client::CommandHELO>           commandHELO{std::nullopt};
+				ts::optional<client::CommandHELO>            commandHELO{ts::nullopt};
 				util::TimestampCache<10>                     timestampCache;
-				std::optional<unsigned int>                  latency{std::nullopt};
+				ts::optional<unsigned int>                   latency{ts::nullopt};
 				bool                                         measuringLatency{false};
+				signed long long                             difff{0};
 		};
 	}
 }

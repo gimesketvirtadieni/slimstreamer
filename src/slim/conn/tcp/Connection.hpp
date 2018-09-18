@@ -81,7 +81,13 @@ namespace slim
 									// disabling Nagle's algorithm
 									if (!error && nativeSocket.is_open())
 									{
+										// TODO: work in progress
+										//nativeSocket.non_blocking(true);
 										nativeSocket.set_option(asio::ip::tcp::no_delay{true});
+										//nativeSocket.set_option(asio::socket_base::keep_alive(true));
+
+										//const asio::detail::socket_option::boolean<IPPROTO_TCP, TCP_QUICKACK> quickack(true);
+										//nativeSocket.set_option(quickack);
 									}
 
 									onOpen(error);
@@ -116,6 +122,14 @@ namespace slim
 						{
 							if (nativeSocket.is_open())
 							{
+								// TODO: work in progress
+								//nativeSocket.non_blocking(true);
+								//nativeSocket.set_option(asio::ip::tcp::no_delay(true));
+								//nativeSocket.set_option(asio::socket_base::keep_alive(true));
+
+								//const asio::detail::socket_option::boolean<IPPROTO_TCP, TCP_QUICKACK> quickack(true);
+								//nativeSocket.set_option(quickack);
+
 								// no need to return actually written bytes as assio::write function writes all provided data
 								result = asio::write(nativeSocket, asio::const_buffer(data, size));
 							}
@@ -137,6 +151,14 @@ namespace slim
 
 					virtual void writeAsync(const void* data, const std::size_t size, util::WriteCallback callback = [](auto, auto) {}) override
 					{
+						// TODO: work in progress
+						//nativeSocket.non_blocking(true);
+						//nativeSocket.set_option(asio::ip::tcp::no_delay(true));
+						//nativeSocket.set_option(asio::socket_base::keep_alive(true));
+
+						//const asio::detail::socket_option::boolean<IPPROTO_TCP, TCP_QUICKACK> quickack(true);
+						//nativeSocket.set_option(quickack);
+
 						asio::async_write(
 							nativeSocket,
 							asio::const_buffer(data, size),
@@ -188,6 +210,7 @@ namespace slim
 									asio::mutable_buffer(buffer.data(), buffer.size()),
 									[&](const std::error_code error, std::size_t bytes_transferred)
 									{
+										//LOG(DEBUG) << LABELS{"proto"} << "DATA received";
 										processorProxyPtr->wrap([=, timestamp{util::Timestamp()}]
 										{
 											onData(error, bytes_transferred, timestamp);

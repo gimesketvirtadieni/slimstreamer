@@ -75,6 +75,7 @@ namespace slim
 
 							processorProxyPtr->process([&]
 							{
+								//LOG(DEBUG) << LABELS{"slim"} << "Process task";
 								processTask();
 							});
 						}
