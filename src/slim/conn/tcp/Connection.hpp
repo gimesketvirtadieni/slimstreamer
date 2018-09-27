@@ -12,9 +12,10 @@
 
 #pragma once
 
-#include <conwrap/ProcessorAsioProxy.hpp>
+#include <conwrap2/ProcessorProxy.hpp>
 #include <cstddef>       // std::size_t
 #include <exception>     // std::exception
+#include <memory>
 #include <system_error>  // std::system_error
 
 #include "slim/conn/tcp/CallbacksBase.hpp"
@@ -33,10 +34,10 @@ namespace slim
 			class Connection : public util::AsyncWriter
 			{
 				public:
-					Connection(conwrap::ProcessorAsioProxy<ContainerType>* p, CallbacksBase<Connection<ContainerType>>& c)
+					Connection(conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>>* p, CallbacksBase<Connection<ContainerType>>& c)
 					: processorProxyPtr{p}
 					, callbacks{c}
-					, nativeSocket{*processorProxyPtr->getDispatcher()}
+					, nativeSocket{processorProxyPtr->getDispatcher()}
 					, opened{false}
 					// TODO: parametrize
 					, buffer{1024}
@@ -68,30 +69,28 @@ namespace slim
 
 					virtual void rewind(const std::streampos pos) override {}
 
-					void start(asio::ip::tcp::acceptor& acceptor)
+					void start(std::experimental::net::ip::tcp::acceptor& acceptor)
 					{
 						onStart();
 
 						acceptor.async_accept(
-							nativeSocket,
-							[&](const std::error_code& error)
+							[&](auto error, auto s)
 							{
-								processorProxyPtr->wrap([=]
+								nativeSocket = std::move(s);
+
+								// disabling Nagle's algorithm
+								if (!error && nativeSocket.is_open())
 								{
-									// disabling Nagle's algorithm
-									if (!error && nativeSocket.is_open())
-									{
-										// TODO: work in progress
-										//nativeSocket.non_blocking(true);
-										nativeSocket.set_option(asio::ip::tcp::no_delay{true});
-										//nativeSocket.set_option(asio::socket_base::keep_alive(true));
+									// TODO: work in progress
+									//nativeSocket.non_blocking(true);
+									//nativeSocket.set_option(asio::ip::tcp::no_delay{true});
+									//nativeSocket.set_option(asio::socket_base::keep_alive(true));
 
-										//const asio::detail::socket_option::boolean<IPPROTO_TCP, TCP_QUICKACK> quickack(true);
-										//nativeSocket.set_option(quickack);
-									}
+									//const asio::detail::socket_option::boolean<IPPROTO_TCP, TCP_QUICKACK> quickack(true);
+									//nativeSocket.set_option(quickack);
+								}
 
-									onOpen(error);
-								})();
+								onOpen(error);
 							}
 						);
 					}
@@ -101,7 +100,7 @@ namespace slim
 						// it will trigger chain of callbacks
 						if (nativeSocket.is_open()) try
 						{
-							nativeSocket.shutdown(asio::socket_base::shutdown_both);
+							nativeSocket.shutdown(std::experimental::net::socket_base::shutdown_both);
 						}
 						catch(...) {}
 						try
@@ -131,7 +130,7 @@ namespace slim
 								//nativeSocket.set_option(quickack);
 
 								// no need to return actually written bytes as assio::write function writes all provided data
-								result = asio::write(nativeSocket, asio::const_buffer(data, size));
+								result = std::experimental::net::write(nativeSocket, std::experimental::net::const_buffer(data, size));
 							}
 							else
 							{
@@ -159,15 +158,12 @@ namespace slim
 						//const asio::detail::socket_option::boolean<IPPROTO_TCP, TCP_QUICKACK> quickack(true);
 						//nativeSocket.set_option(quickack);
 
-						asio::async_write(
+						std::experimental::net::async_write(
 							nativeSocket,
-							asio::const_buffer(data, size),
+							std::experimental::net::const_buffer(data, size),
 							[=](const std::error_code error, const std::size_t bytes_transferred)
 							{
-								processorProxyPtr->wrap([=]
-								{
-									callback(error, bytes_transferred);
-								})();
+								callback(error, bytes_transferred);
 							});
 					}
 
@@ -207,14 +203,11 @@ namespace slim
 							{
 								// keep receiving data 'recursivelly' (task processor is used instead of stack)
 								nativeSocket.async_read_some(
-									asio::mutable_buffer(buffer.data(), buffer.size()),
+									std::experimental::net::mutable_buffer(buffer.data(), buffer.size()),
 									[&](const std::error_code error, std::size_t bytes_transferred)
 									{
 										//LOG(DEBUG) << LABELS{"proto"} << "DATA received";
-										processorProxyPtr->wrap([=, timestamp{util::Timestamp()}]
-										{
-											onData(error, bytes_transferred, timestamp);
-										})();
+										onData(error, bytes_transferred, util::Timestamp());
 									}
 								);
 							});
@@ -264,11 +257,11 @@ namespace slim
 					}
 
 				private:
-					conwrap::ProcessorAsioProxy<ContainerType>* processorProxyPtr;
-					CallbacksBase<Connection<ContainerType>>&   callbacks;
-					asio::ip::tcp::socket                       nativeSocket;
-					bool                                        opened;
-					util::ExpandableBuffer                      buffer;
+					conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>>* processorProxyPtr;
+					CallbacksBase<Connection<ContainerType>>& callbacks;
+					std::experimental::net::ip::tcp::socket   nativeSocket;
+					bool                                      opened;
+					util::ExpandableBuffer                    buffer;
 			};
 		}
 	}

@@ -11,11 +11,15 @@ BASE_DIRECTORY       ?= ..
 SOURCES              := $(BASE_DIRECTORY)/src
 HEADERS              := -I$(SOURCES)
 HEADERS              += -I$(BASE_DIRECTORY)/dependencies/asio/asio/include
+HEADERS              += -I$(BASE_DIRECTORY)/dependencies/networking-ts-impl/include
 HEADERS              += -I$(BASE_DIRECTORY)/dependencies/conwrap/src/include
+HEADERS              += -I$(BASE_DIRECTORY)/dependencies/conwrap2/include
 HEADERS              += -I$(BASE_DIRECTORY)/dependencies/cxxopts/include
 HEADERS              += -I$(BASE_DIRECTORY)/dependencies/g3log/src
 HEADERS              += -I$(BASE_DIRECTORY)/dependencies/g3log/build/include
 HEADERS              += -I$(BASE_DIRECTORY)/dependencies/scope_guard/include/boost
+HEADERS              += -I$(BASE_DIRECTORY)/dependencies/type_safe/include
+HEADERS              += -I$(BASE_DIRECTORY)/dependencies/type_safe/external/debug_assert
 SYMBOLS              += -DASIO_STANDALONE
 SYMBOLS              += -DVERSION='"$(VERSION)"'
 SYMBOLS              += -DSCOPE_GUARD_STANDALONE

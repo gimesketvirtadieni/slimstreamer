@@ -15,7 +15,7 @@
 #include <algorithm>
 #include <atomic>
 #include <chrono>
-#include <conwrap/ProcessorProxy.hpp>
+#include <conwrap2/ProcessorProxy.hpp>
 #include <cstddef>  // std::size_t
 #include <functional>
 #include <memory>
@@ -264,8 +264,10 @@ namespace slim
 					{
 						LOG(DEBUG) << LABELS{"proto"} << "Monitor thread was started (id=" << std::this_thread::get_id() << ")";
 
-						for(unsigned int counter{0}; !monitorFinish; counter++, std::this_thread::sleep_for(std::chrono::milliseconds{200}))
+						for(unsigned int counter{0}; !monitorFinish; counter++, std::this_thread::sleep_for(std::chrono::milliseconds{100}))
 				        {
+							timestamp.getMicroSeconds();
+							
 							// TODO: make configurable
 							if (counter > 24)
 							{

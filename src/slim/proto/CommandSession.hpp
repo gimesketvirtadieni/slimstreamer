@@ -191,7 +191,7 @@ namespace slim
 						// sending 'ping' command as close as possible to the local time capture point
 						while (result >= 0 && sent < size)
 						{
-							result  = nativeSocket.send(asio::buffer(buffer + sent, size - sent));
+							result  = nativeSocket.send(std::experimental::net::buffer(buffer + sent, size - sent));
 							sent   += (result >= 0 ? result : 0);
 						}
 
@@ -415,6 +415,10 @@ namespace slim
 					{
 						ping();
 					}
+				}
+				else
+				{
+					ping();
 				}
 
 				template<typename CommandType>

@@ -12,29 +12,28 @@
 
 #pragma once
 
+#include <memory>
+
 
 namespace slim
 {
 	class ContainerBase
 	{
 		public:
+			ContainerBase(conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>>& p)
+			: processorProxy{p} {}
+			
 			// using Rule Of Zero
-			ContainerBase() = default;
 			virtual ~ContainerBase() = default;
 			ContainerBase(const ContainerBase&) = delete;             // non-copyable
 			ContainerBase& operator=(const ContainerBase&) = delete;  // non-assignable
 			ContainerBase(ContainerBase&& rhs) = default;
 			ContainerBase& operator=(ContainerBase&& rhs) = default;
 
-			virtual void setProcessorProxy(conwrap::ProcessorAsioProxy<ContainerBase>* p)
-			{
-				processorProxyPtr = p;
-			}
-
 			virtual void start() = 0;
 			virtual void stop() = 0;
 
 		private:
-			conwrap::ProcessorAsioProxy<ContainerBase>* processorProxyPtr{nullptr};
+			conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>>& processorProxy;
 	};
 }

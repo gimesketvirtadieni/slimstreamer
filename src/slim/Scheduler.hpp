@@ -13,7 +13,7 @@
 #pragma once
 
 #include <atomic>
-#include <conwrap/ProcessorProxy.hpp>
+#include <conwrap2/ProcessorProxy.hpp>
 #include <chrono>
 #include <functional>
 #include <memory>
@@ -49,10 +49,9 @@ namespace slim
 			Scheduler(Scheduler&& rhs) = delete;              // non-movable
 			Scheduler& operator=(Scheduler&& rhs) = delete;   // non-move-assignable
 
-			void setProcessorProxy(conwrap::ProcessorProxy<ContainerBase>* p)
+			void setProcessorProxy(conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>>* p)
 			{
 				processorProxyPtr = p;
-
 				producerPtr->setProcessorProxy(p);
 				consumerPtr->setProcessorProxy(p);
 			}
@@ -159,11 +158,11 @@ namespace slim
 			}
 
 		private:
-			std::unique_ptr<Producer>               producerPtr;
-			std::unique_ptr<Consumer>               consumerPtr;
-			std::thread                             monitorThread;
-			std::atomic<bool>                       monitorFinish{false};
-			std::atomic<bool>                       requestTaskLater{false};
-			conwrap::ProcessorProxy<ContainerBase>* processorProxyPtr{nullptr};
+			std::unique_ptr<Producer>                producerPtr;
+			std::unique_ptr<Consumer>                consumerPtr;
+			std::thread                              monitorThread;
+			std::atomic<bool>                        monitorFinish{false};
+			std::atomic<bool>                        requestTaskLater{false};
+			conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>>* processorProxyPtr{nullptr};
 	};
 }

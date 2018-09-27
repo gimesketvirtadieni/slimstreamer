@@ -15,8 +15,8 @@
 #include <alsa/asoundlib.h>
 #include <atomic>
 #include <chrono>
-#include <conwrap/ProcessorAsio.hpp>
-#include <conwrap/ProcessorProxy.hpp>
+#include <conwrap2/Processor.hpp>
+#include <conwrap2/ProcessorProxy.hpp>
 #include <functional>
 #include <memory>
 #include <mutex>

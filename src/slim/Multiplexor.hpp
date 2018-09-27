@@ -12,7 +12,7 @@
 
 #pragma once
 
-#include <conwrap/ProcessorProxy.hpp>
+#include <conwrap2/ProcessorProxy.hpp>
 #include <chrono>
 #include <functional>
 #include <memory>

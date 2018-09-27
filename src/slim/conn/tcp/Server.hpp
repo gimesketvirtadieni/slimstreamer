@@ -12,8 +12,8 @@
 
 #pragma once
 
-#include <asio.hpp>
-#include <conwrap/ProcessorAsioProxy.hpp>
+#include <experimental/net>
+#include <conwrap2/ProcessorProxy.hpp>
 #include <cstddef>  // std::size_t
 #include <memory>
 #include <vector>
@@ -139,7 +139,7 @@ namespace slim
 					Server(Server&& rhs) = delete;              // non-movable
 					Server& operator=(Server&& rhs) = delete;   // non-movable-assinable
 
-					void setProcessorProxy(conwrap::ProcessorAsioProxy<ContainerType>* p)
+					void setProcessorProxy(conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>>* p)
 					{
 						processorProxyPtr = p;
 					}
@@ -209,10 +209,10 @@ namespace slim
 						// creating an acceptor if required
 						if (!acceptorPtr)
 						{
-							acceptorPtr = std::make_unique<asio::ip::tcp::acceptor>(
-								*processorProxyPtr->getDispatcher(),
-								asio::ip::tcp::endpoint(
-									asio::ip::tcp::v4(),
+							acceptorPtr = std::make_unique<std::experimental::net::ip::tcp::acceptor>(
+								processorProxyPtr->getDispatcher(),
+								std::experimental::net::ip::tcp::endpoint(
+									std::experimental::net::ip::tcp::v4(),
 									port
 								)
 							);
@@ -236,13 +236,13 @@ namespace slim
 					}
 
 				private:
-					unsigned int                                            port;
-					unsigned int                                            maxConnections;
-					std::unique_ptr<Callbacks<ContainerType>>               callbacksPtr;
-					bool                                                    started;
-					conwrap::ProcessorAsioProxy<ContainerType>*             processorProxyPtr;
-					std::unique_ptr<asio::ip::tcp::acceptor>                acceptorPtr;
-					std::vector<std::unique_ptr<Connection<ContainerType>>> connections;
+					unsigned int                                               port;
+					unsigned int                                               maxConnections;
+					std::unique_ptr<Callbacks<ContainerType>>                  callbacksPtr;
+					bool                                                       started;
+					conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>>*  processorProxyPtr;
+					std::unique_ptr<std::experimental::net::ip::tcp::acceptor> acceptorPtr;
+					std::vector<std::unique_ptr<Connection<ContainerType>>>    connections;
 			};
 		}
 	}

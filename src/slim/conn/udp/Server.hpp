@@ -12,8 +12,8 @@
 
 #pragma once
 
-#include <asio.hpp>
-#include <conwrap/ProcessorAsioProxy.hpp>
+#include <experimental/net>
+#include <conwrap2/ProcessorProxy.hpp>
 #include <memory>
 #include <optional>
 
@@ -64,7 +64,7 @@ namespace slim
 
 					virtual void rewind(const std::streampos pos) override {}
 
-					void setProcessorProxy(conwrap::ProcessorAsioProxy<ContainerType>* p)
+					void setProcessorProxy(conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>>* p)
 					{
 						processorProxyPtr = p;
 					}
@@ -126,7 +126,7 @@ namespace slim
 							if (peerEndpoint.has_value())
 							try
 							{
-								result = nativeSocket.value().send_to(asio::const_buffer(data, size), peerEndpoint.value());
+								result = nativeSocket.value().send_to(std::experimental::net::const_buffer(data, size), peerEndpoint.value());
 							}
 							catch(const std::system_error& e)
 							{
@@ -197,11 +197,11 @@ namespace slim
 						// creating a socket if required
 						if (!nativeSocket.has_value())
 						{
-							nativeSocket = asio::ip::udp::socket
+							nativeSocket = std::experimental::net::ip::udp::socket
 							{
-								*processorProxyPtr->getDispatcher(),
-								asio::ip::udp::endpoint(
-									asio::ip::udp::v4(),
+								processorProxyPtr->getDispatcher(),
+								std::experimental::net::ip::udp::endpoint(
+									std::experimental::net::ip::udp::v4(),
 									port
 								)
 							};
@@ -209,7 +209,7 @@ namespace slim
 						}
 
 						// allocating new endpoint required for UDP (peer's side)
-						peerEndpoint = asio::ip::udp::endpoint();
+						peerEndpoint = std::experimental::net::ip::udp::endpoint();
 
 						// start receiving data
 						receiveData();
@@ -219,24 +219,21 @@ namespace slim
 					{
 						if (nativeSocket.has_value())
 						{
-							nativeSocket.value().async_receive_from(asio::buffer(buffer, BUFFER_SIZE), peerEndpoint.value(), [=](auto error, auto transferred)
+							nativeSocket.value().async_receive_from(std::experimental::net::buffer(buffer, BUFFER_SIZE), peerEndpoint.value(), [=](auto error, auto transferred)
 							{
-								processorProxyPtr->wrap([=]
-								{
-									onData(error, transferred);
-								})();
+								onData(error, transferred);
 							});
 						}
 					}
 
 				private:
-					unsigned int                                port;
-					std::unique_ptr<CallbacksBase<Server>>      callbacksPtr;
-					bool                                        started{false};
-					conwrap::ProcessorAsioProxy<ContainerType>* processorProxyPtr;
-					std::optional<asio::ip::udp::socket>        nativeSocket{std::nullopt};
-					std::optional<asio::ip::udp::endpoint>      peerEndpoint{std::nullopt};
-					unsigned char                               buffer[BUFFER_SIZE];
+					unsigned int                                              port;
+					std::unique_ptr<CallbacksBase<Server>>                    callbacksPtr;
+					bool                                                      started{false};
+					conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>>* processorProxyPtr;
+					std::optional<std::experimental::net::ip::udp::socket>    nativeSocket{std::nullopt};
+					std::optional<std::experimental::net::ip::udp::endpoint>  peerEndpoint{std::nullopt};
+					unsigned char                                             buffer[BUFFER_SIZE];
 			};
 		}
 	}

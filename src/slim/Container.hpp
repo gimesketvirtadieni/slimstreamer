@@ -12,7 +12,7 @@
 
 #pragma once
 
-#include <conwrap/ProcessorAsioProxy.hpp>
+#include <conwrap2/ProcessorProxy.hpp>
 #include <functional>
 #include <memory>
 
@@ -26,11 +26,18 @@ namespace slim
 	class Container : public ContainerBase
 	{
 		public:
-			Container(std::unique_ptr<CommandServerType> cse, std::unique_ptr<StreamingServerType> sse, std::unique_ptr<DiscoveryServerType> dse, std::unique_ptr<SchedulerType> sc)
-			: commandServerPtr{std::move(cse)}
+			Container(conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>>& processorProxy, std::unique_ptr<CommandServerType> cse, std::unique_ptr<StreamingServerType> sse, std::unique_ptr<DiscoveryServerType> dse, std::unique_ptr<SchedulerType> sc)
+			: ContainerBase{processorProxy}
+			, commandServerPtr{std::move(cse)}
 			, streamingServerPtr{std::move(sse)}
 			, discoveryServerPtr{std::move(dse)}
-			, schedulerPtr{std::move(sc)} {}
+			, schedulerPtr{std::move(sc)}
+			{
+				commandServerPtr->setProcessorProxy(&processorProxy);
+				streamingServerPtr->setProcessorProxy(&processorProxy);
+				discoveryServerPtr->setProcessorProxy(&processorProxy);
+				schedulerPtr->setProcessorProxy(&processorProxy);
+			}
 
 			// using Rule Of Zero
 			virtual ~Container() = default;
@@ -38,16 +45,6 @@ namespace slim
 			Container& operator=(const Container&) = delete;  // non-assignable
 			Container(Container&& rhs) = default;
 			Container& operator=(Container&& rhs) = default;
-
-			// virtualization is required as Processor uses std::unique_ptr<ContainerBase>
-			virtual void setProcessorProxy(conwrap::ProcessorAsioProxy<ContainerBase>* p) override
-			{
-				ContainerBase::setProcessorProxy(p);
-				commandServerPtr->setProcessorProxy(p);
-				streamingServerPtr->setProcessorProxy(p);
-				discoveryServerPtr->setProcessorProxy(p);
-				schedulerPtr->setProcessorProxy(p);
-			}
 
 			virtual void start() override
 			{

@@ -13,7 +13,7 @@
 #include <algorithm>
 #include <atomic>
 #include <chrono>
-#include <conwrap/ProcessorAsio.hpp>
+#include <conwrap2/Processor.hpp>
 #include <csignal>
 #include <cxxopts.hpp>
 #include <exception>
@@ -363,26 +363,25 @@ int main(int argc, const char *argv[])
 			// creating a scheduler
 			auto schedulerPtr{std::make_unique<Scheduler>(std::move(multiplexorPtr), std::move(consumerPtr))};
 
-			// creating Container object within Asio Processor with Scheduler and Servers
-			conwrap::ProcessorAsio<ContainerBase> processorAsio
+			// creating Container object within Processor with Scheduler and Servers
+			conwrap2::Processor<std::unique_ptr<ContainerBase>> processor{[&](auto& processorProxy)
 			{
-				std::unique_ptr<ContainerBase>
+				return std::move(std::unique_ptr<ContainerBase>
 				{
-					new Container<TCPServer, TCPServer, UDPServer, Scheduler>(std::move(commandServerPtr), std::move(streamingServerPtr), std::move(discoveryServerPtr), std::move(schedulerPtr))
-				}
-			};
+					new Container<TCPServer, TCPServer, UDPServer, Scheduler>(processorProxy, std::move(commandServerPtr), std::move(streamingServerPtr), std::move(discoveryServerPtr), std::move(schedulerPtr))
+				});
+			}};
+			LOG(INFO) << "Streaming format is " << format;
 
 			// start streaming
-			LOG(INFO) << "Starting SlimStreamer...";
-			LOG(INFO) << "Streaming format is " << format;
-			if (processorAsio.process([](auto context) -> bool
+			processor.start();
+			processor.process([](auto context)
 			{
-				auto started{false};
-
 				try
 				{
+					LOG(INFO) << "Starting SlimStreamer...";
 					context.getResource()->start();
-					started = true;
+					LOG(INFO) << "SlimStreamer was started";
 				}
 				catch (const std::exception& error)
 				{
@@ -392,31 +391,33 @@ int main(int argc, const char *argv[])
 				{
 					std::cout << "Unexpected exception" << std::endl;
 				}
+			});
 
-				return started;
-			}).get())
+			processor.process([]
 			{
-				LOG(INFO) << "SlimStreamer was started";
+				LOG(INFO) << "HELO";
+			});
 
-				// registering signal handler
-				signal(SIGHUP, signalHandler);
-				signal(SIGTERM, signalHandler);
-				signal(SIGINT, signalHandler);
+			// registering signal handler
+			signal(SIGHUP, signalHandler);
+			signal(SIGTERM, signalHandler);
+			signal(SIGINT, signalHandler);
 
-				// waiting for Control^C
-				while(running)
-				{
-					std::this_thread::sleep_for(std::chrono::milliseconds{200});
-				}
-
-				// stop streaming
-				LOG(INFO) << "Stopping SlimStreamer...";
-				processorAsio.process([](auto context)
-				{
-					context.getResource()->stop();
-				}).wait();
-				LOG(INFO) << "SlimStreamer was stopped";
+			// waiting for Control^C
+			while(running)
+			{
+				std::this_thread::sleep_for(std::chrono::milliseconds{200});
 			}
+
+			// stop streaming
+			processor.process([](auto context)
+			{
+				LOG(INFO) << "Stopping SlimStreamer...";
+				context.getResource()->stop();
+				LOG(INFO) << "SlimStreamer was stopped";
+			});
+
+			std::this_thread::sleep_for(std::chrono::milliseconds{1000});
 		}
 	}
 	catch (const cxxopts::OptionException& e)

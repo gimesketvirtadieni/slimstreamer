@@ -12,7 +12,8 @@
 
 #pragma once
 
-#include <conwrap/ProcessorProxy.hpp>
+#include <conwrap2/ProcessorProxy.hpp>
+#include <memory>
 
 #include "slim/Chunk.hpp"
 #include "slim/ContainerBase.hpp"
@@ -29,7 +30,7 @@ namespace slim
 			virtual     ~Consumer() = default;
 			virtual bool consumeChunk(Chunk&) = 0;
 
-			virtual conwrap::ProcessorProxy<ContainerBase>* getProcessorProxy()
+			virtual conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>>* getProcessorProxy()
 			{
 				return processorProxyPtr;
 			}
@@ -39,7 +40,7 @@ namespace slim
 				return samplingRate;
 			}
 
-			virtual void setProcessorProxy(conwrap::ProcessorProxy<ContainerBase>* p)
+			virtual void setProcessorProxy(conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>>* p)
 			{
 				processorProxyPtr = p;
 			}
@@ -53,7 +54,7 @@ namespace slim
 			virtual void stop(bool gracefully = true) = 0;
 
 		private:
-			conwrap::ProcessorProxy<ContainerBase>* processorProxyPtr{nullptr};
-			unsigned int                            samplingRate;
+			conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>>* processorProxyPtr{nullptr};
+			unsigned int                             samplingRate;
 	};
 }
