@@ -1,0 +1,29 @@
+{
+    "configurations": [
+        {
+            "name": "Linux",
+            "includePath": [
+                "${workspaceFolder}/src/slim",
+                "${workspaceFolder}/dependencies/conwrap2/include",
+                "${workspaceFolder}/dependencies/cxxopts/include",
+                "${workspaceFolder}/dependencies/g3log/src",
+                "${workspaceFolder}/dependencies/g3log/build/include",
+                "${workspaceFolder}/dependencies/scope_guard/include/boost",
+                "${workspaceFolder}/dependencies/type_safe/include",
+                "${workspaceFolder}/dependencies/type_safe/external/debug_assert",
+                "${workspaceFolder}/dependencies/networking-ts-impl/include"
+            ],
+            "defines": [
+                "_DEBUG",
+                "UNICODE",
+                "_UNICODE",
+                "SCOPE_GUARD_STANDALONE"
+            ],
+            "compilerPath": "/usr/bin/gcc",
+            "cStandard": "c11",
+            "cppStandard": "c++17",
+            "intelliSenseMode": "gcc-x64"
+        }
+    ],
+    "version": 4
+}
