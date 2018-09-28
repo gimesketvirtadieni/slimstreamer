@@ -227,7 +227,7 @@ auto createStreamingCallbacks(Streamer<TCPConnection>& streamer)
 }
 
 
-int main(int argc, const char *argv[])
+int main(int argc, char *argv[])
 {
 	// initializing log and adding custom sink
 	auto logWorkerPtr = g3::LogWorker::createLogWorker();
@@ -374,7 +374,6 @@ int main(int argc, const char *argv[])
 			LOG(INFO) << "Streaming format is " << format;
 
 			// start streaming
-			processor.start();
 			processor.process([](auto context)
 			{
 				try

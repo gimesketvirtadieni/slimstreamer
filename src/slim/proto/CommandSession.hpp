@@ -12,6 +12,7 @@
 
 #pragma once
 
+#include <chrono>
 #include <cstddef>  // std::size_t
 #include <functional>
 #include <optional>
@@ -50,12 +51,13 @@ namespace slim
 			using StreamingSessionType = StreamingSession<ConnectionType>;
 
 			public:
-				CommandSession(std::reference_wrapper<ConnectionType> co, std::string id, unsigned int p, FormatSelection f, std::optional<unsigned int> g)
-				: connection{co}
+				CommandSession(conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>>& pr, std::reference_wrapper<ConnectionType> co, std::string id, unsigned int po, FormatSelection fo, std::optional<unsigned int> ga)
+				: processorProxy{pr}
+				, connection{co}
 				, clientID{id}
-				, streamingPort{p}
-				, formatSelection{f}
-				, gain{g}
+				, streamingPort{po}
+				, formatSelection{fo}
+				, gain{ga}
 				, commandHandlers
 				{
 					{"DSCO", [&](auto* buffer, auto size, auto timestamp) {return onDSCO(buffer, size);}},
@@ -415,10 +417,13 @@ namespace slim
 					{
 						ping();
 					}
-				}
-				else
-				{
-					ping();
+					else
+					{
+						processorProxy.processWithDelay([&](auto& context)
+						{
+							ping();
+						}, std::chrono::seconds{5});
+					}
 				}
 
 				template<typename CommandType>
@@ -431,24 +436,25 @@ namespace slim
 				}
 
 			private:
-				std::reference_wrapper<ConnectionType>       connection;
-				std::string                                  clientID;
-				unsigned int                                 streamingPort{0};
-				FormatSelection                              formatSelection;
-				std::optional<unsigned int>                  gain;
-				CommandHandlersMap                           commandHandlers;
-				EventHandlersMap                             eventHandlers;
-				bool                                         streaming{false};
-				unsigned int                                 samplingRate{0};
-				StreamingSessionType*                        streamingSessionPtr{nullptr};
-				bool                                         connectedReceived{false};
-				bool                                         responseReceived{false};
-				util::ExpandableBuffer                       commandBuffer{std::size_t{0}, std::size_t{2048}};
-				ts::optional<client::CommandHELO>            commandHELO{ts::nullopt};
-				util::TimestampCache<10>                     timestampCache;
-				ts::optional<unsigned int>                   latency{ts::nullopt};
-				bool                                         measuringLatency{false};
-				signed long long                             difff{0};
+				conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>>& processorProxy;
+				std::reference_wrapper<ConnectionType>                    connection;
+				std::string                                               clientID;
+				unsigned int                                              streamingPort{0};
+				FormatSelection                                           formatSelection;
+				std::optional<unsigned int>                               gain;
+				CommandHandlersMap                                        commandHandlers;
+				EventHandlersMap                                          eventHandlers;
+				bool                                                      streaming{false};
+				unsigned int                                              samplingRate{0};
+				StreamingSessionType*                                     streamingSessionPtr{nullptr};
+				bool                                                      connectedReceived{false};
+				bool                                                      responseReceived{false};
+				util::ExpandableBuffer                                    commandBuffer{std::size_t{0}, std::size_t{2048}};
+				ts::optional<client::CommandHELO>                         commandHELO{ts::nullopt};
+				util::TimestampCache<10>                                  timestampCache;
+				ts::optional<unsigned int>                                latency{ts::nullopt};
+				bool                                                      measuringLatency{false};
+				signed long long                                          difff{0};
 		};
 	}
 }

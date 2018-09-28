@@ -230,7 +230,7 @@ namespace slim
 					ss << (++nextID);
 
 					// creating command session object
-					auto commandSessionPtr{std::make_unique<CommandSessionType>(std::ref<ConnectionType>(connection), ss.str(), streamingPort, encoderBuilder.getFormat(), gain)};
+					auto commandSessionPtr{std::make_unique<CommandSessionType>(*getProcessorProxy(), std::ref<ConnectionType>(connection), ss.str(), streamingPort, encoderBuilder.getFormat(), gain)};
 
 					// enable streaming for this session if required
 					if (streaming)
@@ -266,8 +266,7 @@ namespace slim
 
 						for(unsigned int counter{0}; !monitorFinish; counter++, std::this_thread::sleep_for(std::chrono::milliseconds{100}))
 				        {
-							timestamp.getMicroSeconds();
-							
+							/*
 							// TODO: make configurable
 							if (counter > 24)
 							{
@@ -286,6 +285,7 @@ namespace slim
 
 								counter = 0;
 							}
+							*/
 				        }
 
 						LOG(DEBUG) << LABELS{"proto"} << "Monitor thread was stopped (id=" << std::this_thread::get_id() << ")";
