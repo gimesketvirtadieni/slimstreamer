@@ -168,42 +168,6 @@ namespace slim
 					} while (processedSize > 0);
 				}
 
-				inline void ping()
-				{
-					auto& nativeSocket{connection.get().getNativeSocket()};
-
-					if (nativeSocket.is_open())
-					{
-						auto          command{server::CommandSTRM{CommandSelection::Time}};
-						auto          buffer{command.getBuffer()};
-						auto          size{command.getSize()};
-						std::uint32_t timestampKey{0};
-						int           result{0};
-						std::size_t   sent{0};
-
-						timestampKey = timestampCache.store();
-						command.getBuffer()->data.replayGain = timestampKey;
-
-						// setting measuring flag to make sure there were no other commends processed inbetween
-						measuringLatency = true;
-
-						// capturing ping time as close as possible to the moment of sending data out
-						util::Timestamp timestamp;
-
-						// sending 'ping' command as close as possible to the local time capture point
-						while (result >= 0 && sent < size)
-						{
-							result  = nativeSocket.send(std::experimental::net::buffer(buffer + sent, size - sent));
-							sent   += (result >= 0 ? result : 0);
-						}
-
-						// saving actual timestamp in the cache
-						timestampCache.update(timestampKey, timestamp);
-
-						LOG(DEBUG) << LABELS{"proto"} << "PING timestampKey=" << timestampKey << " timestamp=" << timestamp.getMicroSeconds();
-					}
-				}
-
 				inline void setSamplingRate(unsigned int s)
 				{
 					// TODO: implement proper processing
@@ -424,6 +388,34 @@ namespace slim
 							ping();
 						}, std::chrono::seconds{5});
 					}
+				}
+
+				inline void ping()
+				{
+					auto command{server::CommandSTRM{CommandSelection::Time}};
+					auto timestampKey{std::uint32_t{0}};
+
+					timestampKey = timestampCache.store();
+					command.getBuffer()->data.replayGain = timestampKey;
+
+					// setting measuring flag to make sure there were no other commends processed inbetween
+					measuringLatency = true;
+
+					connection.get().setNoDelay(true);
+					connection.get().setQuickAcknowledgment(true);
+
+					// capturing ping time as close as possible to the moment of sending data out
+					util::Timestamp timestamp;
+
+					// sending 'ping' command as close as possible to the local time capture point
+					connection.get().write(command.getBuffer(), command.getSize());
+					connection.get().setNoDelay(true);
+					connection.get().setQuickAcknowledgment(true);
+
+					// saving actual timestamp in the cache
+					timestampCache.update(timestampKey, timestamp);
+
+					LOG(DEBUG) << LABELS{"proto"} << "PING timestampKey=" << timestampKey << " timestamp=" << timestamp.getMicroSeconds();
 				}
 
 				template<typename CommandType>

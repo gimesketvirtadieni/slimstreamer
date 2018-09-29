@@ -84,7 +84,10 @@
         "xstring": "cpp",
         "xtr1common": "cpp",
         "xtree": "cpp",
-        "xutility": "cpp"
+        "xutility": "cpp",
+        "*.tcc": "cpp",
+        "bitset": "cpp",
+        "cwctype": "cpp"
     },
     "C_Cpp.intelliSenseEngineFallback": "Disabled"
 }

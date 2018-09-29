@@ -374,7 +374,7 @@ int main(int argc, char *argv[])
 			LOG(INFO) << "Streaming format is " << format;
 
 			// start streaming
-			processor.process([](auto context)
+			processor.process([](auto& context)
 			{
 				try
 				{
@@ -392,11 +392,6 @@ int main(int argc, char *argv[])
 				}
 			});
 
-			processor.process([]
-			{
-				LOG(INFO) << "HELO";
-			});
-
 			// registering signal handler
 			signal(SIGHUP, signalHandler);
 			signal(SIGTERM, signalHandler);
@@ -409,14 +404,12 @@ int main(int argc, char *argv[])
 			}
 
 			// stop streaming
-			processor.process([](auto context)
+			processor.process([](auto& context)
 			{
 				LOG(INFO) << "Stopping SlimStreamer...";
 				context.getResource()->stop();
 				LOG(INFO) << "SlimStreamer was stopped";
 			});
-
-			std::this_thread::sleep_for(std::chrono::milliseconds{1000});
 		}
 	}
 	catch (const cxxopts::OptionException& e)

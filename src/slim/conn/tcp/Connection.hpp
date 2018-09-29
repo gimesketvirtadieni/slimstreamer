@@ -69,6 +69,18 @@ namespace slim
 
 					virtual void rewind(const std::streampos pos) override {}
 
+					void setNoDelay(bool noDelay)
+					{
+						// enabling / disabling Nagle's algorithm
+						nativeSocket.set_option(std::experimental::net::ip::tcp::no_delay{noDelay});
+					}
+
+					void setQuickAcknowledgment(bool quickAcknowledgment)
+					{
+						const std::experimental::net::detail::socket_option::boolean<IPPROTO_TCP, TCP_QUICKACK> quickack{quickAcknowledgment};
+						nativeSocket.set_option(quickack);
+					}
+
 					void start(std::experimental::net::ip::tcp::acceptor& acceptor)
 					{
 						onStart();
@@ -76,7 +88,17 @@ namespace slim
 						acceptor.async_accept(
 							[&](auto error, auto s)
 							{
+								// TODO: figure out a better alternative in case when error != 0
 								nativeSocket = std::move(s);
+
+								if (!error)
+								{
+									// making sure synchronous operations do not throw would_block exception
+									nativeSocket.non_blocking(false);
+
+									// making sure keep-alive packets are sent
+									nativeSocket.set_option(std::experimental::net::socket_base::keep_alive{true});
+								}
 
 								onOpen(error);
 							}
@@ -109,24 +131,7 @@ namespace slim
 						{
 							if (nativeSocket.is_open())
 							{
-								// TODO: work in progress
-								// disabling Nagle's algorithm
-								nativeSocket.non_blocking(true);
-								nativeSocket.set_option(std::experimental::net::ip::tcp::no_delay{true});
-								nativeSocket.set_option(std::experimental::net::socket_base::keep_alive{true});
-
-								const std::experimental::net::detail::socket_option::boolean<IPPROTO_TCP, TCP_QUICKACK> quickack{true};
-								nativeSocket.set_option(quickack);
-
-								// no need to return actually written bytes as assio::write function writes all provided data
 								result = std::experimental::net::write(nativeSocket, std::experimental::net::const_buffer(data, size));
-
-								nativeSocket.set_option(quickack);
-
-								// disabling Nagle's algorithm
-								nativeSocket.non_blocking(true);
-								nativeSocket.set_option(std::experimental::net::ip::tcp::no_delay{true});
-								nativeSocket.set_option(std::experimental::net::socket_base::keep_alive{true});
 							}
 							else
 							{
@@ -146,14 +151,6 @@ namespace slim
 
 					virtual void writeAsync(const void* data, const std::size_t size, util::WriteCallback callback = [](auto, auto) {}) override
 					{
-						// TODO: work in progress
-						//nativeSocket.non_blocking(true);
-						//nativeSocket.set_option(asio::ip::tcp::no_delay(true));
-						//nativeSocket.set_option(asio::socket_base::keep_alive(true));
-
-						//const asio::detail::socket_option::boolean<IPPROTO_TCP, TCP_QUICKACK> quickack(true);
-						//nativeSocket.set_option(quickack);
-
 						std::experimental::net::async_write(
 							nativeSocket,
 							std::experimental::net::const_buffer(data, size),

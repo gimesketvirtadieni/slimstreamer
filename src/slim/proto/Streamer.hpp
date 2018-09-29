@@ -257,50 +257,8 @@ namespace slim
 					}
 				}
 
-				virtual void start() override
-				{
-					// starting monitor thread
-					monitorThread = std::move(std::thread{[&]
-					{
-						LOG(DEBUG) << LABELS{"proto"} << "Monitor thread was started (id=" << std::this_thread::get_id() << ")";
-
-						for(unsigned int counter{0}; !monitorFinish; counter++, std::this_thread::sleep_for(std::chrono::milliseconds{100}))
-				        {
-							/*
-							// TODO: make configurable
-							if (counter > 24)
-							{
-								auto processorProxyPtr{getProcessorProxy()};
-								if (processorProxyPtr)
-								{
-									processorProxyPtr->process([&]
-									{
-										// sending ping command to measure round-trip latency
-										for (auto& entry : commandSessions)
-										{
-											entry.second->ping();
-										}
-									});
-								}
-
-								counter = 0;
-							}
-							*/
-				        }
-
-						LOG(DEBUG) << LABELS{"proto"} << "Monitor thread was stopped (id=" << std::this_thread::get_id() << ")";
-					}});
-				}
-
-				virtual void stop(bool gracefully = true) override
-				{
-					// stopping monitor thread
-					monitorFinish = true;
-					if (monitorThread.joinable())
-					{
-						monitorThread.join();
-					}
-				}
+				virtual void start() override {}
+				virtual void stop(bool gracefully = true) override {}
 
 			protected:
 				template<typename SessionType>
