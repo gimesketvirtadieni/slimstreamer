@@ -12,13 +12,11 @@
 
 #pragma once
 
-#include <atomic>
 #include <conwrap2/ProcessorProxy.hpp>
 #include <chrono>
 #include <functional>
 #include <memory>
 #include <scope_guard.hpp>
-#include <thread>
 
 #include "slim/Consumer.hpp"
 #include "slim/ContainerBase.hpp"
@@ -31,8 +29,9 @@ namespace slim
 	class Scheduler
 	{
 		public:
-			Scheduler(std::unique_ptr<Producer> pr, std::unique_ptr<Consumer> cn)
-			: producerPtr{std::move(pr)}
+			Scheduler(conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>> pp, std::unique_ptr<Producer> pr, std::unique_ptr<Consumer> cn)
+			: processorProxy{pp}
+			, producerPtr{std::move(pr)}
 			, consumerPtr{std::move(cn)}
 			{
 				LOG(DEBUG) << LABELS{"slim"} << "Scheduler object was created (id=" << this << ")";
@@ -49,42 +48,15 @@ namespace slim
 			Scheduler(Scheduler&& rhs) = delete;              // non-movable
 			Scheduler& operator=(Scheduler&& rhs) = delete;   // non-move-assignable
 
-			void setProcessorProxy(conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>>* p)
-			{
-				processorProxyPtr = p;
-				producerPtr->setProcessorProxy(p);
-				consumerPtr->setProcessorProxy(p);
-			}
-
 			void start()
 			{
 				producerPtr->start();
 				consumerPtr->start();
 
-				// starting scheduler monitor thread
-				monitorThread = std::move(std::thread{[&]
+				processorProxy.process([&]
 				{
-					LOG(DEBUG) << LABELS{"slim"} << "Scheduler monitor thread was started (id=" << std::this_thread::get_id() << ")";
-
-					for (;!monitorFinish; std::this_thread::sleep_for(std::chrono::milliseconds{100}))
-					{
-						if (requestTaskLater)
-						{
-							requestTaskLater = false;
-
-							processorProxyPtr->process([&]
-							{
-								//LOG(DEBUG) << LABELS{"slim"} << "Process task";
-								processTask();
-							});
-						}
-					}
-
-					LOG(DEBUG) << LABELS{"slim"} << "Scheduler monitor thread was stopped (id=" << std::this_thread::get_id() << ")";
-				}});
-
-				// asking monitor thread to submit a new task
-				requestTaskLater = true;
+					processTask();
+				});
 
 				LOG(DEBUG) << LABELS{"slim"} << "Streaming was started";
 			}
@@ -93,13 +65,6 @@ namespace slim
 			{
 				producerPtr->stop();
 				consumerPtr->stop();
-
-				// signalling monitor thread to stop and joining it
-				monitorFinish = true;
-				if (monitorThread.joinable())
-				{
-					monitorThread.join();
-				}
 
 				LOG(DEBUG) << LABELS{"slim"} << "Streaming was stopped";
 			}
@@ -142,27 +107,27 @@ namespace slim
 					std::cout << "Unexpected exception" << std::endl;
 				}
 
+				// TODO: refactor
 				// if there is more PCM data to be processed
 				if (available)
 				{
-					processorProxyPtr->process([&]
+					processorProxy.process([&]
 					{
 						processTask();
 					});
 				}
 				else if (producerPtr->isRunning())
 				{
-					// requesting monitoring thread to submit a new task later, which will allow event-loop to progress
-					requestTaskLater = true;
+					processorProxy.processWithDelay([&]
+					{
+						processTask();
+					}, std::chrono::milliseconds{100});
 				}
 			}
 
 		private:
-			std::unique_ptr<Producer>                producerPtr;
-			std::unique_ptr<Consumer>                consumerPtr;
-			std::thread                              monitorThread;
-			std::atomic<bool>                        monitorFinish{false};
-			std::atomic<bool>                        requestTaskLater{false};
-			conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>>* processorProxyPtr{nullptr};
+			conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>> processorProxy;
+			std::unique_ptr<Producer>                                producerPtr;
+			std::unique_ptr<Consumer>                                consumerPtr;
 	};
 }

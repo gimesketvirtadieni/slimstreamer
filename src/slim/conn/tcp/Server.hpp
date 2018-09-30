@@ -34,13 +34,14 @@ namespace slim
 			class Server
 			{
 				public:
-					Server(unsigned int p, unsigned int m, std::unique_ptr<Callbacks<ContainerType>> c)
-					: port{p}
-					, maxConnections{m}
+					Server(conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>> pp, unsigned int po, unsigned int ma, std::unique_ptr<Callbacks<ContainerType>> ca)
+					: processorProxy{pp}
+					, port{po}
+					, maxConnections{ma}
 					, callbacksPtr{std::make_unique<Callbacks<ContainerType>>()}
 					, started{false}
 					{
-						callbacksPtr->setStartCallback(std::move([&, startCallback = std::move(c->getStartCallback())](auto& connection)
+						callbacksPtr->setStartCallback(std::move([&, startCallback = std::move(ca->getStartCallback())](auto& connection)
 						{
 							try
 							{
@@ -51,7 +52,7 @@ namespace slim
 								LOG(ERROR) << LABELS{"conn"} << "Error while invoking 'on start' callback (id=" << this << ", error=" << e.what() << ")";
 							}
 						}));
-						callbacksPtr->setOpenCallback(std::move([&, openCallback = std::move(c->getOpenCallback())](auto& connection)
+						callbacksPtr->setOpenCallback(std::move([&, openCallback = std::move(ca->getOpenCallback())](auto& connection)
 						{
 							try
 							{
@@ -79,7 +80,7 @@ namespace slim
 								stopAcceptor();
 							}
 						}));
-						callbacksPtr->setDataCallback(std::move([&, dataCallback = std::move(c->getDataCallback())](auto& connection, unsigned char* buffer, const std::size_t size, const util::Timestamp timestamp)
+						callbacksPtr->setDataCallback(std::move([&, dataCallback = std::move(ca->getDataCallback())](auto& connection, unsigned char* buffer, const std::size_t size, const util::Timestamp timestamp)
 						{
 							try
 							{
@@ -90,7 +91,7 @@ namespace slim
 								LOG(ERROR) << LABELS{"conn"} << "Error while invoking 'on data' callback (id=" << this << ", error=" << e.what() << ")";
 							}
 						}));
-						callbacksPtr->setCloseCallback(std::move([&, closeCallback = std::move(c->getCloseCallback())](auto& connection)
+						callbacksPtr->setCloseCallback(std::move([&, closeCallback = std::move(ca->getCloseCallback())](auto& connection)
 						{
 							try
 							{
@@ -101,7 +102,7 @@ namespace slim
 								LOG(ERROR) << LABELS{"conn"} << "Error while invoking 'on close' callback (id=" << this << ", error=" << e.what() << ")";
 							}
 						}));
-						callbacksPtr->setStopCallback(std::move([&, stopCallback = std::move(c->getStopCallback())](auto& connection)
+						callbacksPtr->setStopCallback(std::move([&, stopCallback = std::move(ca->getStopCallback())](auto& connection)
 						{
 							try
 							{
@@ -113,7 +114,7 @@ namespace slim
 							}
 
 							// connection cannot be removed at this moment as this method is called by the connection which is being removed
-							processorProxyPtr->process([&]
+							processorProxy.process([&]
 							{
 								removeConnection(connection);
 
@@ -138,11 +139,6 @@ namespace slim
 					Server& operator=(const Server&) = delete;  // non-assignable
 					Server(Server&& rhs) = delete;              // non-movable
 					Server& operator=(Server&& rhs) = delete;   // non-movable-assinable
-
-					void setProcessorProxy(conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>>* p)
-					{
-						processorProxyPtr = p;
-					}
 
 					void start()
 					{
@@ -177,7 +173,7 @@ namespace slim
 					auto& addConnection()
 					{
 						// creating new connection
-						auto connectionPtr{std::make_unique<Connection<ContainerType>>(processorProxyPtr, *callbacksPtr.get())};
+						auto connectionPtr{std::make_unique<Connection<ContainerType>>(processorProxy, *callbacksPtr.get())};
 
 						// start accepting connection
 						connectionPtr->start(*acceptorPtr);
@@ -210,7 +206,7 @@ namespace slim
 						if (!acceptorPtr)
 						{
 							acceptorPtr = std::make_unique<std::experimental::net::ip::tcp::acceptor>(
-								processorProxyPtr->getDispatcher(),
+								processorProxy.getDispatcher(),
 								std::experimental::net::ip::tcp::endpoint(
 									std::experimental::net::ip::tcp::v4(),
 									port
@@ -236,11 +232,11 @@ namespace slim
 					}
 
 				private:
+					conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>>   processorProxy;
 					unsigned int                                               port;
 					unsigned int                                               maxConnections;
 					std::unique_ptr<Callbacks<ContainerType>>                  callbacksPtr;
 					bool                                                       started;
-					conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>>*  processorProxyPtr;
 					std::unique_ptr<std::experimental::net::ip::tcp::acceptor> acceptorPtr;
 					std::vector<std::unique_ptr<Connection<ContainerType>>>    connections;
 			};

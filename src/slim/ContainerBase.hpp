@@ -12,6 +12,7 @@
 
 #pragma once
 
+#include <conwrap2/ProcessorProxy.hpp>
 #include <memory>
 
 
@@ -20,7 +21,7 @@ namespace slim
 	class ContainerBase
 	{
 		public:
-			ContainerBase(conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>>& p)
+			ContainerBase(conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>> p)
 			: processorProxy{p} {}
 			
 			// using Rule Of Zero
@@ -34,6 +35,6 @@ namespace slim
 			virtual void stop() = 0;
 
 		private:
-			conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>>& processorProxy;
+			conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>> processorProxy;
 	};
 }

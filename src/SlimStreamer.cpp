@@ -143,7 +143,7 @@ auto createDiscoveryCallbacks()
 }
 
 
-auto createFileConsumers(std::vector<std::unique_ptr<Source>>& producers, EncoderBuilder& encoderBuilder)
+auto createFileConsumers(conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>> processorProxy, std::vector<std::unique_ptr<Source>>& producers, EncoderBuilder& encoderBuilder)
 {
 	// creating a container for files objects
 	std::vector<std::unique_ptr<FileConsumer>> fileConsumers;
@@ -161,14 +161,14 @@ auto createFileConsumers(std::vector<std::unique_ptr<Source>>& producers, Encode
 		encoderBuilder.setBitsPerSample(parameters.getBitsPerSample());
 		encoderBuilder.setBitsPerValue(parameters.getBitsPerValue());
 
-		fileConsumers.emplace_back(std::make_unique<FileConsumer>(std::move(writerPtr), encoderBuilder));
+		fileConsumers.emplace_back(std::make_unique<FileConsumer>(processorProxy, std::move(writerPtr), encoderBuilder));
 	});
 
 	return fileConsumers;
 }
 
 
-auto createProducers(Parameters parameters)
+auto createProducers(conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>> processorProxy, Parameters parameters)
 {
 	std::vector<std::tuple<unsigned int, std::string>> rates
 	{
@@ -196,7 +196,7 @@ auto createProducers(Parameters parameters)
 		parameters.setDeviceName(device);
 		parameters.setFramesPerChunk((rate * chunkDurationMilliSecond) / 1000);
 
-		producers.push_back(std::make_unique<Source>(parameters, []
+		producers.push_back(std::make_unique<Source>(processorProxy, parameters, []
 		{
 			LOG(ERROR) << LABELS{"slim"} << "Buffer overflow error: a chunk was skipped";
 		}));
@@ -321,51 +321,51 @@ int main(int argc, char *argv[])
 			encoderBuilder.setBitsPerSample(parameters.getBitsPerSample());
 			encoderBuilder.setBitsPerValue(parameters.getBitsPerValue());
 
-			// creating producers and consumers in (De)Multiplexors
-			auto producers{createProducers(parameters)};
+			// creating Container object within Processor with Scheduler and Servers
+			conwrap2::Processor<std::unique_ptr<ContainerBase>> processor{[&](auto& processorProxy)
+			{
+				// creating producers (one per device)
+				auto producers{createProducers(processorProxy, parameters)};
+
+				// creating a multiplexor which combines producers into one 'virtual' producer
+				auto multiplexorPtr{std::make_unique<Multiplexor<Source>>(processorProxy, std::move(producers))};
 
 			// Callbacks objects 'glue' SlimProto Streamer with TCP Command Servers
 			auto streamerPtr
 			{
-				std::make_unique<Streamer<TCPConnection>>(httpPort, encoderBuilder, gain)
+					std::make_unique<Streamer<TCPConnection>>(processorProxy, httpPort, encoderBuilder, gain)
 			};
 			auto commandServerPtr
 			{
-				std::make_unique<TCPServer>(slimprotoPort, maxClients, std::move(createCommandCallbacks(*streamerPtr)))
+					std::make_unique<TCPServer>(processorProxy, slimprotoPort, maxClients, std::move(createCommandCallbacks(*streamerPtr)))
 			};
 			auto streamingServerPtr
 			{
-				std::make_unique<TCPServer>(httpPort, maxClients, std::move(createStreamingCallbacks(*streamerPtr)))
+					std::make_unique<TCPServer>(processorProxy, httpPort, maxClients, std::move(createStreamingCallbacks(*streamerPtr)))
 			};
 			auto discoveryServerPtr
 			{
-				std::make_unique<UDPServer>(3483, std::move(createDiscoveryCallbacks()))
+					std::make_unique<UDPServer>(processorProxy, 3483, std::move(createDiscoveryCallbacks()))
 			};
 
 			// choosing consumer based on parameters provided
 			std::unique_ptr<Consumer> consumerPtr;
-			if (result.count("files"))
+				if (true /*result.count("files")*/)
 			{
 				if (encoderBuilder.getFormat() == slim::proto::FormatSelection::PCM)
 				{
 					encoderBuilder.setHeader(true);
 				}
-				consumerPtr = std::make_unique<Demultiplexor<FileConsumer>>(std::move(createFileConsumers(producers, encoderBuilder)));
+					consumerPtr = std::make_unique<Demultiplexor<FileConsumer>>(processorProxy, std::move(createFileConsumers(processorProxy, producers, encoderBuilder)));
 			}
 			else
 			{
 				consumerPtr = std::move(streamerPtr);
 			}
 
-			// creating a producer
-			auto multiplexorPtr{std::make_unique<Multiplexor<Source>>(std::move(producers))};
-
 			// creating a scheduler
-			auto schedulerPtr{std::make_unique<Scheduler>(std::move(multiplexorPtr), std::move(consumerPtr))};
+				auto schedulerPtr{std::make_unique<Scheduler>(processorProxy, std::move(multiplexorPtr), std::move(consumerPtr))};
 
-			// creating Container object within Processor with Scheduler and Servers
-			conwrap2::Processor<std::unique_ptr<ContainerBase>> processor{[&](auto& processorProxy)
-			{
 				return std::move(std::unique_ptr<ContainerBase>
 				{
 					new Container<TCPServer, TCPServer, UDPServer, Scheduler>(processorProxy, std::move(commandServerPtr), std::move(streamingServerPtr), std::move(discoveryServerPtr), std::move(schedulerPtr))

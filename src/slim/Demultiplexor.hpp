@@ -16,6 +16,7 @@
 #include <memory>
 #include <vector>
 
+#include "slim/ContainerBase.hpp"
 #include "slim/Exception.hpp"
 #include "slim/log/log.hpp"
 
@@ -26,8 +27,8 @@ namespace slim
 	class Demultiplexor : public Consumer
 	{
 		public:
-			Demultiplexor(std::vector<std::unique_ptr<ConsumerType>> c)
-			: Consumer{0}
+			Demultiplexor(conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>> p, std::vector<std::unique_ptr<ConsumerType>> c)
+			: Consumer{p, 0}
 			, consumers{std::move(c)} {}
 
 			// using Rule Of Zero

@@ -35,9 +35,10 @@ namespace slim
 			class Server : public util::AsyncWriter
 			{
 				public:
-					Server(unsigned int p, std::unique_ptr<CallbacksBase<Server<ContainerType>>> c)
-					: port{p}
-					, callbacksPtr{std::move(c)}
+					Server(conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>> pp, unsigned int po, std::unique_ptr<CallbacksBase<Server<ContainerType>>> ca)
+					: processorProxy{pp}
+					, port{po}
+					, callbacksPtr{std::move(ca)}
 					{
 						LOG(DEBUG) << LABELS{"conn"} << "UDP server object was created (id=" << this << ")";
 					}
@@ -63,11 +64,6 @@ namespace slim
 					}
 
 					virtual void rewind(const std::streampos pos) override {}
-
-					void setProcessorProxy(conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>>* p)
-					{
-						processorProxyPtr = p;
-					}
 
 					void start()
 					{
@@ -199,7 +195,7 @@ namespace slim
 						{
 							nativeSocket = std::experimental::net::ip::udp::socket
 							{
-								processorProxyPtr->getDispatcher(),
+								processorProxy.getDispatcher(),
 								std::experimental::net::ip::udp::endpoint(
 									std::experimental::net::ip::udp::v4(),
 									port
@@ -227,10 +223,10 @@ namespace slim
 					}
 
 				private:
+					conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>>  processorProxy;
 					unsigned int                                              port;
 					std::unique_ptr<CallbacksBase<Server>>                    callbacksPtr;
 					bool                                                      started{false};
-					conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>>* processorProxyPtr;
 					std::optional<std::experimental::net::ip::udp::socket>    nativeSocket{std::nullopt};
 					std::optional<std::experimental::net::ip::udp::endpoint>  peerEndpoint{std::nullopt};
 					unsigned char                                             buffer[BUFFER_SIZE];

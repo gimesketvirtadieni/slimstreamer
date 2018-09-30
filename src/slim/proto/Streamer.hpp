@@ -13,7 +13,6 @@
 #pragma once
 
 #include <algorithm>
-#include <atomic>
 #include <chrono>
 #include <conwrap2/ProcessorProxy.hpp>
 #include <cstddef>  // std::size_t
@@ -22,7 +21,6 @@
 #include <optional>
 #include <sstream>  // std::stringstream
 #include <string>
-#include <thread>
 #include <unordered_map>
 #include <vector>
 
@@ -51,11 +49,12 @@ namespace slim
 			using StreamingSessionType = StreamingSession<ConnectionType>;
 
 			public:
-				Streamer(unsigned int sp, EncoderBuilder eb, std::optional<unsigned int> g)
-				: Consumer{0}
+				Streamer(conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>> pp, unsigned int sp, EncoderBuilder eb, std::optional<unsigned int> ga)
+				: Consumer{pp, 0}
+				, processorProxy{pp}
 				, streamingPort{sp}
 				, encoderBuilder{eb}
-				, gain{g}
+				, gain{ga}
 				{
 					LOG(DEBUG) << LABELS{"proto"} << "Streamer object was created (id=" << this << ")";
 				}
@@ -230,7 +229,11 @@ namespace slim
 					ss << (++nextID);
 
 					// creating command session object
-					auto commandSessionPtr{std::make_unique<CommandSessionType>(*getProcessorProxy(), std::ref<ConnectionType>(connection), ss.str(), streamingPort, encoderBuilder.getFormat(), gain)};
+					LOG(DEBUG) << LABELS{"proto"} << "BEFORE1";
+					//getProcessorProxy();
+					LOG(DEBUG) << LABELS{"proto"} << "BEFORE2";
+					auto commandSessionPtr{std::make_unique<CommandSessionType>(processorProxy, std::ref<ConnectionType>(connection), ss.str(), streamingPort, encoderBuilder.getFormat(), gain)};
+					LOG(DEBUG) << LABELS{"proto"} << "BEFORE3";
 
 					// enable streaming for this session if required
 					if (streaming)
@@ -422,6 +425,7 @@ namespace slim
 				}
 
 			private:
+				conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>> processorProxy;
 				unsigned int                      streamingPort;
 				EncoderBuilder                    encoderBuilder;
 				std::optional<unsigned int>       gain;
@@ -429,8 +433,6 @@ namespace slim
 				SessionsMap<StreamingSessionType> streamingSessions;
 				bool                              streaming{false};
 				unsigned long                     nextID{0};
-				std::atomic<bool>                 monitorFinish{false};
-				std::thread                       monitorThread;
 				util::Timestamp                   startedAt;
 		};
 	}

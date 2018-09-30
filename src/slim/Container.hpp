@@ -26,18 +26,12 @@ namespace slim
 	class Container : public ContainerBase
 	{
 		public:
-			Container(conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>>& processorProxy, std::unique_ptr<CommandServerType> cse, std::unique_ptr<StreamingServerType> sse, std::unique_ptr<DiscoveryServerType> dse, std::unique_ptr<SchedulerType> sc)
+			Container(conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>> processorProxy, std::unique_ptr<CommandServerType> cse, std::unique_ptr<StreamingServerType> sse, std::unique_ptr<DiscoveryServerType> dse, std::unique_ptr<SchedulerType> sc)
 			: ContainerBase{processorProxy}
 			, commandServerPtr{std::move(cse)}
 			, streamingServerPtr{std::move(sse)}
 			, discoveryServerPtr{std::move(dse)}
-			, schedulerPtr{std::move(sc)}
-			{
-				commandServerPtr->setProcessorProxy(&processorProxy);
-				streamingServerPtr->setProcessorProxy(&processorProxy);
-				discoveryServerPtr->setProcessorProxy(&processorProxy);
-				schedulerPtr->setProcessorProxy(&processorProxy);
-			}
+			, schedulerPtr{std::move(sc)} {}
 
 			// using Rule Of Zero
 			virtual ~Container() = default;

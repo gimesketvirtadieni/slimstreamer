@@ -19,6 +19,7 @@
 #include <thread>
 #include <vector>
 
+#include "slim/ContainerBase.hpp"
 #include "slim/log/log.hpp"
 
 
@@ -28,8 +29,9 @@ namespace slim
 	class Multiplexor : public Producer
 	{
 		public:
-			Multiplexor(std::vector<std::unique_ptr<ProducerType>> p)
-			: producers{std::move(p)} {}
+			Multiplexor(conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>> pp, std::vector<std::unique_ptr<ProducerType>> pr)
+			: Producer{pp}
+			, producers{std::move(pr)} {}
 
 			// using Rule Of Zero
 			virtual ~Multiplexor() = default;

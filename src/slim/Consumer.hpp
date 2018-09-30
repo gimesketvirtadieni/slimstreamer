@@ -17,6 +17,7 @@
 
 #include "slim/Chunk.hpp"
 #include "slim/ContainerBase.hpp"
+#include "slim/log/log.hpp"
 
 
 namespace slim
@@ -24,25 +25,25 @@ namespace slim
 	class Consumer
 	{
 		public:
-			Consumer(unsigned int s)
-			: samplingRate{s} {}
+			Consumer(conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>> p, unsigned int s)
+			: processorProxy{p}
+			, samplingRate{s} {}
 
 			virtual     ~Consumer() = default;
 			virtual bool consumeChunk(Chunk&) = 0;
 
-			virtual conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>>* getProcessorProxy()
+			virtual conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>> getProcessorProxy()
 			{
-				return processorProxyPtr;
+				LOG(DEBUG) << LABELS{"proto"} << "BEFORE11";
+				processorProxy.getDispatcher();
+				LOG(DEBUG) << LABELS{"proto"} << "BEFORE12";
+
+				return processorProxy;
 			}
 
 			virtual unsigned int getSamplingRate()
 			{
 				return samplingRate;
-			}
-
-			virtual void setProcessorProxy(conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>>* p)
-			{
-				processorProxyPtr = p;
 			}
 
 			virtual void setSamplingRate(unsigned int s)
@@ -54,7 +55,7 @@ namespace slim
 			virtual void stop(bool gracefully = true) = 0;
 
 		private:
-			conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>>* processorProxyPtr{nullptr};
-			unsigned int                             samplingRate;
+			conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>> processorProxy;
+			unsigned int                                             samplingRate;
 	};
 }

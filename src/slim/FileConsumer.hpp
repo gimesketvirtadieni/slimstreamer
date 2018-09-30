@@ -18,6 +18,7 @@
 
 #include "slim/Chunk.hpp"
 #include "slim/Consumer.hpp"
+#include "slim/ContainerBase.hpp"
 #include "slim/EncoderBase.hpp"
 #include "slim/EncoderBuilder.hpp"
 #include "slim/log/log.hpp"
@@ -29,8 +30,8 @@ namespace slim
 	class FileConsumer : public Consumer
 	{
 		public:
-			FileConsumer(std::unique_ptr<util::AsyncWriter> w, EncoderBuilder eb)
-			: Consumer{eb.getSamplingRate()}
+			FileConsumer(conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>> p, std::unique_ptr<util::AsyncWriter> w, EncoderBuilder eb)
+			: Consumer{p, eb.getSamplingRate()}
 			, writerPtr{std::move(w)}
 			, headerRequired{eb.getHeader()}
 			{

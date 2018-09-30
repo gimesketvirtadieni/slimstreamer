@@ -34,10 +34,10 @@ namespace slim
 			class Connection : public util::AsyncWriter
 			{
 				public:
-					Connection(conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>>* p, CallbacksBase<Connection<ContainerType>>& c)
-					: processorProxyPtr{p}
+					Connection(conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>> p, CallbacksBase<Connection<ContainerType>>& c)
+					: processorProxy{p}
 					, callbacks{c}
-					, nativeSocket{processorProxyPtr->getDispatcher()}
+					, nativeSocket{processorProxy.getDispatcher()}
 					, opened{false}
 					// TODO: parametrize
 					, buffer{1024}
@@ -192,7 +192,7 @@ namespace slim
 							}
 
 							// submitting a new task here allows other tasks to progress
-							processorProxyPtr->process([&]
+							processorProxy.process([&]
 							{
 								// keep receiving data 'recursivelly' (task processor is used instead of stack)
 								nativeSocket.async_read_some(
@@ -240,7 +240,7 @@ namespace slim
 					void onStop()
 					{
 						// connection cannot be removed at this moment as this method is called withing this connection
-						processorProxyPtr->process([&]
+						processorProxy.process([&]
 						{
 							// invoking stop callback
 							callbacks.getStopCallback()(*this);
@@ -250,11 +250,11 @@ namespace slim
 					}
 
 				private:
-					conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>>* processorProxyPtr;
-					CallbacksBase<Connection<ContainerType>>& callbacks;
-					std::experimental::net::ip::tcp::socket   nativeSocket;
-					bool                                      opened;
-					util::ExpandableBuffer                    buffer;
+					conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>> processorProxy;
+					CallbacksBase<Connection<ContainerType>>&                callbacks;
+					std::experimental::net::ip::tcp::socket                  nativeSocket;
+					bool                                                     opened;
+					util::ExpandableBuffer                                   buffer;
 			};
 		}
 	}

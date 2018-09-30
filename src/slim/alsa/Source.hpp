@@ -48,13 +48,14 @@ namespace slim
 			using CounterType = unsigned long long;
 
 			public:
-				Source(Parameters p, std::function<void()> oc = [] {})
-				: parameters{p}
+				Source(conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>> pp, Parameters pa, std::function<void()> oc = [] {})
+				: Producer{pp}
+				, parameters{pa}
 				, overflowCallback{std::move(oc)}
 				, queuePtr{std::make_unique<QueueType>(parameters.getQueueSize(), [&](Chunk& chunk)
 				{
 					// no need to store data from the last channel as it contains commands
-					chunk.setCapacity(p.getFramesPerChunk() * p.getLogicalChannels() * (p.getBitsPerSample() >> 3));
+					chunk.setCapacity(pa.getFramesPerChunk() * pa.getLogicalChannels() * (pa.getBitsPerSample() >> 3));
 				})} {}
 
 				virtual ~Source()

@@ -25,27 +25,24 @@ namespace slim
 	class Producer
 	{
 		public:
+			Producer(conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>> p)
+			: processorProxy{p} {}
+
 			virtual ~Producer() = default;
 
-			virtual conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>>* getProcessorProxy()
+			virtual conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>> getProcessorProxy()
 			{
-				return processorProxyPtr;
+				return processorProxy;
 			}
 
 			virtual bool isProducing() = 0;
 			virtual bool isRunning() = 0;
 			virtual bool produceChunk(std::function<bool(Chunk&)>& consumer) = 0;
-
-			virtual void setProcessorProxy(conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>>* p)
-			{
-				processorProxyPtr = p;
-			}
-
 			virtual bool skipChunk() = 0;
 			virtual void start() = 0;
 			virtual void stop(bool gracefully = true) = 0;
 
 		private:
-			conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>>* processorProxyPtr{nullptr};
+			conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>> processorProxy;
 	};
 }

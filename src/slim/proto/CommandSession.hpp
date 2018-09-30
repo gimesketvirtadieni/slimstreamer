@@ -51,7 +51,7 @@ namespace slim
 			using StreamingSessionType = StreamingSession<ConnectionType>;
 
 			public:
-				CommandSession(conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>>& pr, std::reference_wrapper<ConnectionType> co, std::string id, unsigned int po, FormatSelection fo, std::optional<unsigned int> ga)
+				CommandSession(conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>> pr, std::reference_wrapper<ConnectionType> co, std::string id, unsigned int po, FormatSelection fo, std::optional<unsigned int> ga)
 				: processorProxy{pr}
 				, connection{co}
 				, clientID{id}
@@ -374,19 +374,19 @@ namespace slim
 						{
 							LOG(WARNING) << LABELS{"proto"} << "Invalid server timestamp data sent by a client (key received=" << commandSTAT.getBuffer()->serverTimestamp << ")";
 						}
-					}
 
-					// collecting enough round-trip samples to measure latency
-					if (timestampCache.elements() < timestampCache.size())
-					{
-						ping();
-					}
-					else
-					{
-						processorProxy.processWithDelay([&](auto& context)
+						// collecting enough round-trip samples to measure latency
+						if (timestampCache.elements() < timestampCache.size())
 						{
 							ping();
-						}, std::chrono::seconds{5});
+						}
+						else
+						{
+							processorProxy.processWithDelay([&](auto& context)
+							{
+								ping();
+							}, std::chrono::seconds{5});
+						}
 					}
 				}
 
@@ -428,25 +428,25 @@ namespace slim
 				}
 
 			private:
-				conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>>& processorProxy;
-				std::reference_wrapper<ConnectionType>                    connection;
-				std::string                                               clientID;
-				unsigned int                                              streamingPort{0};
-				FormatSelection                                           formatSelection;
-				std::optional<unsigned int>                               gain;
-				CommandHandlersMap                                        commandHandlers;
-				EventHandlersMap                                          eventHandlers;
-				bool                                                      streaming{false};
-				unsigned int                                              samplingRate{0};
-				StreamingSessionType*                                     streamingSessionPtr{nullptr};
-				bool                                                      connectedReceived{false};
-				bool                                                      responseReceived{false};
-				util::ExpandableBuffer                                    commandBuffer{std::size_t{0}, std::size_t{2048}};
-				ts::optional<client::CommandHELO>                         commandHELO{ts::nullopt};
-				util::TimestampCache<10>                                  timestampCache;
-				ts::optional<unsigned int>                                latency{ts::nullopt};
-				bool                                                      measuringLatency{false};
-				signed long long                                          difff{0};
+				conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>> processorProxy;
+				std::reference_wrapper<ConnectionType>                   connection;
+				std::string                                              clientID;
+				unsigned int                                             streamingPort{0};
+				FormatSelection                                          formatSelection;
+				std::optional<unsigned int>                              gain;
+				CommandHandlersMap                                       commandHandlers;
+				EventHandlersMap                                         eventHandlers;
+				bool                                                     streaming{false};
+				unsigned int                                             samplingRate{0};
+				StreamingSessionType*                                    streamingSessionPtr{nullptr};
+				bool                                                     connectedReceived{false};
+				bool                                                     responseReceived{false};
+				util::ExpandableBuffer                                   commandBuffer{std::size_t{0}, std::size_t{2048}};
+				ts::optional<client::CommandHELO>                        commandHELO{ts::nullopt};
+				util::TimestampCache<10>                                 timestampCache;
+				ts::optional<unsigned int>                               latency{ts::nullopt};
+				bool                                                     measuringLatency{false};
+				signed long long                                         difff{0};
 		};
 	}
 }
