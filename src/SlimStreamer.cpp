@@ -322,48 +322,48 @@ int main(int argc, char *argv[])
 			encoderBuilder.setBitsPerValue(parameters.getBitsPerValue());
 
 			// creating Container object within Processor with Scheduler and Servers
-			conwrap2::Processor<std::unique_ptr<ContainerBase>> processor{[&](auto& processorProxy)
+			conwrap2::Processor<std::unique_ptr<ContainerBase>> processor{[&](auto processorProxy)
 			{
 				// creating producers (one per device)
 				auto producers{createProducers(processorProxy, parameters)};
 
+				// Callbacks objects 'glue' SlimProto Streamer with TCP Command Servers
+				auto streamerPtr
+				{
+					std::make_unique<Streamer<TCPConnection>>(processorProxy, httpPort, encoderBuilder, gain)
+				};
+				auto commandServerPtr
+				{
+					std::make_unique<TCPServer>(processorProxy, slimprotoPort, maxClients, std::move(createCommandCallbacks(*streamerPtr)))
+				};
+				auto streamingServerPtr
+				{
+					std::make_unique<TCPServer>(processorProxy, httpPort, maxClients, std::move(createStreamingCallbacks(*streamerPtr)))
+				};
+				auto discoveryServerPtr
+				{
+					std::make_unique<UDPServer>(processorProxy, 3483, std::move(createDiscoveryCallbacks()))
+				};
+
+				// choosing consumer based on parameters provided
+				std::unique_ptr<Consumer> consumerPtr;
+				if (result.count("files"))
+				{
+					if (encoderBuilder.getFormat() == slim::proto::FormatSelection::PCM)
+					{
+						encoderBuilder.setHeader(true);
+					}
+					consumerPtr = std::make_unique<Demultiplexor<FileConsumer>>(processorProxy, std::move(createFileConsumers(processorProxy, producers, encoderBuilder)));
+				}
+				else
+				{
+					consumerPtr = std::move(streamerPtr);
+				}
+
 				// creating a multiplexor which combines producers into one 'virtual' producer
 				auto multiplexorPtr{std::make_unique<Multiplexor<Source>>(processorProxy, std::move(producers))};
 
-			// Callbacks objects 'glue' SlimProto Streamer with TCP Command Servers
-			auto streamerPtr
-			{
-					std::make_unique<Streamer<TCPConnection>>(processorProxy, httpPort, encoderBuilder, gain)
-			};
-			auto commandServerPtr
-			{
-					std::make_unique<TCPServer>(processorProxy, slimprotoPort, maxClients, std::move(createCommandCallbacks(*streamerPtr)))
-			};
-			auto streamingServerPtr
-			{
-					std::make_unique<TCPServer>(processorProxy, httpPort, maxClients, std::move(createStreamingCallbacks(*streamerPtr)))
-			};
-			auto discoveryServerPtr
-			{
-					std::make_unique<UDPServer>(processorProxy, 3483, std::move(createDiscoveryCallbacks()))
-			};
-
-			// choosing consumer based on parameters provided
-			std::unique_ptr<Consumer> consumerPtr;
-				if (true /*result.count("files")*/)
-			{
-				if (encoderBuilder.getFormat() == slim::proto::FormatSelection::PCM)
-				{
-					encoderBuilder.setHeader(true);
-				}
-					consumerPtr = std::make_unique<Demultiplexor<FileConsumer>>(processorProxy, std::move(createFileConsumers(processorProxy, producers, encoderBuilder)));
-			}
-			else
-			{
-				consumerPtr = std::move(streamerPtr);
-			}
-
-			// creating a scheduler
+				// creating a scheduler
 				auto schedulerPtr{std::make_unique<Scheduler>(processorProxy, std::move(multiplexorPtr), std::move(consumerPtr))};
 
 				return std::move(std::unique_ptr<ContainerBase>
