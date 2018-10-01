@@ -34,10 +34,6 @@ namespace slim
 
 			virtual conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>> getProcessorProxy()
 			{
-				LOG(DEBUG) << LABELS{"proto"} << "BEFORE11";
-				processorProxy.getDispatcher();
-				LOG(DEBUG) << LABELS{"proto"} << "BEFORE12";
-
 				return processorProxy;
 			}
 

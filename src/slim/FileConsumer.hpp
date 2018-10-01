@@ -35,7 +35,6 @@ namespace slim
 			, writerPtr{std::move(w)}
 			, headerRequired{eb.getHeader()}
 			{
-				LOG(ERROR) << LABELS{"slim"} << "HEADER=" << headerRequired;
 				eb.setEncodedCallback([&](auto* data, auto size)
 				{
 					writerPtr->writeAsync(data, size, [](auto error, auto written)

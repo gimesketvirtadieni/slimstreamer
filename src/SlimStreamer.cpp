@@ -321,17 +321,19 @@ int main(int argc, char *argv[])
 			encoderBuilder.setBitsPerSample(parameters.getBitsPerSample());
 			encoderBuilder.setBitsPerValue(parameters.getBitsPerValue());
 
+			// TODO: streamer is not owned by any container in case when PCM is directed to files; consider a better way
+			std::unique_ptr<Streamer<TCPConnection>> streamerPtr;
+
 			// creating Container object within Processor with Scheduler and Servers
 			conwrap2::Processor<std::unique_ptr<ContainerBase>> processor{[&](auto processorProxy)
 			{
 				// creating producers (one per device)
 				auto producers{createProducers(processorProxy, parameters)};
 
+				// creating a streamer object
+				streamerPtr = std::move(std::make_unique<Streamer<TCPConnection>>(processorProxy, httpPort, encoderBuilder, gain));
+
 				// Callbacks objects 'glue' SlimProto Streamer with TCP Command Servers
-				auto streamerPtr
-				{
-					std::make_unique<Streamer<TCPConnection>>(processorProxy, httpPort, encoderBuilder, gain)
-				};
 				auto commandServerPtr
 				{
 					std::make_unique<TCPServer>(processorProxy, slimprotoPort, maxClients, std::move(createCommandCallbacks(*streamerPtr)))

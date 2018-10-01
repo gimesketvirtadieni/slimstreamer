@@ -51,7 +51,6 @@ namespace slim
 			public:
 				Streamer(conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>> pp, unsigned int sp, EncoderBuilder eb, std::optional<unsigned int> ga)
 				: Consumer{pp, 0}
-				, processorProxy{pp}
 				, streamingPort{sp}
 				, encoderBuilder{eb}
 				, gain{ga}
@@ -229,11 +228,7 @@ namespace slim
 					ss << (++nextID);
 
 					// creating command session object
-					LOG(DEBUG) << LABELS{"proto"} << "BEFORE1";
-					//getProcessorProxy();
-					LOG(DEBUG) << LABELS{"proto"} << "BEFORE2";
-					auto commandSessionPtr{std::make_unique<CommandSessionType>(processorProxy, std::ref<ConnectionType>(connection), ss.str(), streamingPort, encoderBuilder.getFormat(), gain)};
-					LOG(DEBUG) << LABELS{"proto"} << "BEFORE3";
+					auto commandSessionPtr{std::make_unique<CommandSessionType>(getProcessorProxy(), std::ref<ConnectionType>(connection), ss.str(), streamingPort, encoderBuilder.getFormat(), gain)};
 
 					// enable streaming for this session if required
 					if (streaming)
@@ -425,7 +420,6 @@ namespace slim
 				}
 
 			private:
-				conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>> processorProxy;
 				unsigned int                      streamingPort;
 				EncoderBuilder                    encoderBuilder;
 				std::optional<unsigned int>       gain;
