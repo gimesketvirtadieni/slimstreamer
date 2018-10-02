@@ -43,6 +43,16 @@ namespace slim
 	{
 		namespace ts = type_safe;
 
+		struct LatencyMeasurement
+		{
+			LatencyMeasurement(std::uint32_t k)
+			: serverTimestampKey{k} {}
+
+			std::uint32_t               serverTimestampKey;
+			bool                        serverTimestampCaptured{false};
+			ts::optional<std::uint32_t> clientTimestamp{ts::nullopt};
+		};
+
 		template<typename ConnectionType>
 		class CommandSession
 		{
@@ -148,7 +158,7 @@ namespace slim
 								// TODO: consider proper usage of Command label
 								if (label.compare("STAT") != 0)
 								{
-									measuringLatency = false;
+									latencyMeasurement.reset();
 								}
 
 								processedSize = (*found).second(data, size, timestamp);
@@ -285,7 +295,7 @@ namespace slim
 						// TODO: consider proper usage of STAT event label
 						if (event.compare("STMt") != 0)
 						{
-							measuringLatency = false;
+							latencyMeasurement.reset();
 						}
 
 						// invoking STAT event handler
@@ -323,16 +333,28 @@ namespace slim
 				{
 					auto timestampKey{commandSTAT.getBuffer()->serverTimestamp};
 
-					LOG(DEBUG) << LABELS{"proto"} << "PONG timestampKey=" << timestampKey;
+					//LOG(DEBUG) << LABELS{"proto"} << "PONG timestampKey=" << timestampKey;
 
 					// if request originated by a server then use it for measuring latency
-					if (timestampKey)
+
+					LOG(WARNING) << LABELS{"proto"} << "Ping11";
+
+					if (timestampKey && latencyMeasurement.has_value() && timestampKey == latencyMeasurement.value().serverTimestampKey)
 					{
-						auto sendTimestamp = timestampCache.load(timestampKey);
-						if (sendTimestamp.has_value())
+						LOG(WARNING) << LABELS{"proto"} << "Ping12";
+						if (!latencyMeasurement.value().clientTimestamp.has_value())
 						{
+							LOG(WARNING) << LABELS{"proto"} << "Ping13";
+
+							latencyMeasurement.value().clientTimestamp = commandSTAT.getBuffer()->jiffies;
+
+							auto sendTimestamp = timestampCache.load(timestampKey);
 							LOG(DEBUG) << LABELS{"proto"} << "PONG sendTimestamp=" << sendTimestamp.value().getMicroSeconds();
 							LOG(DEBUG) << LABELS{"proto"} << "PONG clientTimestamp=" << commandSTAT.getBuffer()->jiffies;
+						}
+/*
+						if (sendTimestamp.has_value())
+						{
 
 							// TODO: work in progress
 							if (!difff)
@@ -346,7 +368,7 @@ namespace slim
 								LOG(DEBUG) << LABELS{"proto"} << "PONG diff=" << difff - d;
 							}
 
-							if (measuringLatency)
+							if (latencyMeasurement.has_value())
 							{
 								if (latency.has_value())
 								{
@@ -374,7 +396,8 @@ namespace slim
 						{
 							LOG(WARNING) << LABELS{"proto"} << "Invalid server timestamp data sent by a client (key received=" << commandSTAT.getBuffer()->serverTimestamp << ")";
 						}
-
+*/
+/*
 						// collecting enough round-trip samples to measure latency
 						if (timestampCache.elements() < timestampCache.size())
 						{
@@ -387,44 +410,71 @@ namespace slim
 								ping();
 							}, std::chrono::seconds{5});
 						}
+*/
 					}
 				}
 
 				inline void ping()
 				{
-					auto command{server::CommandSTRM{CommandSelection::Time}};
-					auto timestampKey{std::uint32_t{0}};
+					LOG(WARNING) << LABELS{"proto"} << "Ping1";
 
-					timestampKey = timestampCache.store();
-					command.getBuffer()->data.replayGain = timestampKey;
+					// creating latency measument data
+					latencyMeasurement = LatencyMeasurement{timestampCache.store()};
 
-					// setting measuring flag to make sure there were no other commends processed inbetween
-					measuringLatency = true;
-
-					connection.get().setNoDelay(true);
-					connection.get().setQuickAcknowledgment(true);
-
-					// capturing ping time as close as possible to the moment of sending data out
-					util::Timestamp timestamp;
-
-					// sending 'ping' command as close as possible to the local time capture point
-					connection.get().write(command.getBuffer(), command.getSize());
-					connection.get().setNoDelay(true);
-					connection.get().setQuickAcknowledgment(true);
-
-					// saving actual timestamp in the cache
-					timestampCache.update(timestampKey, timestamp);
-
-					LOG(DEBUG) << LABELS{"proto"} << "PING timestampKey=" << timestampKey << " timestamp=" << timestamp.getMicroSeconds();
+					// start measuring latency
+					sendPing();
 				}
 
 				template<typename CommandType>
 				inline void send(CommandType&& command)
 				{
-					measuringLatency = false;
+					latencyMeasurement.reset();
 
 					// TODO: use local buffer and async API to prevent from interfering while measuring latency
 					connection.get().write(command.getBuffer(), command.getSize());
+				}
+
+				inline void sendPing()
+				{
+					LOG(WARNING) << LABELS{"proto"} << "Ping2";
+					if (latencyMeasurement.has_value())
+					{
+						LOG(WARNING) << LABELS{"proto"} << "Ping3";
+
+						// creating ping command
+						auto command{server::CommandSTRM{CommandSelection::Time}};
+						command.getBuffer()->data.replayGain = latencyMeasurement.value().serverTimestampKey;
+
+						connection.get().setNoDelay(true);
+						connection.get().setQuickAcknowledgment(true);
+
+						// capturing server timestamp as close as possible to the send operation
+						ts::optional<util::Timestamp> timestamp{ts::nullopt};
+						if (!latencyMeasurement.value().serverTimestampCaptured)
+						{
+							timestamp = util::Timestamp{};
+						}
+
+						// sending actual ping command
+						connection.get().write(command.getBuffer(), command.getSize());
+						connection.get().setNoDelay(true);
+						connection.get().setQuickAcknowledgment(true);
+
+						if (timestamp.has_value())
+						{
+							timestampCache.update(latencyMeasurement.value().serverTimestampKey, util::Timestamp{});
+							latencyMeasurement.value().serverTimestampCaptured = true;
+						}
+
+						// keep sending ping command until client responds
+						if (!latencyMeasurement.value().clientTimestamp.has_value())
+						{
+							processorProxy.processWithDelay([&]
+							{
+								sendPing();
+							}, std::chrono::milliseconds{1});
+						}
+					}
 				}
 
 			private:
@@ -443,9 +493,10 @@ namespace slim
 				bool                                                     responseReceived{false};
 				util::ExpandableBuffer                                   commandBuffer{std::size_t{0}, std::size_t{2048}};
 				ts::optional<client::CommandHELO>                        commandHELO{ts::nullopt};
+				ts::optional<LatencyMeasurement>                         latencyMeasurement{ts::nullopt};
+
 				util::TimestampCache<10>                                 timestampCache;
 				ts::optional<unsigned int>                               latency{ts::nullopt};
-				bool                                                     measuringLatency{false};
 				signed long long                                         difff{0};
 		};
 	}
