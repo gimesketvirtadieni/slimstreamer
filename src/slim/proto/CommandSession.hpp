@@ -46,11 +46,13 @@ namespace slim
 		struct LatencyMeasurement
 		{
 			LatencyMeasurement(std::uint32_t k)
-			: serverTimestampKey{k} {}
+			: sendTimestampKey{k} {}
 
-			std::uint32_t               serverTimestampKey;
-			bool                        serverTimestampCaptured{false};
-			ts::optional<std::uint32_t> clientTimestamp{ts::nullopt};
+			std::uint32_t                 sendTimestampKey;
+			ts::optional<util::Timestamp> sendTimestamp{ts::nullopt};
+			ts::optional<util::Timestamp> receiveTimestamp{ts::nullopt};
+			ts::optional<std::uint32_t>   clientTimestamp{ts::nullopt};
+			bool                          poisoned{false};
 		};
 
 		template<typename ConnectionType>
@@ -156,9 +158,9 @@ namespace slim
 							{
 								// if this is not STAT command then reseting measuring flag
 								// TODO: consider proper usage of Command label
-								if (label.compare("STAT") != 0)
+								if (label.compare("STAT") != 0 && latencyMeasurement.has_value())
 								{
-									latencyMeasurement.reset();
+									latencyMeasurement.value().poisoned = true;
 								}
 
 								processedSize = (*found).second(data, size, timestamp);
@@ -245,7 +247,11 @@ namespace slim
 					// sending SlimProto Stop command will flush client's buffer which will initiate STAT/STMf message
 					send(server::CommandSTRM{CommandSelection::Stop});
 
-					ping();
+					// start sending ping commands after the 'handshake' commands
+					processorProxy.processWithDelay([&]
+					{
+						ping();
+					}, std::chrono::seconds{1});
 
 					// TODO: work in progress
 					if (streaming)
@@ -293,9 +299,9 @@ namespace slim
 
 						// if this is not STMt event then reseting measuring flag
 						// TODO: consider proper usage of STAT event label
-						if (event.compare("STMt") != 0)
+						if (event.compare("STMt") != 0 && latencyMeasurement.has_value())
 						{
-							latencyMeasurement.reset();
+							latencyMeasurement.value().poisoned = true;
 						}
 
 						// invoking STAT event handler
@@ -331,26 +337,31 @@ namespace slim
 
 				inline void onSTMt(client::CommandSTAT& commandSTAT, util::Timestamp receiveTimestamp)
 				{
-					auto timestampKey{commandSTAT.getBuffer()->serverTimestamp};
+					auto sendTimestampKey{commandSTAT.getBuffer()->serverTimestamp};
 
-					//LOG(DEBUG) << LABELS{"proto"} << "PONG timestampKey=" << timestampKey;
+					LOG(DEBUG) << LABELS{"proto"} << "onSTMt1";
 
-					// if request originated by a server then use it for measuring latency
-
-					LOG(WARNING) << LABELS{"proto"} << "Ping11";
-
-					if (timestampKey && latencyMeasurement.has_value() && timestampKey == latencyMeasurement.value().serverTimestampKey)
+					// if request originated by a server and the respose corresponds to the measument request then use it for measuring latency
+					if (sendTimestampKey && latencyMeasurement.has_value() && sendTimestampKey == latencyMeasurement.value().sendTimestampKey)
 					{
-						LOG(WARNING) << LABELS{"proto"} << "Ping12";
+						// if this the very first client response for the given server timestamp
 						if (!latencyMeasurement.value().clientTimestamp.has_value())
 						{
-							LOG(WARNING) << LABELS{"proto"} << "Ping13";
+							LOG(DEBUG) << LABELS{"proto"} << "onSTMt2 setting client timestamp";
 
-							latencyMeasurement.value().clientTimestamp = commandSTAT.getBuffer()->jiffies;
+							latencyMeasurement.value().clientTimestamp  = commandSTAT.getBuffer()->jiffies;
+							latencyMeasurement.value().receiveTimestamp = receiveTimestamp;
 
-							auto sendTimestamp = timestampCache.load(timestampKey);
-							LOG(DEBUG) << LABELS{"proto"} << "PONG sendTimestamp=" << sendTimestamp.value().getMicroSeconds();
-							LOG(DEBUG) << LABELS{"proto"} << "PONG clientTimestamp=" << commandSTAT.getBuffer()->jiffies;
+							auto l2 = (receiveTimestamp.getMicroSeconds() - latencyMeasurement.value().sendTimestamp.value().getMicroSeconds()) / 2;
+
+							LOG(DEBUG) << LABELS{"proto"} << "PONG sendTimestamp="   << latencyMeasurement.value().sendTimestamp.value().getMicroSeconds();
+							LOG(DEBUG) << LABELS{"proto"} << "PONG clientTimestamp=" << latencyMeasurement.value().clientTimestamp.value();
+							LOG(DEBUG) << LABELS{"proto"} << "PONG new latency=" << l2;
+
+							processorProxy.processWithDelay([&]
+							{
+								ping();
+							}, std::chrono::seconds{5});
 						}
 /*
 						if (sendTimestamp.has_value())
@@ -397,28 +408,14 @@ namespace slim
 							LOG(WARNING) << LABELS{"proto"} << "Invalid server timestamp data sent by a client (key received=" << commandSTAT.getBuffer()->serverTimestamp << ")";
 						}
 */
-/*
-						// collecting enough round-trip samples to measure latency
-						if (timestampCache.elements() < timestampCache.size())
-						{
-							ping();
-						}
-						else
-						{
-							processorProxy.processWithDelay([&](auto& context)
-							{
-								ping();
-							}, std::chrono::seconds{5});
-						}
-*/
 					}
 				}
 
 				inline void ping()
 				{
-					LOG(WARNING) << LABELS{"proto"} << "Ping1";
+					LOG(DEBUG) << LABELS{"proto"} << "Ping1";
 
-					// creating latency measument data
+					// creating a latency measument data object
 					latencyMeasurement = LatencyMeasurement{timestampCache.store()};
 
 					// start measuring latency
@@ -428,7 +425,10 @@ namespace slim
 				template<typename CommandType>
 				inline void send(CommandType&& command)
 				{
-					latencyMeasurement.reset();
+					if (latencyMeasurement.has_value())
+					{
+						latencyMeasurement.value().poisoned = true;
+					}
 
 					// TODO: use local buffer and async API to prevent from interfering while measuring latency
 					connection.get().write(command.getBuffer(), command.getSize());
@@ -436,23 +436,22 @@ namespace slim
 
 				inline void sendPing()
 				{
-					LOG(WARNING) << LABELS{"proto"} << "Ping2";
 					if (latencyMeasurement.has_value())
 					{
-						LOG(WARNING) << LABELS{"proto"} << "Ping3";
+						LOG(DEBUG) << LABELS{"proto"} << "SendPing1";
 
 						// creating ping command
 						auto command{server::CommandSTRM{CommandSelection::Time}};
-						command.getBuffer()->data.replayGain = latencyMeasurement.value().serverTimestampKey;
+						command.getBuffer()->data.replayGain = latencyMeasurement.value().sendTimestampKey;
 
 						connection.get().setNoDelay(true);
 						connection.get().setQuickAcknowledgment(true);
 
 						// capturing server timestamp as close as possible to the send operation
-						ts::optional<util::Timestamp> timestamp{ts::nullopt};
-						if (!latencyMeasurement.value().serverTimestampCaptured)
+						ts::optional<util::Timestamp> sendTimestamp{ts::nullopt};
+						if (!latencyMeasurement.value().sendTimestamp.has_value())
 						{
-							timestamp = util::Timestamp{};
+							sendTimestamp = util::Timestamp{};
 						}
 
 						// sending actual ping command
@@ -460,19 +459,20 @@ namespace slim
 						connection.get().setNoDelay(true);
 						connection.get().setQuickAcknowledgment(true);
 
-						if (timestamp.has_value())
+						if (sendTimestamp.has_value())
 						{
-							timestampCache.update(latencyMeasurement.value().serverTimestampKey, util::Timestamp{});
-							latencyMeasurement.value().serverTimestampCaptured = true;
+							latencyMeasurement.value().sendTimestamp = sendTimestamp;
+							timestampCache.update(latencyMeasurement.value().sendTimestampKey, sendTimestamp.value());
 						}
 
 						// keep sending ping command until client responds
 						if (!latencyMeasurement.value().clientTimestamp.has_value())
 						{
+							LOG(DEBUG) << LABELS{"proto"} << "SendPing2 no client timestamp";
 							processorProxy.processWithDelay([&]
 							{
 								sendPing();
-							}, std::chrono::milliseconds{1});
+							}, std::chrono::milliseconds{50});
 						}
 					}
 				}
