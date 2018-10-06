@@ -48,6 +48,11 @@ namespace slim
 			LatencyMeasurement(std::uint32_t k)
 			: sendTimestampKey{k} {}
 
+			LatencyMeasurement(const LatencyMeasurement&) = delete;             // non-copyable
+			LatencyMeasurement& operator=(const LatencyMeasurement&) = delete;  // non-assignable
+			LatencyMeasurement(LatencyMeasurement&& rhs) = default;
+			LatencyMeasurement& operator=(LatencyMeasurement&& rhs) = default;
+
 			std::uint32_t                 sendTimestampKey;
 			ts::optional<util::Timestamp> sendTimestamp{ts::nullopt};
 			ts::optional<util::Timestamp> receiveTimestamp{ts::nullopt};
@@ -361,7 +366,13 @@ namespace slim
 							processorProxy.processWithDelay([&]
 							{
 								ping();
-							}, std::chrono::seconds{5});
+							}, timestampCache.size() == timestampCache.capacity() ? std::chrono::seconds{5} : std::chrono::seconds{0});
+
+							// TODO: this is a temporary code used to experiment with huge jitter on Raspberry PI
+							if (timestampCache.size() == timestampCache.capacity())
+							{
+								timestampCache.clear();
+							}
 						}
 /*
 						if (sendTimestamp.has_value())
@@ -436,45 +447,30 @@ namespace slim
 
 				inline void sendPing()
 				{
-					if (latencyMeasurement.has_value())
+					latencyMeasurement.map([&](auto& latencyMeasurement)
 					{
 						LOG(DEBUG) << LABELS{"proto"} << "SendPing1";
 
 						// creating ping command
 						auto command{server::CommandSTRM{CommandSelection::Time}};
-						command.getBuffer()->data.replayGain = latencyMeasurement.value().sendTimestampKey;
-
-						connection.get().setNoDelay(true);
-						connection.get().setQuickAcknowledgment(true);
+						command.getBuffer()->data.replayGain = latencyMeasurement.sendTimestampKey;
 
 						// capturing server timestamp as close as possible to the send operation
 						ts::optional<util::Timestamp> sendTimestamp{ts::nullopt};
-						if (!latencyMeasurement.value().sendTimestamp.has_value())
+						if (!latencyMeasurement.sendTimestamp.has_value())
 						{
 							sendTimestamp = util::Timestamp{};
 						}
 
 						// sending actual ping command
 						connection.get().write(command.getBuffer(), command.getSize());
-						connection.get().setNoDelay(true);
-						connection.get().setQuickAcknowledgment(true);
 
-						if (sendTimestamp.has_value())
+						sendTimestamp.map([&](auto& timestamp)
 						{
-							latencyMeasurement.value().sendTimestamp = sendTimestamp;
-							timestampCache.update(latencyMeasurement.value().sendTimestampKey, sendTimestamp.value());
-						}
-
-						// keep sending ping command until client responds
-						if (!latencyMeasurement.value().clientTimestamp.has_value())
-						{
-							LOG(DEBUG) << LABELS{"proto"} << "SendPing2 no client timestamp";
-							processorProxy.processWithDelay([&]
-							{
-								sendPing();
-							}, std::chrono::milliseconds{50});
-						}
-					}
+							latencyMeasurement.sendTimestamp = timestamp;
+							timestampCache.update(latencyMeasurement.sendTimestampKey, timestamp);
+						});
+					});
 				}
 
 			private:

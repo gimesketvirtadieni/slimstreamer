@@ -42,6 +42,19 @@ namespace slim
 				TimestampCache(TimestampCache&&) = default;
 				TimestampCache& operator=(TimestampCache&&) = default;
 
+				inline std::uint32_t capacity()
+				{
+					return timestamps.size();
+				}
+
+				inline void clear()
+				{
+					std::for_each(timestamps.begin(), timestamps.end(), [](auto& timestamp)
+					{
+						timestamp.reset();
+					});
+				}
+
 				inline auto load(std::uint32_t key)
 				{
 					std::optional<Timestamp> result{std::nullopt};
@@ -55,17 +68,12 @@ namespace slim
 					return result;
 				}
 
-				inline std::uint32_t elements()
+				inline std::uint32_t size()
 				{
 					return std::count_if(timestamps.begin(), timestamps.end(), [](const auto& timestamp)
 					{
 						return timestamp.has_value();
 					});
-				}
-
-				inline std::uint32_t size()
-				{
-					return timestamps.size();
 				}
 
 				inline auto store(const Timestamp& timestamp = Timestamp{})
