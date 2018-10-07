@@ -13,13 +13,16 @@
 #pragma once
 
 #include <chrono>
+#include <conwrap2/ProcessorProxy.hpp>
+#include <conwrap2/Timer.hpp>
 #include <cstddef>  // std::size_t
 #include <functional>
-#include <optional>
 #include <scope_guard.hpp>
 #include <string>
 #include <type_safe/optional.hpp>
+#include <type_safe/optional_ref.hpp>
 
+#include "slim/ContainerBase.hpp"
 #include "slim/Exception.hpp"
 #include "slim/log/log.hpp"
 #include "slim/proto/client/CommandDSCO.hpp"
@@ -101,6 +104,12 @@ namespace slim
 
 				~CommandSession()
 				{
+					// canceling deferred operation if any
+					pingTimer.map([&](auto& timer)
+					{
+						timer.cancel();
+					});
+
 					LOG(DEBUG) << LABELS{"proto"} << "SlimProto session object was deleted (id=" << this << ")";
 				}
 
@@ -163,9 +172,9 @@ namespace slim
 							{
 								// if this is not STAT command then reseting measuring flag
 								// TODO: consider proper usage of Command label
-								if (label.compare("STAT") != 0 && latencyMeasurement.has_value())
+								if (label.compare("STAT") != 0)
 								{
-									latencyMeasurement.value().poisoned = true;
+									latencySpoiled = true;
 								}
 
 								processedSize = (*found).second(data, size, timestamp);
@@ -253,10 +262,10 @@ namespace slim
 					send(server::CommandSTRM{CommandSelection::Stop});
 
 					// start sending ping commands after the 'handshake' commands
-					processorProxy.processWithDelay([&]
+					pingTimer = ts::ref(processorProxy.processWithDelay([&]
 					{
 						ping();
-					}, std::chrono::seconds{1});
+					}, std::chrono::seconds{1}));
 
 					// TODO: work in progress
 					if (streaming)
@@ -304,9 +313,9 @@ namespace slim
 
 						// if this is not STMt event then reseting measuring flag
 						// TODO: consider proper usage of STAT event label
-						if (event.compare("STMt") != 0 && latencyMeasurement.has_value())
+						if (event.compare("STMt") != 0)
 						{
-							latencyMeasurement.value().poisoned = true;
+							latencySpoiled = true;
 						}
 
 						// invoking STAT event handler
@@ -343,134 +352,93 @@ namespace slim
 				inline void onSTMt(client::CommandSTAT& commandSTAT, util::Timestamp receiveTimestamp)
 				{
 					auto sendTimestampKey{commandSTAT.getBuffer()->serverTimestamp};
+					auto sendTimestamp{ts::optional<util::Timestamp>{ts::nullopt}};
 
-					LOG(DEBUG) << LABELS{"proto"} << "onSTMt1";
-
-					// if request originated by a server and the respose corresponds to the measument request then use it for measuring latency
-					if (sendTimestampKey && latencyMeasurement.has_value() && sendTimestampKey == latencyMeasurement.value().sendTimestampKey)
+					// if request originated by a server
+					if (sendTimestampKey)
 					{
-						// if this the very first client response for the given server timestamp
-						if (!latencyMeasurement.value().clientTimestamp.has_value())
+						sendTimestamp = timestampCache.load(sendTimestampKey);
+					}
+
+					// making sure it is a proper response from the client
+					sendTimestamp.map([&](auto& sendTimestamp)
+					{
+						LOG(DEBUG) << LABELS{"proto"} << "onSTMt1 setting client timestamp";
+
+						auto l2 = (receiveTimestamp.getMicroSeconds() - sendTimestamp.getMicroSeconds()) / 2;
+
+						LOG(DEBUG) << LABELS{"proto"} << "PONG sendTimestamp="   << sendTimestamp.getMicroSeconds();
+						LOG(DEBUG) << LABELS{"proto"} << "PONG clientTimestamp=" << commandSTAT.getBuffer()->jiffies;
+						LOG(DEBUG) << LABELS{"proto"} << "PONG new latency="     << l2;
+
+						if (latencySpoiled)
 						{
-							LOG(DEBUG) << LABELS{"proto"} << "onSTMt2 setting client timestamp";
+							LOG(DEBUG) << LABELS{"proto"} << "Skipping latency probe";
 
-							latencyMeasurement.value().clientTimestamp  = commandSTAT.getBuffer()->jiffies;
-							latencyMeasurement.value().receiveTimestamp = receiveTimestamp;
-
-							auto l2 = (receiveTimestamp.getMicroSeconds() - latencyMeasurement.value().sendTimestamp.value().getMicroSeconds()) / 2;
-
-							LOG(DEBUG) << LABELS{"proto"} << "PONG sendTimestamp="   << latencyMeasurement.value().sendTimestamp.value().getMicroSeconds();
-							LOG(DEBUG) << LABELS{"proto"} << "PONG clientTimestamp=" << latencyMeasurement.value().clientTimestamp.value();
-							LOG(DEBUG) << LABELS{"proto"} << "PONG new latency=" << l2;
-
-							processorProxy.processWithDelay([&]
+							// capturing timestamp key by value
+							processorProxy.process([&, sendTimestampKey{sendTimestampKey}]
+							{
+								sendPing(sendTimestampKey);
+							});
+						}
+						else if (timestampCache.size() < timestampCache.capacity())
+						{
+							processorProxy.process([&]
 							{
 								ping();
-							}, timestampCache.size() == timestampCache.capacity() ? std::chrono::seconds{5} : std::chrono::seconds{0});
-
-							// TODO: this is a temporary code used to experiment with huge jitter on Raspberry PI
-							if (timestampCache.size() == timestampCache.capacity())
-							{
-								timestampCache.clear();
-							}
-						}
-/*
-						if (sendTimestamp.has_value())
-						{
-
-							// TODO: work in progress
-							if (!difff)
-							{
-								difff = sendTimestamp.value().getMilliSeconds() - commandSTAT.getBuffer()->jiffies;
-							}
-							else
-							{
-								auto d{difff};
-								d = sendTimestamp.value().getMilliSeconds() - commandSTAT.getBuffer()->jiffies;
-								LOG(DEBUG) << LABELS{"proto"} << "PONG diff=" << difff - d;
-							}
-
-							if (latencyMeasurement.has_value())
-							{
-								if (latency.has_value())
-								{
-									LOG(DEBUG) << LABELS{"proto"} << "PONG latency=" << latency.value();
-
-									auto l1 = latency.value();
-									auto l2 = (receiveTimestamp.getMicroSeconds() - sendTimestamp.value().getMicroSeconds()) / 2;
-									latency = l1 * 8 / 10 + l2 * 2 / 10;
-
-									LOG(DEBUG) << LABELS{"proto"} << "PONG new latency=" << l2;
-								}
-								else
-								{
-									latency = (receiveTimestamp.getMicroSeconds() - sendTimestamp.value().getMicroSeconds()) / 2;
-								}
-								LOG(DEBUG) << LABELS{"proto"} << "Client latency=" << latency.value();
-
-								//auto n = std::chrono::steady_clock::now();
-								//auto d = std::chrono::duration_cast<std::chrono::milliseconds>(n.time_since_epoch()).count();
-								//LOG(DEBUG) << LABELS{"proto"} << "jiffies=" << commandSTAT.getBuffer()->jiffies;
-								//LOG(DEBUG) << LABELS{"proto"} << "server=" << d;
-							}
+							});
 						}
 						else
 						{
-							LOG(WARNING) << LABELS{"proto"} << "Invalid server timestamp data sent by a client (key received=" << commandSTAT.getBuffer()->serverTimestamp << ")";
+							// TODO: calculate avg latency
+
+							// clearing the cache so it can be used for collecting a new sample
+							timestampCache.clear();
+
+							// TODO: make it resistant to clients 'loosing' requests
+							// submitting a new ping request
+							pingTimer = ts::ref(processorProxy.processWithDelay([&]
+							{
+								ping();
+							}, std::chrono::seconds{5}));
 						}
-*/
-					}
+					});
 				}
 
 				inline void ping()
 				{
 					LOG(DEBUG) << LABELS{"proto"} << "Ping1";
 
-					// creating a latency measument data object
-					latencyMeasurement = LatencyMeasurement{timestampCache.store()};
+					pingTimer.reset();
 
-					// start measuring latency
-					sendPing();
+					// creating a timestamp cache entry required to allocate a key
+					sendPing(timestampCache.store());
 				}
 
 				template<typename CommandType>
 				inline void send(CommandType&& command)
 				{
-					if (latencyMeasurement.has_value())
-					{
-						latencyMeasurement.value().poisoned = true;
-					}
+					latencySpoiled = true;
 
 					// TODO: use local buffer and async API to prevent from interfering while measuring latency
 					connection.get().write(command.getBuffer(), command.getSize());
 				}
 
-				inline void sendPing()
+				inline void sendPing(std::uint32_t sendTimestampKey)
 				{
-					latencyMeasurement.map([&](auto& latencyMeasurement)
-					{
-						LOG(DEBUG) << LABELS{"proto"} << "SendPing1";
+					// creating a ping command
+					auto command{server::CommandSTRM{CommandSelection::Time}};
+					command.getBuffer()->data.replayGain = sendTimestampKey;
+					latencySpoiled = false;
 
-						// creating ping command
-						auto command{server::CommandSTRM{CommandSelection::Time}};
-						command.getBuffer()->data.replayGain = latencyMeasurement.sendTimestampKey;
+					// capturing server timestamp as close as possible to the send operation
+					util::Timestamp timestamp;
 
-						// capturing server timestamp as close as possible to the send operation
-						ts::optional<util::Timestamp> sendTimestamp{ts::nullopt};
-						if (!latencyMeasurement.sendTimestamp.has_value())
-						{
-							sendTimestamp = util::Timestamp{};
-						}
+					// sending actual ping command
+					connection.get().write(command.getBuffer(), command.getSize());
 
-						// sending actual ping command
-						connection.get().write(command.getBuffer(), command.getSize());
-
-						sendTimestamp.map([&](auto& timestamp)
-						{
-							latencyMeasurement.sendTimestamp = timestamp;
-							timestampCache.update(latencyMeasurement.sendTimestampKey, timestamp);
-						});
-					});
+					// storing the actual send timestamp in the cache
+					timestampCache.update(sendTimestampKey, timestamp);
 				}
 
 			private:
@@ -489,11 +457,10 @@ namespace slim
 				bool                                                     responseReceived{false};
 				util::ExpandableBuffer                                   commandBuffer{std::size_t{0}, std::size_t{2048}};
 				ts::optional<client::CommandHELO>                        commandHELO{ts::nullopt};
-				ts::optional<LatencyMeasurement>                         latencyMeasurement{ts::nullopt};
-
 				util::TimestampCache<10>                                 timestampCache;
 				ts::optional<unsigned int>                               latency{ts::nullopt};
-				signed long long                                         difff{0};
+				bool                                                     latencySpoiled;
+				ts::optional_ref<conwrap2::Timer>                        pingTimer{ts::nullopt};
 		};
 	}
 }

@@ -13,10 +13,12 @@
 #pragma once
 
 #include <conwrap2/ProcessorProxy.hpp>
+#include <conwrap2/Timer.hpp>
 #include <chrono>
 #include <functional>
 #include <memory>
 #include <scope_guard.hpp>
+#include <type_safe/optional_ref.hpp>
 
 #include "slim/Consumer.hpp"
 #include "slim/ContainerBase.hpp"
@@ -26,6 +28,8 @@
 
 namespace slim
 {
+	namespace ts = type_safe;
+
 	class Scheduler
 	{
 		public:
@@ -40,6 +44,12 @@ namespace slim
 			// using Rule Of Zero
 		   ~Scheduler()
 			{
+				// canceling deferred operation if any
+				taskTimer.map([&](auto& timer)
+				{
+					timer.cancel();
+				});
+
 				LOG(DEBUG) << LABELS{"slim"} << "Scheduler object was deleted (id=" << this << ")";
 			}
 
@@ -72,6 +82,8 @@ namespace slim
 		protected:
 			void processTask()
 			{
+				taskTimer.reset();
+
 				// defining consumer function
 				std::function<bool(Chunk&)> consumer{[&](auto& chunk)
 				{
@@ -118,10 +130,10 @@ namespace slim
 				}
 				else if (producerPtr->isRunning())
 				{
-					processorProxy.processWithDelay([&]
+					taskTimer = ts::ref(processorProxy.processWithDelay([&]
 					{
 						processTask();
-					}, std::chrono::milliseconds{100});
+					}, std::chrono::milliseconds{100}));
 				}
 			}
 
@@ -129,5 +141,6 @@ namespace slim
 			conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>> processorProxy;
 			std::unique_ptr<Producer>                                producerPtr;
 			std::unique_ptr<Consumer>                                consumerPtr;
+			ts::optional_ref<conwrap2::Timer>                        taskTimer{ts::nullopt};
 	};
 }
