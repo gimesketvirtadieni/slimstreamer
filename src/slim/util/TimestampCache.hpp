@@ -15,7 +15,7 @@
 #include <algorithm>
 #include <array>
 #include <cstdint>  // std::u..._t types
-#include <optional>
+#include <type_safe/optional.hpp>
 
 #include "slim/util/Timestamp.hpp"
 
@@ -24,6 +24,8 @@ namespace slim
 {
 	namespace util
 	{
+		namespace ts = type_safe;
+
 		template<std::uint32_t TotalElements>
 		class TimestampCache
 		{
@@ -57,8 +59,8 @@ namespace slim
 
 				inline auto load(std::uint32_t key)
 				{
-					std::optional<Timestamp> result{std::nullopt};
-					auto                     index{key - 1};
+					ts::optional<Timestamp> result{ts::nullopt};
+					auto                    index{key - 1};
 
 					if (index < timestamps.size())
 					{
@@ -89,7 +91,7 @@ namespace slim
 					return index + 1;
 				}
 
-				inline bool update(std::uint32_t key, const Timestamp& timestamp)
+				inline auto update(std::uint32_t key, const Timestamp& timestamp)
 				{
 					auto result{false};
 					auto index{key - 1};
@@ -104,8 +106,8 @@ namespace slim
 				}
 
 			private:
-				std::array<std::optional<Timestamp>, TotalElements> timestamps;
-				std::uint32_t                                       next{0};
+				std::array<ts::optional<Timestamp>, TotalElements> timestamps;
+				std::uint32_t                                      next{0};
 		};
 	}
 }
