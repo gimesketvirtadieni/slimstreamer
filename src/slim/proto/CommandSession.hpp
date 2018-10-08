@@ -215,6 +215,30 @@ namespace slim
 				}
 
 			protected:
+				inline LatencyType calculateAverageLatency()
+				{
+					// TODO: calculate avg latency
+					// ordering latencies
+					std::sort(latencySamples.begin(), latencySamples.end());
+
+					std::for_each(latencySamples.begin(), latencySamples.end(), [](auto& latency)
+					{
+						LOG(DEBUG) << LABELS{"proto"} << "latency=" << latency;
+					});
+
+					if (latencySamples.size() > 7)
+					{
+						LatencyType accumulator{0};
+						for (std::size_t i{2}; i < latencySamples.size() - 2; i++)
+						{
+							accumulator += latencySamples[i];
+						}
+						accumulator /= latencySamples.size() - 4;
+						
+						LOG(DEBUG) << LABELS{"proto"} << "avg latency=" << accumulator;
+					}
+				}
+
 				inline auto onDSCO(unsigned char* buffer, std::size_t size)
 				{
 					std::size_t result{0};
@@ -372,26 +396,7 @@ namespace slim
 							}
 							else
 							{
-								// TODO: calculate avg latency
-								// ordering latencies
-								std::sort(latencySamples.begin(), latencySamples.end());
-
-								std::for_each(latencySamples.begin(), latencySamples.end(), [](auto& latency)
-								{
-									LOG(DEBUG) << LABELS{"proto"} << "latency=" << latency;
-								});
-
-								if (latencySamples.size() > 7)
-								{
-									LatencyType accumulator{0};
-									for (std::size_t i{2}; i < latencySamples.size() - 2; i++)
-									{
-										accumulator += latencySamples[i];
-									}
-									accumulator /= latencySamples.size() - 4;
-									
-									LOG(DEBUG) << LABELS{"proto"} << "avg latency=" << accumulator;
-								}
+								calculateAverageLatency();
 
 								// clearing the cache so it can be used for collecting a new sample
 								timestampCache.clear();
