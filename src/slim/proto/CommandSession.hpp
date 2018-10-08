@@ -46,23 +46,6 @@ namespace slim
 	{
 		namespace ts = type_safe;
 
-		struct LatencyMeasurement
-		{
-			LatencyMeasurement(std::uint32_t k)
-			: sendTimestampKey{k} {}
-
-			LatencyMeasurement(const LatencyMeasurement&) = delete;             // non-copyable
-			LatencyMeasurement& operator=(const LatencyMeasurement&) = delete;  // non-assignable
-			LatencyMeasurement(LatencyMeasurement&& rhs) = default;
-			LatencyMeasurement& operator=(LatencyMeasurement&& rhs) = default;
-
-			std::uint32_t                 sendTimestampKey;
-			ts::optional<util::Timestamp> sendTimestamp{ts::nullopt};
-			ts::optional<util::Timestamp> receiveTimestamp{ts::nullopt};
-			ts::optional<std::uint32_t>   clientTimestamp{ts::nullopt};
-			bool                          poisoned{false};
-		};
-
 		template<typename ConnectionType>
 		class CommandSession
 		{
@@ -174,7 +157,7 @@ namespace slim
 								// TODO: consider proper usage of Command label
 								if (label.compare("STAT") != 0)
 								{
-									latencySpoiled = true;
+									measuringLatency = false;
 								}
 
 								processedSize = (*found).second(data, size, timestamp);
@@ -315,7 +298,7 @@ namespace slim
 						// TODO: consider proper usage of STAT event label
 						if (event.compare("STMt") != 0)
 						{
-							latencySpoiled = true;
+							measuringLatency = false;
 						}
 
 						// invoking STAT event handler
@@ -351,29 +334,22 @@ namespace slim
 
 				inline void onSTMt(client::CommandSTAT& commandSTAT, util::Timestamp receiveTimestamp)
 				{
-					auto sendTimestampKey{commandSTAT.getBuffer()->serverTimestamp};
+					auto timestampKey{commandSTAT.getBuffer()->serverTimestamp};
 					auto sendTimestamp{ts::optional<util::Timestamp>{ts::nullopt}};
 
 					// if request originated by a server
-					if (sendTimestampKey)
+					if (timestampKey)
 					{
-						sendTimestamp = timestampCache.load(sendTimestampKey);
+						sendTimestamp = timestampCache.load(timestampKey);
 					}
 
 					// making sure it is a proper response from the client
 					sendTimestamp.map([&](auto& sendTimestamp)
 					{
-						LOG(DEBUG) << LABELS{"proto"} << "onSTMt1 setting client timestamp";
-
-						auto l2 = (receiveTimestamp.getMicroSeconds() - sendTimestamp.getMicroSeconds()) / 2;
-
-						LOG(DEBUG) << LABELS{"proto"} << "PONG sendTimestamp="   << sendTimestamp.getMicroSeconds();
-						LOG(DEBUG) << LABELS{"proto"} << "PONG clientTimestamp=" << commandSTAT.getBuffer()->jiffies;
-						LOG(DEBUG) << LABELS{"proto"} << "PONG new latency="     << l2;
-
-						if (latencySpoiled)
+						// if latency measurement was interfered by other commands then repeat round trip once again
+						if (!measuringLatency)
 						{
-							LOG(DEBUG) << LABELS{"proto"} << "Skipping latency probe";
+							LOG(DEBUG) << LABELS{"proto"} << "Latency probe was skipped";
 
 							// capturing timestamp key by value
 							processorProxy.process([&, sendTimestampKey{sendTimestampKey}]
@@ -391,6 +367,7 @@ namespace slim
 						else
 						{
 							// TODO: calculate avg latency
+							auto timestamps = std::move(timestampCache.getSortedTimestamps());
 
 							// clearing the cache so it can be used for collecting a new sample
 							timestampCache.clear();
@@ -402,6 +379,12 @@ namespace slim
 								ping();
 							}, std::chrono::seconds{5}));
 						}
+
+						auto l2 = (receiveTimestamp.getMicroSeconds() - sendTimestamp.getMicroSeconds()) / 2;
+
+						LOG(DEBUG) << LABELS{"proto"} << "PONG sendTimestamp="   << sendTimestamp.getMicroSeconds();
+						LOG(DEBUG) << LABELS{"proto"} << "PONG clientTimestamp=" << commandSTAT.getBuffer()->jiffies;
+						LOG(DEBUG) << LABELS{"proto"} << "PONG new latency="     << l2;
 					});
 				}
 
@@ -418,34 +401,36 @@ namespace slim
 				template<typename CommandType>
 				inline void send(CommandType&& command)
 				{
-					latencySpoiled = true;
+					measuringLatency = false;
 
 					// TODO: use local buffer and async API to prevent from interfering while measuring latency
 					connection.get().write(command.getBuffer(), command.getSize());
 				}
 
-				inline void sendPing(std::uint32_t sendTimestampKey)
+				inline void sendPing(std::uint32_t timestampKey)
 				{
 					// creating a ping command
 					auto command{server::CommandSTRM{CommandSelection::Time}};
-					command.getBuffer()->data.replayGain = sendTimestampKey;
-					latencySpoiled = false;
+					command.getBuffer()->data.replayGain = timestampKey;
 
 					// capturing server timestamp as close as possible to the send operation
 					util::Timestamp timestamp;
 
 					// sending actual ping command
-					connection.get().write(command.getBuffer(), command.getSize());
+					send(command);
+
+					// changing state to 'measuringLatency' which is used to track if there any interference while measuring latency
+					measuringLatency = true;
 
 					// storing the actual send timestamp in the cache
-					timestampCache.update(sendTimestampKey, timestamp);
+					timestampCache.update(timestampKey, timestamp);
 				}
 
 			private:
 				conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>> processorProxy;
 				std::reference_wrapper<ConnectionType>                   connection;
 				std::string                                              clientID;
-				unsigned int                                             streamingPort{0};
+				unsigned int                                             streamingPort;
 				FormatSelection                                          formatSelection;
 				std::optional<unsigned int>                              gain;
 				CommandHandlersMap                                       commandHandlers;
@@ -459,7 +444,7 @@ namespace slim
 				ts::optional<client::CommandHELO>                        commandHELO{ts::nullopt};
 				util::TimestampCache<10>                                 timestampCache;
 				ts::optional<unsigned int>                               latency{ts::nullopt};
-				bool                                                     latencySpoiled;
+				bool                                                     measuringLatency{false};
 				ts::optional_ref<conwrap2::Timer>                        pingTimer{ts::nullopt};
 		};
 	}

@@ -34,12 +34,12 @@ namespace slim
 				Timestamp(Timestamp&&) = default;
 				Timestamp& operator=(Timestamp&&) = default;
 
-				inline unsigned long long getMicroSeconds()
+				inline unsigned long long getMicroSeconds() const
 				{
 					return std::chrono::duration_cast<std::chrono::microseconds>(timestamp.time_since_epoch()).count();
 				}
 
-				inline unsigned long long getMilliSeconds()
+				inline unsigned long long getMilliSeconds() const
 				{
 					return std::chrono::duration_cast<std::chrono::milliseconds>(timestamp.time_since_epoch()).count();
 				}

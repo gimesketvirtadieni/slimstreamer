@@ -57,6 +57,28 @@ namespace slim
 					});
 				}
 
+				inline auto getSortedTimestamps()
+				{
+					std::vector<Timestamp> sortedTimestamps;
+
+					// filling a vector with unordered timestamps
+					std::for_each(timestamps.begin(), timestamps.end(), [&](auto& timestamp)
+					{
+						timestamp.map([&](auto& timestamp)
+						{
+							sortedTimestamps.emplace_back(timestamp);
+						});
+					});
+
+					// ordering timestamps
+					std::sort(sortedTimestamps.begin(), sortedTimestamps.end(), [](const Timestamp& t1, const Timestamp& t2)
+					{
+						return t1.getMicroSeconds() < t2.getMicroSeconds();
+					});
+
+					return std::move(sortedTimestamps);
+				}
+
 				inline auto load(std::uint32_t key)
 				{
 					ts::optional<Timestamp> result{ts::nullopt};
