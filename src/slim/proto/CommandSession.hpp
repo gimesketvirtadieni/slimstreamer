@@ -381,6 +381,18 @@ namespace slim
 									LOG(DEBUG) << LABELS{"proto"} << "latency=" << latency;
 								});
 
+								if (latencySamples.size() > 7)
+								{
+									LatencyType accumulator{0};
+									for (std::size_t i{2}; i < latencySamples.size() - 2; i++)
+									{
+										accumulator += latencySamples[i];
+									}
+									accumulator /= latencySamples.size() - 4;
+									
+									LOG(DEBUG) << LABELS{"proto"} << "avg latency=" << accumulator;
+								}
+
 								// clearing the cache so it can be used for collecting a new sample
 								timestampCache.clear();
 								latencySamples.clear();
