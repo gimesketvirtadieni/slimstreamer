@@ -52,6 +52,7 @@ namespace slim
 			using CommandHandlersMap   = std::unordered_map<std::string, std::function<std::size_t(unsigned char*, std::size_t, util::Timestamp)>>;
 			using EventHandlersMap     = std::unordered_map<std::string, std::function<void(client::CommandSTAT&, util::Timestamp)>>;
 			using StreamingSessionType = StreamingSession<ConnectionType>;
+			using LatencyType          = unsigned long long;
 
 			public:
 				CommandSession(conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>> pr, std::reference_wrapper<ConnectionType> co, std::string id, unsigned int po, FormatSelection fo, std::optional<unsigned int> ga)
@@ -352,39 +353,50 @@ namespace slim
 							LOG(DEBUG) << LABELS{"proto"} << "Latency probe was skipped";
 
 							// capturing timestamp key by value
-							processorProxy.process([&, sendTimestampKey{sendTimestampKey}]
+							processorProxy.process([&, timestampKey{timestampKey}]
 							{
-								sendPing(sendTimestampKey);
-							});
-						}
-						else if (timestampCache.size() < timestampCache.capacity())
-						{
-							processorProxy.process([&]
-							{
-								ping();
+								sendPing(timestampKey);
 							});
 						}
 						else
 						{
-							// TODO: calculate avg latency
-							auto timestamps = std::move(timestampCache.getSortedTimestamps());
+							// saving latency sample for further processing
+							latencySamples.push_back((receiveTimestamp.getMicroSeconds() - sendTimestamp.getMicroSeconds()) / 2);
 
-							// clearing the cache so it can be used for collecting a new sample
-							timestampCache.clear();
-
-							// TODO: make it resistant to clients 'loosing' requests
-							// submitting a new ping request
-							pingTimer = ts::ref(processorProxy.processWithDelay([&]
+							if (timestampCache.size() < timestampCache.capacity())
 							{
-								ping();
-							}, std::chrono::seconds{5}));
-						}
+								processorProxy.process([&]
+								{
+									ping();
+								});
+							}
+							else
+							{
+								// TODO: calculate avg latency
+								// ordering latencies
+								std::sort(latencySamples.begin(), latencySamples.end());
 
-						auto l2 = (receiveTimestamp.getMicroSeconds() - sendTimestamp.getMicroSeconds()) / 2;
+								std::for_each(latencySamples.begin(), latencySamples.end(), [](auto& latency)
+								{
+									LOG(DEBUG) << LABELS{"proto"} << "latency=" << latency;
+								});
+
+								// clearing the cache so it can be used for collecting a new sample
+								timestampCache.clear();
+								latencySamples.clear();
+
+								// TODO: make it resistant to clients 'loosing' requests
+								// submitting a new ping request
+								pingTimer = ts::ref(processorProxy.processWithDelay([&]
+								{
+									ping();
+								}, std::chrono::seconds{5}));
+							}
+						}
 
 						LOG(DEBUG) << LABELS{"proto"} << "PONG sendTimestamp="   << sendTimestamp.getMicroSeconds();
 						LOG(DEBUG) << LABELS{"proto"} << "PONG clientTimestamp=" << commandSTAT.getBuffer()->jiffies;
-						LOG(DEBUG) << LABELS{"proto"} << "PONG new latency="     << l2;
+						LOG(DEBUG) << LABELS{"proto"} << "PONG new latency="     << (receiveTimestamp.getMicroSeconds() - sendTimestamp.getMicroSeconds()) / 2;
 					});
 				}
 
@@ -443,7 +455,8 @@ namespace slim
 				util::ExpandableBuffer                                   commandBuffer{std::size_t{0}, std::size_t{2048}};
 				ts::optional<client::CommandHELO>                        commandHELO{ts::nullopt};
 				util::TimestampCache<10>                                 timestampCache;
-				ts::optional<unsigned int>                               latency{ts::nullopt};
+				ts::optional<LatencyType>                                latency{ts::nullopt};
+				std::vector<LatencyType>                                 latencySamples;
 				bool                                                     measuringLatency{false};
 				ts::optional_ref<conwrap2::Timer>                        pingTimer{ts::nullopt};
 		};
