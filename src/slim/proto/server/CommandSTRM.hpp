@@ -63,6 +63,11 @@ namespace slim
 					CommandSTRM(CommandSelection commandSelection)
 					: CommandSTRM{commandSelection, FormatSelection::FLAC, 0, 0, {}} {}
 
+					CommandSTRM(CommandSelection commandSelection, std::uint32_t startAt)
+					: CommandSTRM{commandSelection, FormatSelection::FLAC, 0, 0, {}}
+					{
+					}
+
 					CommandSTRM(CommandSelection commandSelection, FormatSelection formatSelection, unsigned int port, unsigned int samplingRate, std::string clientID)
 					{
 						memset(&strm, 0, sizeof(STRM));

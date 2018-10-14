@@ -77,10 +77,11 @@ namespace slim
 					{"STMf", [&](auto& commandSTAT, auto timestamp) {}},
 					{"STMl", [&](auto& commandSTAT, auto timestamp) {onSTMl(commandSTAT);}},
 					{"STMo", [&](auto& commandSTAT, auto timestamp) {}},
+					{"STMp", [&](auto& commandSTAT, auto timestamp) {}},
 					{"STMr", [&](auto& commandSTAT, auto timestamp) {}},
 					{"STMs", [&](auto& commandSTAT, auto timestamp) {onSTMs(commandSTAT);}},
 					{"STMt", [&](auto& commandSTAT, auto timestamp) {onSTMt(commandSTAT, timestamp);}},
-					{"STMu", 0},
+					{"STMu", [&](auto& commandSTAT, auto timestamp) {}},
 				}
 				{
 					LOG(DEBUG) << LABELS{"proto"} << "SlimProto session object was created (id=" << this << ")";
@@ -105,6 +106,11 @@ namespace slim
 				inline auto getClientID()
 				{
 					return clientID;
+				}
+
+				inline auto getLatency()
+				{
+					return latency;
 				}
 
 				inline auto getStreamingSession()
@@ -215,28 +221,28 @@ namespace slim
 				}
 
 			protected:
-				inline LatencyType calculateAverageLatency()
+				inline auto calculateAverageLatency()
 				{
+					auto result{latency};
+
 					// TODO: calculate avg latency
-					// ordering latencies
+					// sorting latency samples
 					std::sort(latencySamples.begin(), latencySamples.end());
 
-					std::for_each(latencySamples.begin(), latencySamples.end(), [](auto& latency)
-					{
-						LOG(DEBUG) << LABELS{"proto"} << "latency=" << latency;
-					});
-
+					// making sure there is enough sample to calculate latency
 					if (latencySamples.size() > 7)
 					{
 						LatencyType accumulator{0};
+
+						// skipping first 2 (smallest) and last two (biggest) latency samples
 						for (std::size_t i{2}; i < latencySamples.size() - 2; i++)
 						{
 							accumulator += latencySamples[i];
 						}
-						accumulator /= latencySamples.size() - 4;
-						
-						LOG(DEBUG) << LABELS{"proto"} << "avg latency=" << accumulator;
+						result = accumulator / (latencySamples.size() - 4);
 					}
+
+					return result;
 				}
 
 				inline auto onDSCO(unsigned char* buffer, std::size_t size)
@@ -317,12 +323,11 @@ namespace slim
 					auto found{eventHandlers.find(event)};
 					if (found != eventHandlers.end())
 					{
-						LOG(DEBUG) << LABELS{"proto"} << event << " event received";
-
 						// if this is not STMt event then reseting measuring flag
 						// TODO: consider proper usage of STAT event label
 						if (event.compare("STMt") != 0)
 						{
+							LOG(DEBUG) << LABELS{"proto"} << event << " event received";
 							measuringLatency = false;
 						}
 
@@ -344,7 +349,8 @@ namespace slim
 
 				inline void onSTMl(client::CommandSTAT& commandSTAT)
 				{
-					send(server::CommandSTRM{CommandSelection::Unpause});
+					// TODO: work in progress
+					send(server::CommandSTRM{CommandSelection::Unpause, 0});
 				}
 
 				inline void onSTMs(client::CommandSTAT& commandSTAT)
@@ -396,7 +402,9 @@ namespace slim
 							}
 							else
 							{
-								calculateAverageLatency();
+								latency = calculateAverageLatency();
+
+								LOG(DEBUG) << LABELS{"proto"} << "Client latency updated (client id=" << clientID << ", latency=" << latency.value() << " microsec)";
 
 								// clearing the cache so it can be used for collecting a new sample
 								timestampCache.clear();
@@ -407,20 +415,18 @@ namespace slim
 								pingTimer = ts::ref(processorProxy.processWithDelay([&]
 								{
 									ping();
+								// TODO: make it configurable
 								}, std::chrono::seconds{5}));
+
+								//LOG(DEBUG) << LABELS{"proto"} << "PONG sendTimestamp="   << sendTimestamp.getMicroSeconds();
+								//LOG(DEBUG) << LABELS{"proto"} << "PONG clientTimestamp=" << commandSTAT.getBuffer()->jiffies;
 							}
 						}
-
-						LOG(DEBUG) << LABELS{"proto"} << "PONG sendTimestamp="   << sendTimestamp.getMicroSeconds();
-						LOG(DEBUG) << LABELS{"proto"} << "PONG clientTimestamp=" << commandSTAT.getBuffer()->jiffies;
-						LOG(DEBUG) << LABELS{"proto"} << "PONG new latency="     << (receiveTimestamp.getMicroSeconds() - sendTimestamp.getMicroSeconds()) / 2;
 					});
 				}
 
 				inline void ping()
 				{
-					LOG(DEBUG) << LABELS{"proto"} << "Ping1";
-
 					pingTimer.reset();
 
 					// creating a timestamp cache entry required to allocate a key

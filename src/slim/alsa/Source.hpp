@@ -138,6 +138,7 @@ namespace slim
 
 				inline void pause(unsigned int millisec)
 				{
+					// TODO: extend Timestamp API
 					pauseUntil = util::Timestamp{std::chrono::high_resolution_clock::now() + std::chrono::milliseconds{millisec}};
 				}
 

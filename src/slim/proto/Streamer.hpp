@@ -16,11 +16,12 @@
 #include <chrono>
 #include <conwrap2/ProcessorProxy.hpp>
 #include <cstddef>  // std::size_t
+#include <cstdint>  // std::u..._t types
 #include <functional>
 #include <memory>
-#include <optional>
 #include <sstream>  // std::stringstream
 #include <string>
+#include <type_safe/optional.hpp>
 #include <unordered_map>
 #include <vector>
 
@@ -295,6 +296,25 @@ namespace slim
 					return (found != sessions.end());
 				}
 
+				inline auto calculatePlaybackStartTime()
+				{
+					unsigned long long maxLatency{0};
+
+					for (auto& entry : commandSessions)
+					{
+						entry.second->getLatency().map([&](auto& latency)
+						{
+							if (maxLatency < latency)
+							{
+								maxLatency = latency;
+							}
+						});
+					}
+
+					// TODO: extend Timestamp API
+					return util::Timestamp{std::chrono::high_resolution_clock::now() + std::chrono::milliseconds{maxLatency}};
+				}
+
 				inline void distributeChunk(Chunk& chunk)
 				{
 					// sending chunk to all HTTP sessions
@@ -400,6 +420,10 @@ namespace slim
 
 				inline void startStreaming()
 				{
+					// TODO: work in progress
+					// calculating the timepoint when clients start playing audio
+					calculatePlaybackStartTime();
+
 					for (auto& entry : commandSessions)
 					{
 						entry.second->start();

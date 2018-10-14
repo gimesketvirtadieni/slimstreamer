@@ -24,6 +24,7 @@ namespace slim
 			Start   = 's',
 			Stop    = 'q',
 			Time    = 't',
+			Pause   = 'p',
 			Unpause = 'u',
 		};
 
