@@ -393,6 +393,7 @@ namespace slim
 							// saving latency sample for further processing
 							latencySamples.push_back((receiveTimestamp.getMicroSeconds() - sendTimestamp.getMicroSeconds()) / 2);
 
+							// if there is no enough samples to calculate latency
 							if (timestampCache.size() < timestampCache.capacity())
 							{
 								processorProxy.process([&]
@@ -402,13 +403,18 @@ namespace slim
 							}
 							else
 							{
-								latency = calculateAverageLatency();
+								// calculating new latency value
+								auto l = calculateAverageLatency();
+								l.map([&](auto& l)
+								{
+									latency = latency.value_or(l) * 0.8 + l * 0.2;
 
-								LOG(DEBUG) << LABELS{"proto"} << "Client latency updated (client id=" << clientID << ", latency=" << latency.value() << " microsec)";
+									// clearing the cache so it can be used for collecting a new sample
+									timestampCache.clear();
+									latencySamples.clear();
 
-								// clearing the cache so it can be used for collecting a new sample
-								timestampCache.clear();
-								latencySamples.clear();
+									LOG(DEBUG) << LABELS{"proto"} << "Client latency updated (client id=" << clientID << ", latency=" << latency.value() << " microsec)";
+								});
 
 								// TODO: make it resistant to clients 'loosing' requests
 								// submitting a new ping request
