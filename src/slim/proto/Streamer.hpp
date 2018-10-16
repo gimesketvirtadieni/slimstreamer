@@ -22,6 +22,7 @@
 #include <sstream>  // std::stringstream
 #include <string>
 #include <type_safe/optional.hpp>
+#include <type_safe/optional_ref.hpp>
 #include <unordered_map>
 #include <vector>
 
@@ -41,6 +42,8 @@ namespace slim
 {
 	namespace proto
 	{
+		namespace ts = type_safe;
+
 		template<typename ConnectionType>
 		class Streamer : public Consumer
 		{
@@ -140,7 +143,7 @@ namespace slim
 						if (commandSession.has_value())
 						{
 							// resetting HTTP session in its relevant SlimProto session
-							commandSession.value()->setStreamingSession(nullptr);
+							commandSession.value()->setStreamingSession(ts::optional_ref<StreamingSessionType>{ts::nullopt});
 						}
 						else
 						{
@@ -177,13 +180,13 @@ namespace slim
 						auto streamingSessionPtr{std::make_unique<StreamingSessionType>(std::ref<ConnectionType>(connection), clientID.value(), encoderBuilder)};
 
 						// saving Streaming session reference in the relevant Command session
-						auto commandSessionPtr{findSessionByID(commandSessions, clientID.value())};
-						if (!commandSessionPtr.has_value())
+						auto commandSession{findSessionByID(commandSessions, clientID.value())};
+						if (!commandSession.has_value())
 						{
 							connection.stop();
 							throw slim::Exception("Could not correlate provided client ID with a valid SlimProto session");
 						}
-						commandSessionPtr.value()->setStreamingSession(streamingSessionPtr.get());
+						commandSession.value()->setStreamingSession(ts::optional_ref<StreamingSessionType>{*streamingSessionPtr});
 
 						// processing request by a proper Streaming session mapped to this connection
 						streamingSessionPtr->onRequest(buffer, receivedSize);
@@ -317,27 +320,13 @@ namespace slim
 
 				inline void distributeChunk(Chunk& chunk)
 				{
-					// sending chunk to all HTTP sessions
-					auto counter{commandSessions.size()};
+					// sending chunk to all SlimProto sessions
 					for (auto& entry : commandSessions)
 					{
-						auto streamingSessionPtr{entry.second->getStreamingSession()};
-						if (streamingSessionPtr)
-						{
-							streamingSessionPtr->onChunk(chunk);
-							counter--;
-						}
+						entry.second->onChunk(chunk);
 					}
 
-					// if there are command sessions without relevant HTTP session
-					if (counter > 0)
-					{
-						LOG(WARNING) << LABELS{"proto"} << "A chunk was not delivered to all clients (clients=" << commandSessions.size() << ", skipped=" << counter << ", frames=" << chunk.getFrames() << ")";
-					}
-					else
-					{
-						LOG(DEBUG) << LABELS{"proto"} << "A chunk was delivered (clients=" << commandSessions.size() << ", frames=" << chunk.getFrames() << ")";
-					}
+					LOG(DEBUG) << LABELS{"proto"} << "A chunk was distributed to the clients (total clients=" << commandSessions.size() << ", frames=" << chunk.getFrames() << ")";
 				}
 
 				template<typename SessionType>

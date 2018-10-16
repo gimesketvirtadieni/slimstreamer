@@ -115,7 +115,7 @@ namespace slim
 
 				inline auto getStreamingSession()
 				{
-					return streamingSessionPtr;
+					return streamingSession;
 				}
 
 				inline auto getSamplingRate()
@@ -131,6 +131,14 @@ namespace slim
 				inline auto isResponseReceived()
 				{
 					return responseReceived;
+				}
+
+				inline void onChunk(const Chunk& chunk)
+				{
+					streamingSession.map([&](auto& streamingSession)
+					{
+						streamingSession.onChunk(chunk);
+					});
 				}
 
 				inline void onRequest(unsigned char* buffer, std::size_t size, util::Timestamp timestamp)
@@ -190,10 +198,10 @@ namespace slim
 					samplingRate = s;
 				}
 
-				inline void setStreamingSession(StreamingSessionType* s)
+				inline void setStreamingSession(ts::optional_ref<StreamingSessionType> s)
 				{
-					streamingSessionPtr = s;
-					if (!streamingSessionPtr)
+					streamingSession = s;
+					if (!streamingSession.has_value())
 					{
 						connectedReceived = false;
 						responseReceived  = false;
@@ -357,10 +365,11 @@ namespace slim
 				{
 					// TODO: work in progress
 					LOG(DEBUG) << LABELS{"proto"} << "client played=" << commandSTAT.getBuffer()->elapsedMilliseconds;
-					if (streamingSessionPtr)
+
+					streamingSession.map([&](auto& streamingSession)
 					{
-						LOG(DEBUG) << LABELS{"proto"} << "server played=" << ((streamingSessionPtr->getFramesProvided() / samplingRate) * 1000);
-					}
+						LOG(DEBUG) << LABELS{"proto"} << "server played=" << ((streamingSession.getFramesProvided() / samplingRate) * 1000);
+					});
 				}
 
 				inline void onSTMt(client::CommandSTAT& commandSTAT, util::Timestamp receiveTimestamp)
@@ -478,7 +487,7 @@ namespace slim
 				EventHandlersMap                                         eventHandlers;
 				bool                                                     streaming{false};
 				unsigned int                                             samplingRate{0};
-				StreamingSessionType*                                    streamingSessionPtr{nullptr};
+				ts::optional_ref<StreamingSessionType>                   streamingSession{ts::nullopt};
 				bool                                                     connectedReceived{false};
 				bool                                                     responseReceived{false};
 				util::ExpandableBuffer                                   commandBuffer{std::size_t{0}, std::size_t{2048}};
