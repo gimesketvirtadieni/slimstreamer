@@ -19,6 +19,9 @@ namespace slim
 {
 	namespace util
 	{
+		constexpr std::milli milliseconds;
+		constexpr std::micro microseconds;
+
 		class Timestamp
 		{
 			public:
@@ -34,14 +37,10 @@ namespace slim
 				Timestamp(Timestamp&&) = default;
 				Timestamp& operator=(Timestamp&&) = default;
 
-				inline unsigned long long getMicroSeconds() const
+				template<typename RatioType>
+				inline unsigned long long get(RatioType r) const
 				{
-					return std::chrono::duration_cast<std::chrono::microseconds>(timestamp.time_since_epoch()).count();
-				}
-
-				inline unsigned long long getMilliSeconds() const
-				{
-					return std::chrono::duration_cast<std::chrono::milliseconds>(timestamp.time_since_epoch()).count();
+					return std::chrono::duration_cast<std::chrono::duration<int64_t, RatioType>>(timestamp.time_since_epoch()).count();
 				}
 
 				inline static Timestamp now()

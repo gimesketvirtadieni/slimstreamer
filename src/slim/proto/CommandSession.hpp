@@ -400,7 +400,7 @@ namespace slim
 						else
 						{
 							// saving latency sample for further processing
-							latencySamples.push_back((receiveTimestamp.getMicroSeconds() - sendTimestamp.getMicroSeconds()) / 2);
+							latencySamples.push_back((receiveTimestamp.get(util::microseconds) - sendTimestamp.get(util::microseconds)) / 2);
 
 							// if there is no enough samples to calculate latency
 							if (timestampCache.size() < timestampCache.capacity())

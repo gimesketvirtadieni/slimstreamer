@@ -126,7 +126,7 @@ namespace slim
 					auto result{false};
 
 					// TODO: overload > operator for util::Timestamp
-					if (pauseUntil.getMicroSeconds() > util::Timestamp{}.getMicroSeconds())
+					if (pauseUntil.get(util::microseconds) > util::Timestamp{}.get(util::microseconds))
 					{
 						result = true;
 					}

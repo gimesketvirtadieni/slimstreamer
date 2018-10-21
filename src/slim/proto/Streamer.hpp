@@ -357,7 +357,7 @@ namespace slim
 				{
 					auto result{false};
 					// TODO: deferring time-out should be configurable
-					auto waitThresholdReached{500000 < (util::Timestamp::now().getMicroSeconds() - streamingStartedAt.getMicroSeconds())};
+					auto waitThresholdReached{500000 < (util::Timestamp::now().get(util::microseconds) - streamingStartedAt.get(util::microseconds))};
 					auto missingSessionsTotal{std::count_if(commandSessions.begin(), commandSessions.end(), [&](auto& entry)
 					{
 						return !entry.second->getStreamingSession();
