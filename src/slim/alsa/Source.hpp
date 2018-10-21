@@ -136,14 +136,8 @@ namespace slim
 
 				void open();
 
-				inline void pause(unsigned int millisec)
-				{
-					// TODO: extend Timestamp API
-					pauseUntil = util::Timestamp{std::chrono::high_resolution_clock::now() + std::chrono::milliseconds{millisec}};
-				}
-
 				template<typename ConsumerType>
-				inline bool producer(ConsumerType consumer)
+				inline bool producer(const ConsumerType& consumer)
 				{
 					auto result{false};
 					auto underflow{false};
@@ -170,7 +164,7 @@ namespace slim
 					{
 						// TODO: cruise control should be implemented
 						// if consumer did not accept a chunk then deferring further processing
-						pause(50);
+						pauseUntil = util::Timestamp::now() + std::chrono::milliseconds{50};
 					}
 
 					return result;

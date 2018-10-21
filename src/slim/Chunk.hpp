@@ -33,7 +33,7 @@ namespace slim
 			, channels{c}
 			, bitsPerSample{b} {}
 
-		   ~Chunk() = default;
+			~Chunk() = default;
 			Chunk(const Chunk& rhs) = delete;
 			Chunk& operator=(const Chunk& rhs) = delete;
 			Chunk(Chunk&& rhs) = delete;
@@ -49,12 +49,24 @@ namespace slim
 				return buffer.data();
 			}
 
+			inline auto getDurationMicroseconds() const
+			{
+				unsigned long long result{0};
+
+				if (samplingRate)
+				{
+					result = std::chrono::microseconds{getFrames() * 1000000 / samplingRate}.count();
+				}
+
+				return result;
+			}
+
 			inline std::size_t getFrames() const
 			{
 				return getSize() / (channels * (bitsPerSample >> 3));
 			}
 
-			inline auto getSamplingRate() const
+			inline unsigned int getSamplingRate() const
 			{
 				return samplingRate;
 			}
@@ -90,12 +102,12 @@ namespace slim
 			}
 
 		protected:
-			Chunk() : Chunk{0, 0, 0} {}
+			Chunk() {}
 
 		private:
-			unsigned int           samplingRate;
-			unsigned int           channels;
-			unsigned int           bitsPerSample;
+			unsigned int           samplingRate{0};
+			unsigned int           channels{0};
+			unsigned int           bitsPerSample{0};
 			util::ExpandableBuffer buffer;
 		};
 }

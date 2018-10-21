@@ -221,8 +221,9 @@ namespace slim
 				running = true;
 			}
 
-			// everything inside this loop (except overflowCallback) must be real-time safe: no memory allocation, no logging, etc.
 			snd_pcm_sframes_t result{0};
+
+			// everything inside this loop (except overflowCallback) must be real-time safe: no memory allocation, no logging, etc.
 			while (result >= 0)
 			{
 				// this call will block until buffer is filled or PCM stream state is changed

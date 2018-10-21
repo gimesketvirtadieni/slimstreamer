@@ -119,6 +119,7 @@ namespace slim
 
 							// it will make Chunk to be consumed
 							result = true;
+							streamingDuration += chunk.getDurationMicroseconds();
 						}
 					}
 					else
@@ -314,8 +315,7 @@ namespace slim
 						});
 					}
 
-					// TODO: extend Timestamp API
-					return util::Timestamp{std::chrono::high_resolution_clock::now() + std::chrono::milliseconds{maxLatency}};
+					return util::Timestamp::now() + std::chrono::milliseconds{maxLatency};
 				}
 
 				inline void distributeChunk(Chunk& chunk)
@@ -357,7 +357,7 @@ namespace slim
 				{
 					auto result{false};
 					// TODO: deferring time-out should be configurable
-					auto waitThresholdReached{500000 < (util::Timestamp{}.getMicroSeconds() - startedAt.getMicroSeconds())};
+					auto waitThresholdReached{500000 < (util::Timestamp::now().getMicroSeconds() - streamingStartedAt.getMicroSeconds())};
 					auto missingSessionsTotal{std::count_if(commandSessions.begin(), commandSessions.end(), [&](auto& entry)
 					{
 						return !entry.second->getStreamingSession();
@@ -409,6 +409,10 @@ namespace slim
 
 				inline void startStreaming()
 				{
+					// capturing start stream time point (required for calculations like defer time-out, etc.)
+					streamingStartedAt = util::Timestamp::now();
+					streamingDuration  = 0;
+
 					// TODO: work in progress
 					// calculating the timepoint when clients start playing audio
 					calculatePlaybackStartTime();
@@ -418,29 +422,35 @@ namespace slim
 						entry.second->start();
 					}
 
-					// capturing stream time point - required for calculations like defer time-out, etc.
-					startedAt = util::Timestamp{};
+					LOG(DEBUG) << LABELS{"proto"} << "Started streaming (rate=" << getSamplingRate() << ")";
 				}
 
 				inline void stopStreaming()
 				{
+					// capturing stop streaming time point
+					streamingStoppedAt = util::Timestamp::now();
+
 					// it is enough to send stop SlimProto command here
 					for (auto& entry : commandSessions)
 					{
 						// stopping SlimProto session will send end-of-stream command which normally triggers close of HTTP connection
 						entry.second->stop();
 					}
+
+					LOG(DEBUG) << LABELS{"proto"} << "Stopped streaming (duration=" << streamingDuration  << " microsec)";
 				}
 
 			private:
 				unsigned int                      streamingPort;
 				EncoderBuilder                    encoderBuilder;
 				std::optional<unsigned int>       gain;
+				unsigned long long                nextID{0};
 				SessionsMap<CommandSessionType>   commandSessions;
 				SessionsMap<StreamingSessionType> streamingSessions;
 				bool                              streaming{false};
-				unsigned long                     nextID{0};
-				util::Timestamp                   startedAt;
+				unsigned long long                streamingDuration{0};
+				util::Timestamp                   streamingStartedAt;
+				util::Timestamp                   streamingStoppedAt;
 		};
 	}
 }

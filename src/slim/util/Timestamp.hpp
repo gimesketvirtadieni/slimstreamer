@@ -28,7 +28,7 @@ namespace slim
 				Timestamp(const std::chrono::high_resolution_clock::time_point& t)
 				: timestamp{t} {}
 
-			   ~Timestamp() = default;
+				~Timestamp() = default;
 				Timestamp(const Timestamp&) = default;
 				Timestamp& operator=(const Timestamp&) = default;
 				Timestamp(Timestamp&&) = default;
@@ -44,8 +44,41 @@ namespace slim
 					return std::chrono::duration_cast<std::chrono::milliseconds>(timestamp.time_since_epoch()).count();
 				}
 
+				inline static Timestamp now()
+				{
+					return Timestamp{};
+				}
+
+				template<class _Rep, class _Period>
+				inline Timestamp& operator+=(const std::chrono::duration<_Rep, _Period>& duration)
+				{
+					timestamp += duration;
+					return *this;
+				}
+
+				template<class _Rep, class _Period>
+				inline Timestamp& operator-=(const std::chrono::duration<_Rep, _Period>& duration)
+				{
+					timestamp -= duration;
+					return *this;
+				}
+
 			private:
 				std::chrono::high_resolution_clock::time_point timestamp;
 		};
+
+		template<class _Rep, class _Period>
+		inline Timestamp operator+(Timestamp lhs, const std::chrono::duration<_Rep, _Period>& duration)
+		{
+			lhs += duration;
+			return lhs;
+		}
+
+		template<class _Rep, class _Period>
+		inline Timestamp operator-(Timestamp lhs, const std::chrono::duration<_Rep, _Period>& duration)
+		{
+			lhs -= duration;
+			return lhs;
+		}
 	}
 }
