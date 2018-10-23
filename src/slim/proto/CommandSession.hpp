@@ -36,6 +36,7 @@
 #include "slim/proto/server/CommandSTRM.hpp"
 #include "slim/proto/StreamingSession.hpp"
 #include "slim/util/ExpandableBuffer.hpp"
+#include "slim/util/BigInteger.hpp"
 #include "slim/util/Timestamp.hpp"
 #include "slim/util/TimestampCache.hpp"
 
@@ -52,7 +53,6 @@ namespace slim
 			using CommandHandlersMap   = std::unordered_map<std::string, std::function<std::size_t(unsigned char*, std::size_t, util::Timestamp)>>;
 			using EventHandlersMap     = std::unordered_map<std::string, std::function<void(client::CommandSTAT&, util::Timestamp)>>;
 			using StreamingSessionType = StreamingSession<ConnectionType>;
-			using LatencyType          = unsigned long long;
 
 			public:
 				CommandSession(conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>> pr, std::reference_wrapper<ConnectionType> co, std::string id, unsigned int po, FormatSelection fo, std::optional<unsigned int> ga)
@@ -89,8 +89,8 @@ namespace slim
 
 				~CommandSession()
 				{
-					// canceling deferred operation if any
-					pingTimer.map([&](auto& timer)
+					// canceling deferred operations if any
+					ts::with(pingTimer, [&](auto& timer)
 					{
 						timer.cancel();
 					});
@@ -135,7 +135,7 @@ namespace slim
 
 				inline void onChunk(const Chunk& chunk)
 				{
-					streamingSession.map([&](auto& streamingSession)
+					ts::with(streamingSession, [&](auto& streamingSession)
 					{
 						streamingSession.onChunk(chunk);
 					});
@@ -233,14 +233,13 @@ namespace slim
 				{
 					auto result{latency};
 
-					// TODO: calculate avg latency
 					// sorting latency samples
 					std::sort(latencySamples.begin(), latencySamples.end());
 
 					// making sure there is enough sample to calculate latency
 					if (latencySamples.size() > 7)
 					{
-						LatencyType accumulator{0};
+						util::BigInteger accumulator{0};
 
 						// skipping first 2 (smallest) and last two (biggest) latency samples
 						for (std::size_t i{2}; i < latencySamples.size() - 2; i++)
@@ -366,7 +365,7 @@ namespace slim
 					// TODO: work in progress
 					LOG(DEBUG) << LABELS{"proto"} << "client played=" << commandSTAT.getBuffer()->elapsedMilliseconds;
 
-					streamingSession.map([&](auto& streamingSession)
+					ts::with(streamingSession, [&](auto& streamingSession)
 					{
 						LOG(DEBUG) << LABELS{"proto"} << "server played=" << ((streamingSession.getFramesProvided() / samplingRate) * 1000);
 					});
@@ -384,7 +383,7 @@ namespace slim
 					}
 
 					// making sure it is a proper response from the client
-					sendTimestamp.map([&](auto& sendTimestamp)
+					ts::with(sendTimestamp, [&](auto& sendTimestamp)
 					{
 						// if latency measurement was interfered by other commands then repeat round trip once again
 						if (!measuringLatency)
@@ -413,8 +412,8 @@ namespace slim
 							else
 							{
 								// calculating new latency value
-								auto l = calculateAverageLatency();
-								l.map([&](auto& l)
+								auto averageLatency{calculateAverageLatency()};
+								ts::with(averageLatency, [&](auto& l)
 								{
 									latency = latency.value_or(l) * 0.8 + l * 0.2;
 
@@ -432,9 +431,6 @@ namespace slim
 									ping();
 								// TODO: make it configurable
 								}, std::chrono::seconds{5}));
-
-								//LOG(DEBUG) << LABELS{"proto"} << "PONG sendTimestamp="   << sendTimestamp.getMicroSeconds();
-								//LOG(DEBUG) << LABELS{"proto"} << "PONG clientTimestamp=" << commandSTAT.getBuffer()->jiffies;
 							}
 						}
 					});
@@ -493,8 +489,8 @@ namespace slim
 				util::ExpandableBuffer                                   commandBuffer{std::size_t{0}, std::size_t{2048}};
 				ts::optional<client::CommandHELO>                        commandHELO{ts::nullopt};
 				util::TimestampCache<10>                                 timestampCache;
-				ts::optional<LatencyType>                                latency{ts::nullopt};
-				std::vector<LatencyType>                                 latencySamples;
+				ts::optional<util::BigInteger>                           latency{ts::nullopt};
+				std::vector<util::BigInteger>                            latencySamples;
 				bool                                                     measuringLatency{false};
 				ts::optional_ref<conwrap2::Timer>                        pingTimer{ts::nullopt};
 		};

@@ -82,7 +82,7 @@ namespace slim
 				return result;
 			}
 
-			virtual unsigned int getSamplingRate() override
+			virtual unsigned int getSamplingRate() const override
 			{
 				unsigned int sr{0};
 

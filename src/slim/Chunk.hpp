@@ -28,10 +28,12 @@ namespace slim
 		friend util::RealTimeQueue<Chunk>;
 
 		public:
-			Chunk(unsigned int sr, unsigned int c, unsigned int b)
-			: samplingRate{sr}
-			, channels{c}
-			, bitsPerSample{b} {}
+			Chunk(bool be, bool en, unsigned int sr, unsigned int ch, unsigned int bi)
+			: beginningOfStream{be}
+			, endOfStream{en}
+			, samplingRate{sr}
+			, channels{ch}
+			, bitsPerSample{bi} {}
 
 			~Chunk() = default;
 			Chunk(const Chunk& rhs) = delete;
@@ -49,18 +51,6 @@ namespace slim
 				return buffer.data();
 			}
 
-			inline auto getDurationMicroseconds() const
-			{
-				unsigned long long result{0};
-
-				if (samplingRate)
-				{
-					result = std::chrono::microseconds{getFrames() * 1000000 / samplingRate}.count();
-				}
-
-				return result;
-			}
-
 			inline std::size_t getFrames() const
 			{
 				return getSize() / (channels * (bitsPerSample >> 3));
@@ -76,9 +66,24 @@ namespace slim
 				return buffer.size();
 			}
 
+			inline bool isBeginningOfStream() const
+			{
+				return beginningOfStream;
+			}
+
+			inline bool isEndOfStream() const
+			{
+				return endOfStream;
+			}
+
 			inline void setBitsPerSample(unsigned int b)
 			{
 				bitsPerSample = b;
+			}
+
+			inline void setBeginningOfStream(bool b)
+			{
+				beginningOfStream = b;
 			}
 
 			inline void setCapacity(std::size_t c)
@@ -89,6 +94,11 @@ namespace slim
 			inline void setChannels(unsigned int c)
 			{
 				channels = c;
+			}
+
+			inline void setEndOfStream(bool e)
+			{
+				endOfStream = e;
 			}
 
 			inline void setSamplingRate(unsigned int r)
@@ -105,6 +115,8 @@ namespace slim
 			Chunk() {}
 
 		private:
+			bool                   beginningOfStream{false};
+			bool                   endOfStream{false};
 			unsigned int           samplingRate{0};
 			unsigned int           channels{0};
 			unsigned int           bitsPerSample{0};

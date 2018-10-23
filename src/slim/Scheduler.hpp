@@ -42,10 +42,10 @@ namespace slim
 			}
 
 			// using Rule Of Zero
-		   ~Scheduler()
+			~Scheduler()
 			{
 				// canceling deferred operation if any
-				taskTimer.map([&](auto& timer)
+				ts::with(taskTimer, [&](auto& timer)
 				{
 					timer.cancel();
 				});

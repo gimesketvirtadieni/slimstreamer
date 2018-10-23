@@ -10,6 +10,7 @@
  * Author: gimesketvirtadieni at gmail dot com (Andrej Kislovskij)
  */
 
+#include <algorithm>
 #include <scope_guard.hpp>
 #include <string>
 
@@ -221,7 +222,7 @@ namespace slim
 				running = true;
 			}
 
-			snd_pcm_sframes_t result{0};
+			auto result{snd_pcm_sframes_t{0}};
 
 			// everything inside this loop (except overflowCallback) must be real-time safe: no memory allocation, no logging, etc.
 			while (result >= 0)
@@ -234,23 +235,26 @@ namespace slim
 				{
 					auto offset = containsData(srcBuffer, static_cast<snd_pcm_uframes_t>(result));
 
-					// if PCM data contains active stream and its offset within the range
-					if (offset >= 0 && offset < result)
+					// if PCM data contains active stream
+					if (offset >= 0)
 					{
-						// changing state to 'producing'
-						producing = true;
-
 						// enqueue received PCM data so that none-Real-Time safe code can process it
 						queuePtr->enqueue([&](Chunk& chunk)
 						{
 							// setting chunk 'meta' data
+							// TODO: reconsider using producing here
+							chunk.setBeginningOfStream(!producing);
+							chunk.setEndOfStream(false);
 							chunk.setSamplingRate(parameters.getSamplingRate());
 							chunk.setChannels(parameters.getLogicalChannels());
 							chunk.setBitsPerSample(parameters.getBitsPerSample());
 
 							// TODO: move functionality to Chunk class
 							// copying data and setting new chunk size in bytes
-							chunk.setSize(copyData(srcBuffer + offset * bytesPerFrame, chunk.getData(), static_cast<snd_pcm_uframes_t>(result - offset)) * parameters.getLogicalChannels() * (parameters.getBitsPerSample() >> 3));
+							chunk.setSize(copyData(srcBuffer + offset * bytesPerFrame, chunk.getData(), static_cast<snd_pcm_uframes_t>(result - std::min(offset, result))) * parameters.getLogicalChannels() * (parameters.getBitsPerSample() >> 3));
+
+							// changing state to 'producing'
+							producing = true;
 
 							// keep track on amount of processed chunks
 							chunkCounter++;
@@ -265,10 +269,12 @@ namespace slim
 					}
 					else if (producing)
 					{
-						// creating an 'empty' chunk to mark the end-of-stream
+						// submitting an end-of-stream chunk to notifiy consumer thread to change 'producing' state to false
 						queuePtr->enqueue([&](Chunk& chunk)
 						{
-							// marking end-of-stream by setting sampling rate to zero
+							// setting chunk 'meta' data
+							chunk.setBeginningOfStream(false);
+							chunk.setEndOfStream(true);
 							chunk.setSamplingRate(0);
 							chunk.setChannels(parameters.getLogicalChannels());
 							chunk.setBitsPerSample(parameters.getBitsPerSample());
@@ -291,7 +297,7 @@ namespace slim
 					// error was recovered so keep processing
 					result = 0;
 				}
-			}
+			}  // while (result >= 0)
 
 			// if error code is unexpected then breaking this loop (-EBADFD is returned when stop method is called)
 			if (result != -EBADFD)

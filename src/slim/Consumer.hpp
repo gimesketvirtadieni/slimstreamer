@@ -37,7 +37,7 @@ namespace slim
 				return processorProxy;
 			}
 
-			virtual unsigned int getSamplingRate()
+			virtual unsigned int getSamplingRate() const
 			{
 				return samplingRate;
 			}

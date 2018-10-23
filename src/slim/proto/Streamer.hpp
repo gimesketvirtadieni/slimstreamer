@@ -35,6 +35,7 @@
 #include "slim/proto/Command.hpp"
 #include "slim/proto/CommandSession.hpp"
 #include "slim/proto/StreamingSession.hpp"
+#include "slim/util/BigInteger.hpp"
 #include "slim/util/Timestamp.hpp"
 
 
@@ -77,13 +78,12 @@ namespace slim
 				{
 					auto result{false};
 					auto samplingRate{getSamplingRate()};
-					auto chunkSamplingRate{chunk.getSamplingRate()};
 
 					// if PCM stream changes
-					if (samplingRate != chunkSamplingRate)
+					if (samplingRate != chunk.getSamplingRate())
 					{
 						// if streaming is ongoing
-						if (samplingRate)
+						if (chunk.isEndOfStream())
 						{
 							// propogating end-of-stream to all the clients
 							stopStreaming();
@@ -93,10 +93,10 @@ namespace slim
 						}
 
 						// assigning new sampling rate
-						setSamplingRate(chunkSamplingRate);
+						setSamplingRate(chunk.getSamplingRate());
 
 						// if this is the beginning of a stream
-						if (chunkSamplingRate)
+						if (chunk.getSamplingRate())
 						{
 							startStreaming();
 						}
@@ -119,12 +119,12 @@ namespace slim
 
 							// it will make Chunk to be consumed
 							result = true;
-							streamingDuration += chunk.getDurationMicroseconds();
+							streamingFrames += chunk.getFrames();
 						}
 					}
 					else
 					{
-						// consuming Chunk in case when samplingRate == chunkSamplingRate == 0
+						// consuming Chunk in case when samplingRate == chunk.getSamplingRate() == 0
 						result = true;
 					}
 
@@ -302,11 +302,12 @@ namespace slim
 
 				inline auto calculatePlaybackStartTime()
 				{
-					unsigned long long maxLatency{0};
+					util::BigInteger maxLatency{0};
 
 					for (auto& entry : commandSessions)
 					{
-						entry.second->getLatency().map([&](auto& latency)
+						auto latency{entry.second->getLatency()};
+						ts::with(latency, [&](auto& latency)
 						{
 							if (maxLatency < latency)
 							{
@@ -327,6 +328,12 @@ namespace slim
 					}
 
 					LOG(DEBUG) << LABELS{"proto"} << "A chunk was distributed to the clients (total clients=" << commandSessions.size() << ", frames=" << chunk.getFrames() << ")";
+				}
+
+				template<typename RatioType>
+				inline util::BigInteger getDuration(RatioType ratio) const
+				{
+					return streamingFrames * ratio.den / getSamplingRate();
 				}
 
 				template<typename SessionType>
@@ -411,11 +418,11 @@ namespace slim
 				{
 					// capturing start stream time point (required for calculations like defer time-out, etc.)
 					streamingStartedAt = util::Timestamp::now();
-					streamingDuration  = 0;
+					streamingFrames    = 0;
 
 					// TODO: work in progress
 					// calculating the timepoint when clients start playing audio
-					calculatePlaybackStartTime();
+					//calculatePlaybackStartTime();
 
 					for (auto& entry : commandSessions)
 					{
@@ -427,9 +434,6 @@ namespace slim
 
 				inline void stopStreaming()
 				{
-					// capturing stop streaming time point
-					streamingStoppedAt = util::Timestamp::now();
-
 					// it is enough to send stop SlimProto command here
 					for (auto& entry : commandSessions)
 					{
@@ -437,20 +441,19 @@ namespace slim
 						entry.second->stop();
 					}
 
-					LOG(DEBUG) << LABELS{"proto"} << "Stopped streaming (duration=" << streamingDuration  << " microsec)";
+					LOG(DEBUG) << LABELS{"proto"} << "Stopped streaming (duration=" << getDuration(util::microseconds)  << " microsec)";
 				}
 
 			private:
 				unsigned int                      streamingPort;
 				EncoderBuilder                    encoderBuilder;
 				std::optional<unsigned int>       gain;
-				unsigned long long                nextID{0};
+				util::BigInteger                  nextID{0};
 				SessionsMap<CommandSessionType>   commandSessions;
 				SessionsMap<StreamingSessionType> streamingSessions;
 				bool                              streaming{false};
-				unsigned long long                streamingDuration{0};
+				util::BigInteger                  streamingFrames{0};
 				util::Timestamp                   streamingStartedAt;
-				util::Timestamp                   streamingStoppedAt;
 		};
 	}
 }

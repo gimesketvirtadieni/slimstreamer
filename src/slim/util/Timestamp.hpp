@@ -14,6 +14,8 @@
 
 #include <chrono>
 
+#include "slim/util/BigInteger.hpp"
+
 
 namespace slim
 {
@@ -38,7 +40,7 @@ namespace slim
 				Timestamp& operator=(Timestamp&&) = default;
 
 				template<typename RatioType>
-				inline unsigned long long get(RatioType r) const
+				inline util::BigInteger get(RatioType r) const
 				{
 					return std::chrono::duration_cast<std::chrono::duration<int64_t, RatioType>>(timestamp.time_since_epoch()).count();
 				}

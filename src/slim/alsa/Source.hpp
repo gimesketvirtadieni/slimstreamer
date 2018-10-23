@@ -28,6 +28,7 @@
 #include "slim/log/log.hpp"
 #include "slim/Producer.hpp"
 #include "slim/util/RealTimeQueue.hpp"
+#include "slim/util/BigInteger.hpp"
 #include "slim/util/Timestamp.hpp"
 
 
@@ -44,8 +45,7 @@ namespace slim
 
 		class Source : public Producer
 		{
-			using QueueType   = util::RealTimeQueue<Chunk>;
-			using CounterType = unsigned long long;
+			using QueueType = util::RealTimeQueue<Chunk>;
 
 			public:
 				Source(conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>> pp, Parameters pa, std::function<void()> oc = [] {})
@@ -92,6 +92,7 @@ namespace slim
 					{
 						result = producer([&](auto& chunk)
 						{
+
 							return consumer(chunk);
 						});
 					}
@@ -144,14 +145,16 @@ namespace slim
 
 					if (queuePtr->dequeue([&](Chunk& chunk)
 					{
-						// if it is end-of-stream then changing state to 'not producing'
-						if (!chunk.getSamplingRate())
+						// feeding consumer with a chunk
+						auto result{consumer(chunk)};
+
+						if (chunk.isEndOfStream())
 						{
 							producing    = false;
 							chunkCounter = 0;
 						}
 
-						return consumer(chunk);
+						return result;
 					}, [&]
 					{
 						underflow = true;
@@ -173,16 +176,17 @@ namespace slim
 				bool restore(snd_pcm_sframes_t error);
 
 			private:
-				Parameters                 parameters;
-				std::function<void()>      overflowCallback;
-				std::unique_ptr<QueueType> queuePtr;
-				snd_pcm_t*                 handlePtr{nullptr};
-				std::atomic<bool>          running{false};
-				std::atomic<bool>          producing{false};
-				std::atomic<CounterType>   chunkCounter{0};
-				bool                       streaming{true};
-				std::mutex                 lock;
-				util::Timestamp            pauseUntil;
+				Parameters                    parameters;
+				std::function<void()>         overflowCallback;
+				std::unique_ptr<QueueType>    queuePtr;
+				snd_pcm_t*                    handlePtr{nullptr};
+				std::atomic<bool>             running{false};
+				std::atomic<bool>             producing{false};
+				// TODO: get rid of this atomic
+				std::atomic<util::BigInteger> chunkCounter{0};
+				bool                          streaming{true};
+				std::mutex                    lock;
+				util::Timestamp               pauseUntil;
 		};
 	}
 }
