@@ -223,6 +223,7 @@ namespace slim
 			}
 
 			auto result{snd_pcm_sframes_t{0}};
+			auto isBeginningOfStream{true};
 
 			// everything inside this loop (except overflowCallback) must be real-time safe: no memory allocation, no logging, etc.
 			while (result >= 0)
@@ -242,8 +243,7 @@ namespace slim
 						queuePtr->enqueue([&](Chunk& chunk)
 						{
 							// setting chunk 'meta' data
-							// TODO: reconsider using producing here
-							chunk.setBeginningOfStream(!producing);
+							chunk.setBeginningOfStream(isBeginningOfStream);
 							chunk.setEndOfStream(false);
 							chunk.setSamplingRate(parameters.getSamplingRate());
 							chunk.setChannels(parameters.getLogicalChannels());
@@ -253,8 +253,8 @@ namespace slim
 							// copying data and setting new chunk size in bytes
 							chunk.setSize(copyData(srcBuffer + offset * bytesPerFrame, chunk.getData(), static_cast<snd_pcm_uframes_t>(result - std::min(offset, result))) * parameters.getLogicalChannels() * (parameters.getBitsPerSample() >> 3));
 
-							// changing state to 'producing'
-							producing = true;
+							// only the first chunk in stream is marked as Beginning-Of-Stream
+							isBeginningOfStream = false;
 
 							// keep track on amount of processed chunks
 							chunkCounter++;
@@ -267,9 +267,9 @@ namespace slim
 							overflowCallback();
 						});
 					}
-					else if (producing)
+					else if (!isBeginningOfStream)
 					{
-						// submitting an end-of-stream chunk to notifiy consumer thread to change 'producing' state to false
+						// submitting an end-of-stream chunk to notifiy consumer thread about End-Of-Stream
 						queuePtr->enqueue([&](Chunk& chunk)
 						{
 							// setting chunk 'meta' data
@@ -279,6 +279,9 @@ namespace slim
 							chunk.setChannels(parameters.getLogicalChannels());
 							chunk.setBitsPerSample(parameters.getBitsPerSample());
 							chunk.setSize(0);
+
+							// the next chunk in stream will be marked as Beginning-Of-Stream
+							isBeginningOfStream = true;
 
 							// keep track on amount of processed chunks
 							chunkCounter++;

@@ -17,6 +17,7 @@
 #include <functional>
 #include <memory>
 #include <thread>
+#include <type_safe/optional_ref.hpp>
 #include <vector>
 
 #include "slim/ContainerBase.hpp"
@@ -25,6 +26,8 @@
 
 namespace slim
 {
+	namespace ts = type_safe;
+
 	template <class ProducerType>
 	class Multiplexor : public Producer
 	{
@@ -39,22 +42,6 @@ namespace slim
 			Multiplexor& operator=(const Multiplexor&) = delete;  // non-assignable
 			Multiplexor(Multiplexor&& rhs) = delete;              // non-movable
 			Multiplexor& operator=(Multiplexor&& rhs) = delete;   // non-move-assignable
-
-			virtual bool isProducing() override
-			{
-				auto result{false};
-
-				for (auto& producerPtr : producers)
-				{
-					if (producerPtr->isProducing())
-					{
-						result = true;
-						break;
-					}
-				}
-
-				return result;
-			}
 
 			virtual bool isRunning() override
 			{
@@ -76,29 +63,22 @@ namespace slim
 			{
 				auto result{false};
 
-				// setting the current producer if needed
-				if (!currentProducerPtr && producers.size() > 0)
+				// setting up a producer if needed
+				if (!currentProducer.has_value())
 				{
-					currentProducerPtr = producers.at(0).get();
+					switchToNextProducer();
 				}
 
-				if (currentProducerPtr)
+				ts::with(currentProducer, [&](auto& producer)
 				{
-					result = currentProducerPtr->produceChunk(consumer);
+					result = producer.produceChunk(consumer);
+					LOG(DEBUG) << LABELS{"slim"} << "NEXT1 result=" << result;
+				});
 
-					// if no more data available from the current producer then switching over to a next one
-					if (!result && !currentProducerPtr->isProducing())
-					{
-						for (auto& producerPtr : producers)
-						{
-							if (producerPtr->isProducing())
-							{
-								currentProducerPtr = producerPtr.get();
-								result             = true;
-								break;
-							}
-						}
-					}
+				// switching to the next producer if there were no chunks produced
+				if (!result)
+				{
+					switchToNextProducer();
 				}
 
 				return result;
@@ -108,10 +88,10 @@ namespace slim
 			{
 				auto result{false};
 
-				if (!currentProducerPtr)
+				ts::with(currentProducer, [&](auto& producer)
 				{
-					result = currentProducerPtr->skipChunk();
-				}
+					result = producer.skipChunk();
+				});
 
 				return result;
 			}
@@ -150,7 +130,7 @@ namespace slim
 						std::this_thread::sleep_for(std::chrono::milliseconds{1});
 					}
 
-					// adding producer thread for Real-Time processing
+					// keeping producer's thread in dedicated vector
 					threads.push_back(std::move(producerThread));
 				}
 			}
@@ -173,9 +153,28 @@ namespace slim
 				}
 			}
 
+		protected:
+			inline void switchToNextProducer()
+			{
+				if ((++currentProducerIndex) >= producers.size())
+				{
+					currentProducerIndex = 0;
+				}
+				
+				if (producers.size() > 0)
+				{
+					currentProducer = ts::ref(*producers.at(currentProducerIndex));
+				}
+				else
+				{
+					currentProducer.reset();
+				}
+			}
+
 		private:
 			std::vector<std::unique_ptr<ProducerType>> producers;
-			ProducerType*                              currentProducerPtr{nullptr};
+			unsigned int                               currentProducerIndex{0};
+			ts::optional_ref<ProducerType>             currentProducer{ts::nullopt};
 			std::vector<std::thread>                   threads;
 	};
 }

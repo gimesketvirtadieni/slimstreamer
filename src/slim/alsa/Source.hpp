@@ -74,11 +74,6 @@ namespace slim
 					return parameters;
 				}
 
-				virtual bool isProducing() override
-				{
-					return producing;
-				}
-
 				virtual bool isRunning() override
 				{
 					return running;
@@ -90,11 +85,7 @@ namespace slim
 
 					if (chunkCounter > parameters.getStartThreshold() && !isOnPause())
 					{
-						result = producer([&](auto& chunk)
-						{
-
-							return consumer(chunk);
-						});
+						result = producer(consumer);
 					}
 
 					return result;
@@ -143,33 +134,42 @@ namespace slim
 					auto result{false};
 					auto underflow{false};
 
-					if (queuePtr->dequeue([&](Chunk& chunk)
+					queuePtr->dequeue([&](Chunk& chunk) -> bool  // 'mover' function
 					{
-						// feeding consumer with a chunk
-						auto result{consumer(chunk)};
+						auto consumed{false};
 
-						if (chunk.isEndOfStream())
+						// feeding consumer with a chunk
+						if (consumer(chunk))
 						{
-							producing    = false;
-							chunkCounter = 0;
+							consumed = true;
+
+							LOG(DEBUG) << LABELS{"slim"} << "isEndOfStream=" << chunk.isEndOfStream();
+
+							// if chunk was consumed and it is the end of the stream
+							if (chunk.isEndOfStream())
+							{
+								chunkCounter = 0;
+							}
+							else
+							{
+								// probably there are more chunks to be consumed
+								result = true;
+							}
+						}
+						else
+						{
+							// if consumer did not accept a chunk then deferring further processing
+							// TODO: cruise control should be implemented
+							pauseUntil = util::Timestamp::now() + std::chrono::milliseconds{50};
 						}
 
-						return result;
-					}, [&]
+						return consumed;
+					}, [&]  // overflow callback
 					{
 						underflow = true;
-					}))
-					{
-						// more chunks may be available if there were no undedflow
-						result = !underflow;
-					}
-					else
-					{
-						// TODO: cruise control should be implemented
-						// if consumer did not accept a chunk then deferring further processing
-						pauseUntil = util::Timestamp::now() + std::chrono::milliseconds{50};
-					}
+					});
 
+					// if there are more chunks to be consumed
 					return result;
 				}
 
@@ -181,7 +181,6 @@ namespace slim
 				std::unique_ptr<QueueType>    queuePtr;
 				snd_pcm_t*                    handlePtr{nullptr};
 				std::atomic<bool>             running{false};
-				std::atomic<bool>             producing{false};
 				// TODO: get rid of this atomic
 				std::atomic<util::BigInteger> chunkCounter{0};
 				bool                          streaming{true};

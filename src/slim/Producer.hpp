@@ -35,7 +35,6 @@ namespace slim
 				return processorProxy;
 			}
 
-			virtual bool isProducing() = 0;
 			virtual bool isRunning() = 0;
 			virtual bool produceChunk(std::function<bool(Chunk&)>& consumer) = 0;
 			virtual bool skipChunk() = 0;
