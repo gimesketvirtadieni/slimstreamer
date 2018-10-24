@@ -3,7 +3,7 @@
         {
             "name": "Linux",
             "includePath": [
-                "${workspaceFolder}/src/slim",
+                "${workspaceFolder}/src",
                 "${workspaceFolder}/dependencies/conwrap2/include",
                 "${workspaceFolder}/dependencies/cxxopts/include",
                 "${workspaceFolder}/dependencies/g3log/src",
