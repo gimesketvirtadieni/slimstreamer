@@ -22,6 +22,8 @@
 
 namespace slim
 {
+	namespace ts = type_safe;
+
 	class Producer
 	{
 		public:
@@ -35,11 +37,11 @@ namespace slim
 				return processorProxy;
 			}
 
-			virtual bool isRunning() = 0;
-			virtual bool produceChunk(std::function<bool(Chunk&)>& consumer) = 0;
-			virtual bool skipChunk() = 0;
-			virtual void start() = 0;
-			virtual void stop(bool gracefully = true) = 0;
+			virtual bool                       isRunning() = 0;
+			virtual ts::optional<unsigned int> produceChunk(std::function<bool(Chunk&)>& consumer) = 0;
+			virtual ts::optional<unsigned int> skipChunk() = 0;
+			virtual void                       start() = 0;
+			virtual void                       stop(bool gracefully = true) = 0;
 
 		private:
 			conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>> processorProxy;

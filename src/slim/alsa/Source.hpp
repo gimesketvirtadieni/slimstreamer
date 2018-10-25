@@ -20,6 +20,7 @@
 #include <functional>
 #include <memory>
 #include <mutex>
+#include <type_safe/optional.hpp>
 
 #include "slim/alsa/Parameters.hpp"
 #include "slim/Chunk.hpp"
@@ -29,13 +30,14 @@
 #include "slim/Producer.hpp"
 #include "slim/util/RealTimeQueue.hpp"
 #include "slim/util/BigInteger.hpp"
-#include "slim/util/Timestamp.hpp"
 
 
 namespace slim
 {
 	namespace alsa
 	{
+		namespace ts = type_safe;
+
 		enum class StreamMarker : unsigned char
 		{
 			beginningOfStream = 1,
@@ -79,11 +81,11 @@ namespace slim
 					return running;
 				}
 
-				virtual bool produceChunk(std::function<bool(Chunk&)>& consumer) override
+				virtual ts::optional<unsigned int> produceChunk(std::function<bool(Chunk&)>& consumer) override
 				{
-					auto result{false};
+					auto result{ts::optional<unsigned int>{ts::nullopt}};
 
-					if (chunkCounter > parameters.getStartThreshold() && !isOnPause())
+					if (chunkCounter > parameters.getStartThreshold())
 					{
 						result = producer(consumer);
 					}
@@ -91,7 +93,7 @@ namespace slim
 					return result;
 				}
 
-				virtual bool skipChunk() override
+				virtual ts::optional<unsigned int> skipChunk() override
 				{
 					// using an empty lambda that returns 'true' to 'consume' chunk without a real consumer
 					return producer([](auto&)
@@ -113,26 +115,12 @@ namespace slim
 					return message + ": name='" + parameters.getDeviceName() + (error != 0 ? std::string{"' error='"} + snd_strerror(error) + "'" : "");
 				}
 
-				inline bool isOnPause()
-				{
-					auto result{false};
-
-					// TODO: overload > operator for util::Timestamp
-					if (pauseUntil.get(util::microseconds) > util::Timestamp{}.get(util::microseconds))
-					{
-						result = true;
-					}
-
-					return result;
-				}
-
 				void open();
 
 				template<typename ConsumerType>
-				inline bool producer(const ConsumerType& consumer)
+				inline ts::optional<unsigned int> producer(const ConsumerType& consumer)
 				{
-					auto result{false};
-					auto underflow{false};
+					auto result{ts::optional<unsigned int>{ts::nullopt}};
 
 					queuePtr->dequeue([&](Chunk& chunk) -> bool  // 'mover' function
 					{
@@ -143,30 +131,28 @@ namespace slim
 						{
 							consumed = true;
 
-							LOG(DEBUG) << LABELS{"slim"} << "isEndOfStream=" << chunk.isEndOfStream();
-
 							// if chunk was consumed and it is the end of the stream
 							if (chunk.isEndOfStream())
 							{
 								chunkCounter = 0;
+								LOG(DEBUG) << LABELS{"slim"} << "EndOfStream";
 							}
 							else
 							{
-								// probably there are more chunks to be consumed
-								result = true;
+								result = 0;
 							}
 						}
 						else
 						{
 							// if consumer did not accept a chunk then deferring further processing
 							// TODO: cruise control should be implemented
-							pauseUntil = util::Timestamp::now() + std::chrono::milliseconds{50};
+							result = 10;
 						}
 
 						return consumed;
-					}, [&]  // overflow callback
+					}, [&]  // underflow callback
 					{
-						underflow = true;
+						result = 10;
 					});
 
 					// if there are more chunks to be consumed
@@ -185,7 +171,6 @@ namespace slim
 				std::atomic<util::BigInteger> chunkCounter{0};
 				bool                          streaming{true};
 				std::mutex                    lock;
-				util::Timestamp               pauseUntil;
 		};
 	}
 }

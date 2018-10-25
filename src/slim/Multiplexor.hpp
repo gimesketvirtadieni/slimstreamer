@@ -59,9 +59,9 @@ namespace slim
 				return result;
 			}
 
-			virtual bool produceChunk(std::function<bool(Chunk&)>& consumer) override
+			virtual ts::optional<unsigned int> produceChunk(std::function<bool(Chunk&)>& consumer) override
 			{
-				auto result{false};
+				auto result{ts::optional<unsigned int>{ts::nullopt}};
 
 				// setting up a producer if needed
 				if (!currentProducer.has_value())
@@ -72,11 +72,10 @@ namespace slim
 				ts::with(currentProducer, [&](auto& producer)
 				{
 					result = producer.produceChunk(consumer);
-					LOG(DEBUG) << LABELS{"slim"} << "NEXT1 result=" << result;
 				});
 
 				// switching to the next producer if there were no chunks produced
-				if (!result)
+				if (!result.has_value())
 				{
 					switchToNextProducer();
 				}
@@ -84,9 +83,9 @@ namespace slim
 				return result;
 			}
 
-			virtual bool skipChunk() override
+			virtual ts::optional<unsigned int> skipChunk() override
 			{
-				auto result{false};
+				auto result{ts::optional<unsigned int>{ts::nullopt}};
 
 				ts::with(currentProducer, [&](auto& producer)
 				{
@@ -156,6 +155,8 @@ namespace slim
 		protected:
 			inline void switchToNextProducer()
 			{
+				LOG(DEBUG) << LABELS{"slim"} << "SWITCH1";
+
 				if ((++currentProducerIndex) >= producers.size())
 				{
 					currentProducerIndex = 0;
