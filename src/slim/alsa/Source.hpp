@@ -80,9 +80,9 @@ namespace slim
 				}
 
 				template<typename ConsumerType>
-				inline ts::optional<unsigned int> produceChunk(const ConsumerType& consumer)
+				inline ts::optional<std::chrono::milliseconds> produceChunk(const ConsumerType& consumer)
 				{
-					auto result{ts::optional<unsigned int>{ts::nullopt}};
+					auto result{ts::optional<std::chrono::milliseconds>{ts::nullopt}};
 
 					if (chunkCounter > parameters.getStartThreshold())
 					{
@@ -92,7 +92,7 @@ namespace slim
 					return result;
 				}
 
-				inline ts::optional<unsigned int> skipChunk()
+				inline ts::optional<std::chrono::milliseconds> skipChunk()
 				{
 					// using an empty lambda that returns 'true' to 'consume' chunk without a real consumer
 					return producer([](auto&)
@@ -117,9 +117,9 @@ namespace slim
 				void open();
 
 				template<typename ConsumerType>
-				inline ts::optional<unsigned int> producer(const ConsumerType& consumer)
+				inline ts::optional<std::chrono::milliseconds> producer(const ConsumerType& consumer)
 				{
-					auto result{ts::optional<unsigned int>{ts::nullopt}};
+					auto result{ts::optional<std::chrono::milliseconds>{ts::nullopt}};
 
 					queuePtr->dequeue([&](Chunk& chunk) -> bool  // 'mover' function
 					{

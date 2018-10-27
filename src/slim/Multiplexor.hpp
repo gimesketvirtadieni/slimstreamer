@@ -58,9 +58,9 @@ namespace slim
 			}
 
 			template<typename ConsumerType>
-			inline ts::optional<unsigned int> produceChunk(const ConsumerType& consumer)
+			inline ts::optional<std::chrono::milliseconds> produceChunk(const ConsumerType& consumer)
 			{
-				auto result{ts::optional<unsigned int>{ts::nullopt}};
+				auto result{ts::optional<std::chrono::milliseconds>{ts::nullopt}};
 
 				// setting up a producer if needed
 				if (!currentProducer.has_value())
@@ -93,9 +93,9 @@ namespace slim
 				return result;
 			}
 
-			inline ts::optional<unsigned int> skipChunk()
+			inline ts::optional<std::chrono::milliseconds> skipChunk()
 			{
-				auto result{ts::optional<unsigned int>{ts::nullopt}};
+				auto result{ts::optional<std::chrono::milliseconds>{ts::nullopt}};
 
 				ts::with(currentProducer, [&](auto& producer)
 				{

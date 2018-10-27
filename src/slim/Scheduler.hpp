@@ -91,8 +91,8 @@ namespace slim
 
 				// TODO: calculate total chunks per processing quantum
 				// processing up to max(count) chunks within one event-loop quantum
-				auto available{ts::optional<unsigned int>{ts::nullopt}};
-				unsigned int delay{0};
+				auto available{ts::optional<std::chrono::milliseconds>{ts::nullopt}};
+				auto delay{std::chrono::milliseconds{0}};
 				for (int count{5}; count > 0; count--) try
 				{
 					::util::scope_guard_failure onError = [&]
@@ -106,7 +106,7 @@ namespace slim
 					// producing / consuming chunk
 					ts::with((available = producerPtr->produceChunk(consumer)), [&](auto& p)
 					{
-						if (p > 0)
+						if (p.count() > 0)
 						{
 							delay = p;
 							count = 0;
@@ -130,19 +130,19 @@ namespace slim
 				// if there is more PCM data to be processed
 				if (producerPtr->isRunning())
 				{
-					if (!delay)
-					{
-						processorProxy.process([&]
-						{
-							processTask();
-						});
-					}
-					else
+					if (delay.count() > 0)
 					{
 						taskTimer = ts::ref(processorProxy.processWithDelay([&]
 						{
 							processTask();
 						}, std::chrono::milliseconds{delay}));
+					}
+					else
+					{
+						processorProxy.process([&]
+						{
+							processTask();
+						});
 					}
 				}
 			}
