@@ -14,7 +14,6 @@
 
 #include <conwrap2/ProcessorProxy.hpp>
 #include <chrono>
-#include <functional>
 #include <memory>
 #include <thread>
 #include <type_safe/optional_ref.hpp>
@@ -29,21 +28,20 @@ namespace slim
 	namespace ts = type_safe;
 
 	template <class ProducerType>
-	class Multiplexor : public Producer
+	class Multiplexor
 	{
 		public:
 			Multiplexor(conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>> pp, std::vector<std::unique_ptr<ProducerType>> pr)
-			: Producer{pp}
-			, producers{std::move(pr)} {}
+			: producers{std::move(pr)} {}
 
 			// using Rule Of Zero
-			virtual ~Multiplexor() = default;
+			~Multiplexor() = default;
 			Multiplexor(const Multiplexor&) = delete;             // non-copyable
 			Multiplexor& operator=(const Multiplexor&) = delete;  // non-assignable
 			Multiplexor(Multiplexor&& rhs) = delete;              // non-movable
 			Multiplexor& operator=(Multiplexor&& rhs) = delete;   // non-move-assignable
 
-			virtual bool isRunning() override
+			inline bool isRunning()
 			{
 				auto result{false};
 
@@ -59,7 +57,8 @@ namespace slim
 				return result;
 			}
 
-			virtual ts::optional<unsigned int> produceChunk(std::function<bool(Chunk&)>& consumer) override
+			template<typename ConsumerType>
+			inline ts::optional<unsigned int> produceChunk(const ConsumerType& consumer)
 			{
 				auto result{ts::optional<unsigned int>{ts::nullopt}};
 
@@ -78,12 +77,23 @@ namespace slim
 				if (!result.has_value())
 				{
 					switchToNextProducer();
+
+					// counting 'empty switches' to a different producer to issue pauses once none of the producers produce anything
+					if ((++emptySwitches) >= producers.size())
+					{
+						result        = 100;
+						emptySwitches = 0;
+					}
+				}
+				else
+				{
+					emptySwitches = 0;
 				}
 
 				return result;
 			}
 
-			virtual ts::optional<unsigned int> skipChunk() override
+			inline ts::optional<unsigned int> skipChunk()
 			{
 				auto result{ts::optional<unsigned int>{ts::nullopt}};
 
@@ -95,7 +105,7 @@ namespace slim
 				return result;
 			}
 
-			virtual void start() override
+			inline void start()
 			{
 				for (auto& producerPtr : producers)
 				{
@@ -134,7 +144,7 @@ namespace slim
 				}
 			}
 
-			virtual void stop(bool gracefully = true) override
+			inline void stop(bool gracefully = true)
 			{
 				// signalling all threads to stop processing
 				for (auto& producerPtr : producers)
@@ -155,8 +165,6 @@ namespace slim
 		protected:
 			inline void switchToNextProducer()
 			{
-				LOG(DEBUG) << LABELS{"slim"} << "SWITCH1";
-
 				if ((++currentProducerIndex) >= producers.size())
 				{
 					currentProducerIndex = 0;
@@ -177,5 +185,6 @@ namespace slim
 			unsigned int                               currentProducerIndex{0};
 			ts::optional_ref<ProducerType>             currentProducer{ts::nullopt};
 			std::vector<std::thread>                   threads;
+			unsigned int                               emptySwitches{0};
 	};
 }

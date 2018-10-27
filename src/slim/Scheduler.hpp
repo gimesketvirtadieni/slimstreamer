@@ -20,20 +20,19 @@
 #include <scope_guard.hpp>
 #include <type_safe/optional_ref.hpp>
 
-#include "slim/Consumer.hpp"
 #include "slim/ContainerBase.hpp"
 #include "slim/log/log.hpp"
-#include "slim/Producer.hpp"
 
 
 namespace slim
 {
 	namespace ts = type_safe;
 
+	template <class ProducerType, class ConsumerType>
 	class Scheduler
 	{
 		public:
-			Scheduler(conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>> pp, std::unique_ptr<Producer> pr, std::unique_ptr<Consumer> cn)
+			Scheduler(conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>> pp, std::unique_ptr<ProducerType> pr, std::unique_ptr<ConsumerType> cn)
 			: processorProxy{pp}
 			, producerPtr{std::move(pr)}
 			, consumerPtr{std::move(cn)}
@@ -150,8 +149,8 @@ namespace slim
 
 		private:
 			conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>> processorProxy;
-			std::unique_ptr<Producer>                                producerPtr;
-			std::unique_ptr<Consumer>                                consumerPtr;
+			std::unique_ptr<ProducerType>                            producerPtr;
+			std::unique_ptr<ConsumerType>                            consumerPtr;
 			ts::optional_ref<conwrap2::Timer>                        taskTimer{ts::nullopt};
 	};
 }

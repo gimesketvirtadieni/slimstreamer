@@ -27,7 +27,6 @@
 #include "slim/Consumer.hpp"
 #include "slim/ContainerBase.hpp"
 #include "slim/log/log.hpp"
-#include "slim/Producer.hpp"
 #include "slim/util/RealTimeQueue.hpp"
 #include "slim/util/BigInteger.hpp"
 
@@ -45,14 +44,13 @@ namespace slim
 			data              = 3,
 		};
 
-		class Source : public Producer
+		class Source
 		{
 			using QueueType = util::RealTimeQueue<Chunk>;
 
 			public:
 				Source(conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>> pp, Parameters pa, std::function<void()> oc = [] {})
-				: Producer{pp}
-				, parameters{pa}
+				: parameters{pa}
 				, overflowCallback{std::move(oc)}
 				, queuePtr{std::make_unique<QueueType>(parameters.getQueueSize(), [&](Chunk& chunk)
 				{
@@ -60,7 +58,7 @@ namespace slim
 					chunk.setCapacity(pa.getFramesPerChunk() * pa.getLogicalChannels() * (pa.getBitsPerSample() >> 3));
 				})} {}
 
-				virtual ~Source()
+				~Source()
 				{
 					// it is safe to call stop method multiple times
 					stop(false);
@@ -76,12 +74,13 @@ namespace slim
 					return parameters;
 				}
 
-				virtual bool isRunning() override
+				inline bool isRunning()
 				{
 					return running;
 				}
 
-				virtual ts::optional<unsigned int> produceChunk(std::function<bool(Chunk&)>& consumer) override
+				template<typename ConsumerType>
+				inline ts::optional<unsigned int> produceChunk(const ConsumerType& consumer)
 				{
 					auto result{ts::optional<unsigned int>{ts::nullopt}};
 
@@ -93,7 +92,7 @@ namespace slim
 					return result;
 				}
 
-				virtual ts::optional<unsigned int> skipChunk() override
+				inline ts::optional<unsigned int> skipChunk()
 				{
 					// using an empty lambda that returns 'true' to 'consume' chunk without a real consumer
 					return producer([](auto&)
@@ -102,8 +101,8 @@ namespace slim
 					});
 				}
 
-				virtual void start() override;
-				virtual void stop(bool gracefully = true) override;
+				void start();
+				void stop(bool gracefully = true);
 
 			protected:
 				void              close();
@@ -135,7 +134,6 @@ namespace slim
 							if (chunk.isEndOfStream())
 							{
 								chunkCounter = 0;
-								LOG(DEBUG) << LABELS{"slim"} << "EndOfStream";
 							}
 							else
 							{

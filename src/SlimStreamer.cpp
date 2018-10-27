@@ -366,11 +366,11 @@ int main(int argc, char *argv[])
 				auto multiplexorPtr{std::make_unique<Multiplexor<Source>>(processorProxy, std::move(producers))};
 
 				// creating a scheduler
-				auto schedulerPtr{std::make_unique<Scheduler>(processorProxy, std::move(multiplexorPtr), std::move(consumerPtr))};
+				auto schedulerPtr{std::make_unique<Scheduler<Multiplexor<Source>, Consumer>>(processorProxy, std::move(multiplexorPtr), std::move(consumerPtr))};
 
 				return std::move(std::unique_ptr<ContainerBase>
 				{
-					new Container<TCPServer, TCPServer, UDPServer, Scheduler>(processorProxy, std::move(commandServerPtr), std::move(streamingServerPtr), std::move(discoveryServerPtr), std::move(schedulerPtr))
+					new Container<TCPServer, TCPServer, UDPServer, Scheduler<Multiplexor<Source>, Consumer>>(processorProxy, std::move(commandServerPtr), std::move(streamingServerPtr), std::move(discoveryServerPtr), std::move(schedulerPtr))
 				});
 			}};
 			LOG(INFO) << "Streaming format is " << format;
