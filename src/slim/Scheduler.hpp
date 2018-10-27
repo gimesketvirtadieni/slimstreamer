@@ -90,28 +90,21 @@ namespace slim
 				}};
 
 				// TODO: calculate total chunks per processing quantum
-				// processing up to max(count) chunks within one event-loop quantum
-				auto available{ts::optional<std::chrono::milliseconds>{ts::nullopt}};
-				auto delay{std::chrono::milliseconds{0}};
-				for (int count{5}; count > 0; count--) try
+				// processing up to max(chunksToProcess) chunks within one event-loop quantum
+				auto delayProcessing{std::chrono::milliseconds{0}};
+				for (int chunksToProcess{5}; chunksToProcess > 0 && !delayProcessing.count(); chunksToProcess--) try
 				{
+					// this safe guard is meant for capturing consumer's errors
 					::util::scope_guard_failure onError = [&]
 					{
 						// skipping one chunk in case of an exception while producing / consuming
-						available = producerPtr->skipChunk();
+						delayProcessing = producerPtr->skipChunk().value_or(std::chrono::milliseconds{0});
 
 						LOG(WARNING) << "A chunk was skipped due to an error";
 					};
 
 					// producing / consuming chunk
-					ts::with((available = producerPtr->produceChunk(consumer)), [&](auto& p)
-					{
-						if (p.count() > 0)
-						{
-							delay = p;
-							count = 0;
-						}
-					});
+					delayProcessing = producerPtr->produceChunk(consumer).value_or(std::chrono::milliseconds{0});
 				}
 				catch (const Exception& error)
 				{
@@ -130,12 +123,12 @@ namespace slim
 				// if there is more PCM data to be processed
 				if (producerPtr->isRunning())
 				{
-					if (delay.count() > 0)
+					if (delayProcessing.count() > 0)
 					{
 						taskTimer = ts::ref(processorProxy.processWithDelay([&]
 						{
 							processTask();
-						}, delay));
+						}, delayProcessing));
 					}
 					else
 					{
