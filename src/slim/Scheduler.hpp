@@ -135,7 +135,7 @@ namespace slim
 						taskTimer = ts::ref(processorProxy.processWithDelay([&]
 						{
 							processTask();
-						}, std::chrono::milliseconds{delay}));
+						}, delay));
 					}
 					else
 					{

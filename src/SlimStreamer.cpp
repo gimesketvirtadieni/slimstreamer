@@ -43,7 +43,6 @@
 #include "slim/log/ConsoleSink.hpp"
 #include "slim/log/log.hpp"
 #include "slim/Multiplexor.hpp"
-#include "slim/Producer.hpp"
 #include "slim/proto/Command.hpp"
 #include "slim/proto/Streamer.hpp"
 #include "slim/Scheduler.hpp"
