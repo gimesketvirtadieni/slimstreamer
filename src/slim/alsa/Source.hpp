@@ -84,10 +84,7 @@ namespace slim
 				{
 					auto result{ts::optional<std::chrono::milliseconds>{ts::nullopt}};
 
-					if (chunkCounter > parameters.getStartThreshold())
-					{
-						result = producer(consumer);
-					}
+					result = producer(consumer);
 
 					return result;
 				}
@@ -125,6 +122,8 @@ namespace slim
 					{
 						auto consumed{false};
 
+						consuming = true;
+
 						// feeding consumer with a chunk
 						if (consumer(chunk))
 						{
@@ -133,7 +132,7 @@ namespace slim
 							// if chunk was consumed and it is the end of the stream
 							if (chunk.isEndOfStream())
 							{
-								chunkCounter = 0;
+								consuming = false;
 							}
 							else
 							{
@@ -150,7 +149,10 @@ namespace slim
 						return consumed;
 					}, [&]  // underflow callback
 					{
-						result = 10;
+						if (consuming)
+						{
+							result = 10;
+						}
 					});
 
 					// if there are more chunks to be consumed
@@ -165,9 +167,8 @@ namespace slim
 				std::unique_ptr<QueueType>    queuePtr;
 				snd_pcm_t*                    handlePtr{nullptr};
 				std::atomic<bool>             running{false};
-				// TODO: get rid of this atomic
-				std::atomic<util::BigInteger> chunkCounter{0};
-				bool                          streaming{true};
+				bool                          producing{false};
+				bool                          consuming{false};
 				std::mutex                    lock;
 		};
 	}

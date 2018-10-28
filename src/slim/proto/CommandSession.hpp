@@ -135,6 +135,15 @@ namespace slim
 
 				inline void onChunk(const Chunk& chunk)
 				{
+					// TODO: work in progress - introduce state-machine
+					chunkCounter++;
+
+					if (startRequested && chunkCounter > 5)
+					{
+						send(server::CommandSTRM{CommandSelection::Unpause, 0});
+						startRequested = false;
+					}
+
 					ts::with(streamingSession, [&](auto& streamingSession)
 					{
 						streamingSession.onChunk(chunk);
@@ -213,6 +222,7 @@ namespace slim
 					// if not streaming and handshake was received
 					if (!streaming && commandHELO.has_value())
 					{
+						chunkCounter = 0;
 						send(server::CommandSTRM{CommandSelection::Start, formatSelection, streamingPort, samplingRate, clientID});
 					}
 					streaming = true;
@@ -356,8 +366,7 @@ namespace slim
 
 				inline void onSTMl(client::CommandSTAT& commandSTAT)
 				{
-					// TODO: work in progress
-					send(server::CommandSTRM{CommandSelection::Unpause, 0});
+					startRequested = true;
 				}
 
 				inline void onSTMs(client::CommandSTAT& commandSTAT)
@@ -486,8 +495,10 @@ namespace slim
 				ts::optional_ref<StreamingSessionType>                   streamingSession{ts::nullopt};
 				bool                                                     connectedReceived{false};
 				bool                                                     responseReceived{false};
+				bool                                                     startRequested{false};
 				util::ExpandableBuffer                                   commandBuffer{std::size_t{0}, std::size_t{2048}};
 				ts::optional<client::CommandHELO>                        commandHELO{ts::nullopt};
+				util::BigInteger                                         chunkCounter{0};
 				util::TimestampCache<10>                                 timestampCache;
 				ts::optional<util::BigInteger>                           latency{ts::nullopt};
 				std::vector<util::BigInteger>                            latencySamples;

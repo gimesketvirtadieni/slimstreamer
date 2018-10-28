@@ -44,13 +44,13 @@ namespace slim
 				StreamMarker value{buffer[(i + 1) * bytesPerFrame - 1]};  // last byte of the current frame
 				if (value == StreamMarker::beginningOfStream)
 				{
-					streaming = true;
+					producing = true;
 				}
 				else if (value == StreamMarker::endOfStream)
 				{
-					streaming = false;
+					producing = false;
 				}
-				else if (value == StreamMarker::data && streaming)
+				else if (value == StreamMarker::data && producing)
 				{
 					offset = i;
 				}
@@ -70,13 +70,13 @@ namespace slim
 				StreamMarker value{srcBuffer[(i + 1) * bytesPerFrame - 1]};  // last byte of the current frame
 				if (value == StreamMarker::beginningOfStream)
 				{
-					streaming = true;
+					producing = true;
 				}
 				else if (value == StreamMarker::endOfStream)
 				{
-					streaming = false;
+					producing = false;
 				}
-				else if (value == StreamMarker::data && streaming)
+				else if (value == StreamMarker::data && producing)
 				{
 					// copying byte-by-byte and skipping the last channel
 					for (unsigned int j = 0; j < (bytesPerFrame - (parameters.getBitsPerSample() >> 3)); j++)
@@ -256,9 +256,6 @@ namespace slim
 							// only the first chunk in stream is marked as Beginning-Of-Stream
 							isBeginningOfStream = false;
 
-							// keep track on amount of processed chunks
-							chunkCounter++;
-
 							// always true as source buffer contains data
 							return true;
 						}, [&]
@@ -282,9 +279,6 @@ namespace slim
 
 							// the next chunk in stream will be marked as Beginning-Of-Stream
 							isBeginningOfStream = true;
-
-							// keep track on amount of processed chunks
-							chunkCounter++;
 
 							// always true as source buffer contains data
 							return true;
