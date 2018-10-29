@@ -95,7 +95,7 @@ namespace slim
 				RealTimeQueue& operator=(RealTimeQueue&&) = delete;       // non-movable
 
 				template<typename M, typename H>
-				inline void dequeue(M&& mover, H&& underfowHandler)
+				inline void dequeue(const M& mover, const H& underfowHandler)
 				{
 					const size_t tail{_tail.load(std::memory_order_relaxed)};
 
@@ -113,7 +113,7 @@ namespace slim
 				}
 
 				template<typename M, typename H>
-				inline void enqueue(M&& mover, H&& overflowHandler)
+				inline void enqueue(const M& mover, const H& overflowHandler)
 				{
 					const size_t head{_head.load(std::memory_order_relaxed)};
 
@@ -128,11 +128,6 @@ namespace slim
                     {
 						overflowHandler();
 					}
-				}
-
-				inline auto getSize() const
-				{
-					return _size;
 				}
 
 			private:
