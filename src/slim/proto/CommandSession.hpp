@@ -47,6 +47,10 @@ namespace slim
 	{
 		namespace ts = type_safe;
 
+		struct StartStreamingEvent {};
+		struct StartBufferingEvent {};
+		struct StopStreamingEvent {};
+
 		template<typename ConnectionType>
 		class CommandSession
 		{
@@ -219,23 +223,12 @@ namespace slim
 
 				inline void start()
 				{
-					// if not streaming and handshake was received
-					if (!streaming && commandHELO.has_value())
-					{
-						chunkCounter = 0;
-						send(server::CommandSTRM{CommandSelection::Start, formatSelection, streamingPort, samplingRate, clientID});
-					}
-					streaming = true;
+					onEvent(StartStreamingEvent{});
 				}
 
 				inline void stop()
 				{
-					// if streaming and handshake was received
-					if (streaming && commandHELO.has_value())
-					{
-						send(server::CommandSTRM{CommandSelection::Stop});
-					}
-					streaming = false;
+					onEvent(StopStreamingEvent{});
 				}
 
 			protected:
@@ -252,7 +245,7 @@ namespace slim
 						util::BigInteger accumulator{0};
 
 						// skipping first 2 (smallest) and last two (biggest) latency samples
-						for (std::size_t i{2}; i < latencySamples.size() - 2; i++)
+						for (std::size_t i{1}; i < latencySamples.size() - 2; i++)
 						{
 							accumulator += latencySamples[i];
 						}
@@ -272,6 +265,32 @@ namespace slim
 					result = client::CommandDSCO{buffer, size}.getSize();
 
 					return result;
+				}
+
+				inline void onEvent(const StartBufferingEvent& startBufferingEvent)
+				{
+					chunkCounter = 0;
+					send(server::CommandSTRM{CommandSelection::Start, formatSelection, streamingPort, samplingRate, clientID});
+				}
+
+				inline void onEvent(const StartStreamingEvent& startStreamingEvent)
+				{
+					// if not streaming and handshake was received then it is ok to start buffering
+					if (!streaming && commandHELO.has_value())
+					{
+						onEvent(StartBufferingEvent{});
+					}
+					streaming = true;
+				}
+
+				inline void onEvent(const StopStreamingEvent& stopStreamingEvent)
+				{
+					// if streaming and handshake was received
+					if (streaming && commandHELO.has_value())
+					{
+						send(server::CommandSTRM{CommandSelection::Stop});
+					}
+					streaming = false;
 				}
 
 				inline auto onHELO(unsigned char* buffer, std::size_t size)
