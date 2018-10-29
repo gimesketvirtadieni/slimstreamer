@@ -16,6 +16,7 @@
 #include <conwrap2/ProcessorProxy.hpp>
 #include <cstddef>  // std::size_t
 #include <memory>
+#include <type_safe/optional.hpp>
 #include <vector>
 
 #include "slim/conn/tcp/Callbacks.hpp"
@@ -30,6 +31,8 @@ namespace slim
 	{
 		namespace tcp
 		{
+			namespace ts = type_safe;
+
 			template <typename ContainerType>
 			class Server
 			{

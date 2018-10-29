@@ -15,7 +15,7 @@
 #include <experimental/net>
 #include <conwrap2/ProcessorProxy.hpp>
 #include <memory>
-#include <optional>
+#include <type_safe/optional.hpp>
 
 #include "slim/conn/udp/CallbacksBase.hpp"
 #include "slim/log/log.hpp"
@@ -31,6 +31,8 @@ namespace slim
 	{
 		namespace udp
 		{
+			namespace ts = type_safe;
+
 			template <typename ContainerType>
 			class Server : public util::AsyncWriter
 			{
@@ -94,7 +96,7 @@ namespace slim
 						closeSocket();
 
 						// resetting peer's UDP endpoint
-						peerEndpoint = std::nullopt;
+						peerEndpoint.reset();
 
 						// calling stop callback and changing state of this object to '!started'
 						try
@@ -117,26 +119,28 @@ namespace slim
 					{
 						std::size_t result{0};
 
-						if (nativeSocket.has_value() && nativeSocket.value().is_open())
+						ts::with(nativeSocket, [&](auto& nativeSocket)
 						{
-							if (peerEndpoint.has_value())
-							try
+							if (nativeSocket.is_open())
 							{
-								result = nativeSocket.value().send_to(std::experimental::net::const_buffer(data, size), peerEndpoint.value());
-							}
-							catch(const std::system_error& e)
-							{
-								LOG(ERROR) << LABELS{"conn"} << "Could not send data due to an error (id=" << this << ", error=" << e.what() << ")";
+								if (peerEndpoint.has_value()) try
+								{
+									result = nativeSocket.send_to(std::experimental::net::const_buffer(data, size), peerEndpoint.value());
+								}
+								catch(const std::system_error& e)
+								{
+									LOG(ERROR) << LABELS{"conn"} << "Could not send data due to an error (id=" << this << ", error=" << e.what() << ")";
+								}
+								else
+								{
+									LOG(WARNING) << LABELS{"conn"} << "Data was not sent due to missing peer's endpoint (id=" << this << ")";
+								}
 							}
 							else
 							{
-								LOG(WARNING) << LABELS{"conn"} << "Data was not sent due to missing peer's endpoint (id=" << this << ")";
+								LOG(WARNING) << LABELS{"conn"} << "Data was not sent due to closed socket (id=" << this << ")";
 							}
-						}
-						else
-						{
-							LOG(WARNING) << LABELS{"conn"} << "Data was not sent due to closed socket (id=" << this << ")";
-						}
+						});
 
 						return result;
 					}
@@ -146,23 +150,21 @@ namespace slim
 
 					virtual void writeAsync(const void* data, const std::size_t size, util::WriteCallback callback = [](auto, auto) {}) override
 					{
-
+						// TODO: to implement
 					}
 
 				protected:
 					void closeSocket()
 					{
 						// disposing acceptor to prevent from new incomming requests
-						if (nativeSocket.has_value())
+						ts::with(nativeSocket, [&](auto& nativeSocket)
 						{
-							nativeSocket.value().cancel();
-							nativeSocket.value().close();
+							nativeSocket.cancel();
+							nativeSocket.close();
 
-							LOG(INFO) << LABELS{"conn"} << "UDP socket was closed (id=" << &nativeSocket.value() << ", port=" << port << ")";
-
-							// acceptor is not captured by handlers so it is safe to delete it
-							nativeSocket = std::nullopt;
-						}
+							LOG(INFO) << LABELS{"conn"} << "UDP socket was closed (id=" << &nativeSocket << ", port=" << port << ")";
+						});
+						nativeSocket.reset();
 					}
 
 					void onData(const std::error_code error, const std::size_t size)
@@ -193,14 +195,15 @@ namespace slim
 						// creating a socket if required
 						if (!nativeSocket.has_value())
 						{
-							nativeSocket = std::experimental::net::ip::udp::socket
+							nativeSocket = std::move(std::experimental::net::ip::udp::socket
 							{
 								processorProxy.getDispatcher(),
 								std::experimental::net::ip::udp::endpoint(
 									std::experimental::net::ip::udp::v4(),
 									port
 								)
-							};
+							});
+
 							LOG(INFO) << LABELS{"conn"} << "UDP socket was opened (id=" << &nativeSocket.value() << ", port=" << port << ")";
 						}
 
@@ -213,23 +216,23 @@ namespace slim
 
 					void receiveData()
 					{
-						if (nativeSocket.has_value())
+						ts::with(nativeSocket, [&](auto& nativeSocket)
 						{
-							nativeSocket.value().async_receive_from(std::experimental::net::buffer(buffer, BUFFER_SIZE), peerEndpoint.value(), [=](auto error, auto transferred)
+							nativeSocket.async_receive_from(std::experimental::net::buffer(buffer, BUFFER_SIZE), peerEndpoint.value(), [=](auto error, auto transferred)
 							{
 								onData(error, transferred);
 							});
-						}
+						});
 					}
 
 				private:
-					conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>>  processorProxy;
-					unsigned int                                              port;
-					std::unique_ptr<CallbacksBase<Server>>                    callbacksPtr;
-					bool                                                      started{false};
-					std::optional<std::experimental::net::ip::udp::socket>    nativeSocket{std::nullopt};
-					std::optional<std::experimental::net::ip::udp::endpoint>  peerEndpoint{std::nullopt};
-					unsigned char                                             buffer[BUFFER_SIZE];
+					conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>> processorProxy;
+					unsigned int                                             port;
+					std::unique_ptr<CallbacksBase<Server>>                   callbacksPtr;
+					bool                                                     started{false};
+					ts::optional<std::experimental::net::ip::udp::socket>    nativeSocket{ts::nullopt};
+					ts::optional<std::experimental::net::ip::udp::endpoint>  peerEndpoint{ts::nullopt};
+					unsigned char                                            buffer[BUFFER_SIZE];
 			};
 		}
 	}
