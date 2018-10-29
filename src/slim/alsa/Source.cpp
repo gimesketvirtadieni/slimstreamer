@@ -240,14 +240,13 @@ namespace slim
 					if (offset >= 0)
 					{
 						// enqueue received PCM data so that none-Real-Time safe code can process it
-						queuePtr->enqueue([&](Chunk& chunk)
+						queue.enqueue([&](Chunk& chunk)
 						{
 							// setting chunk 'meta' data
-							chunk.setBeginningOfStream(isBeginningOfStream);
-							chunk.setEndOfStream(false);
 							chunk.setSamplingRate(parameters.getSamplingRate());
 							chunk.setChannels(parameters.getLogicalChannels());
 							chunk.setBitsPerSample(parameters.getBitsPerSample());
+							chunk.setEndOfStream(false);
 
 							// TODO: move functionality to Chunk class
 							// copying data and setting new chunk size in bytes
@@ -267,14 +266,13 @@ namespace slim
 					else if (!isBeginningOfStream)
 					{
 						// submitting an end-of-stream chunk to notifiy consumer thread about End-Of-Stream
-						queuePtr->enqueue([&](Chunk& chunk)
+						queue.enqueue([&](Chunk& chunk)
 						{
 							// setting chunk 'meta' data
-							chunk.setBeginningOfStream(false);
-							chunk.setEndOfStream(true);
 							chunk.setSamplingRate(0);
 							chunk.setChannels(parameters.getLogicalChannels());
 							chunk.setBitsPerSample(parameters.getBitsPerSample());
+							chunk.setEndOfStream(true);
 							chunk.setSize(0);
 
 							// the next chunk in stream will be marked as Beginning-Of-Stream

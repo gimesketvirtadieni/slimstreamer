@@ -28,7 +28,6 @@
 #include "slim/ContainerBase.hpp"
 #include "slim/log/log.hpp"
 #include "slim/util/RealTimeQueue.hpp"
-#include "slim/util/BigInteger.hpp"
 
 
 namespace slim
@@ -52,11 +51,11 @@ namespace slim
 				Source(conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>> pp, Parameters pa, std::function<void()> oc = [] {})
 				: parameters{pa}
 				, overflowCallback{std::move(oc)}
-				, queuePtr{std::make_unique<QueueType>(parameters.getQueueSize(), [&](Chunk& chunk)
+				, queue{parameters.getQueueSize(), [&](Chunk& chunk)
 				{
 					// no need to store data from the last channel as it contains commands
 					chunk.setCapacity(pa.getFramesPerChunk() * pa.getLogicalChannels() * (pa.getBitsPerSample() >> 3));
-				})} {}
+				}} {}
 
 				~Source()
 				{
@@ -118,7 +117,7 @@ namespace slim
 				{
 					auto result{ts::optional<std::chrono::milliseconds>{ts::nullopt}};
 
-					queuePtr->dequeue([&](Chunk& chunk) -> bool  // 'mover' function
+					queue.dequeue([&](Chunk& chunk) -> bool  // 'mover' function
 					{
 						auto consumed{false};
 
@@ -164,7 +163,7 @@ namespace slim
 			private:
 				Parameters                    parameters;
 				std::function<void()>         overflowCallback;
-				std::unique_ptr<QueueType>    queuePtr;
+				QueueType                     queue;
 				snd_pcm_t*                    handlePtr{nullptr};
 				std::atomic<bool>             running{false};
 				bool                          producing{false};

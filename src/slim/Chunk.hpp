@@ -28,9 +28,8 @@ namespace slim
 		friend util::RealTimeQueue<Chunk>;
 
 		public:
-			Chunk(bool be, bool en, unsigned int sr, unsigned int ch, unsigned int bi)
-			: beginningOfStream{be}
-			, endOfStream{en}
+			Chunk(bool en, unsigned int sr, unsigned int ch, unsigned int bi)
+			: endOfStream{en}
 			, samplingRate{sr}
 			, channels{ch}
 			, bitsPerSample{bi} {}
@@ -66,11 +65,6 @@ namespace slim
 				return buffer.size();
 			}
 
-			inline bool isBeginningOfStream() const
-			{
-				return beginningOfStream;
-			}
-
 			inline bool isEndOfStream() const
 			{
 				return endOfStream;
@@ -79,11 +73,6 @@ namespace slim
 			inline void setBitsPerSample(unsigned int b)
 			{
 				bitsPerSample = b;
-			}
-
-			inline void setBeginningOfStream(bool b)
-			{
-				beginningOfStream = b;
 			}
 
 			inline void setCapacity(std::size_t c)
