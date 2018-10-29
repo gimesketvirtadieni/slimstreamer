@@ -255,6 +255,11 @@ namespace slim
 					return result;
 				}
 
+				inline auto isInitialized()
+				{
+					return streaming && commandHELO.has_value();
+				}
+
 				inline auto onDSCO(unsigned char* buffer, std::size_t size)
 				{
 					std::size_t result{0};
