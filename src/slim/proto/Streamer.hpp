@@ -108,14 +108,14 @@ namespace slim
 						if (!streaming)
 						{
 							// checking if all conditions for streaming were met
-							streaming = isReadyToStream();
+							streaming = isReadyToSend();
 						}
 
 						// if streaming is all set
 						if (streaming)
 						{
 							// sending out Chunk to all the clients
-							distributeChunk(chunk);
+							sendChunk(chunk);
 
 							// it will make Chunk to be consumed
 							result = true;
@@ -319,12 +319,12 @@ namespace slim
 					return util::Timestamp::now() + std::chrono::milliseconds{maxLatency};
 				}
 
-				inline void distributeChunk(Chunk& chunk)
+				inline void sendChunk(const Chunk& chunk)
 				{
 					// sending chunk to all SlimProto sessions
 					for (auto& entry : commandSessions)
 					{
-						entry.second->onChunk(chunk);
+						entry.second->sendChunk(chunk);
 					}
 
 					LOG(DEBUG) << LABELS{"proto"} << "A chunk was distributed to the clients (total clients=" << commandSessions.size() << ", frames=" << chunk.getFrames() << ")";
@@ -360,21 +360,29 @@ namespace slim
 					return result;
 				}
 
-				inline auto isReadyToStream()
+				inline auto isReadyToSend()
 				{
 					auto result{false};
 					// TODO: deferring time-out should be configurable
-					auto waitThresholdReached{500000 < (util::Timestamp::now().get(util::microseconds) - streamingStartedAt.get(util::microseconds))};
-					auto missingSessionsTotal{std::count_if(commandSessions.begin(), commandSessions.end(), [&](auto& entry)
+					auto waitThresholdReached{500 < (util::Timestamp::now().get(util::milliseconds) - streamingStartedAt.get(util::milliseconds))};
+					auto readyToSendTotal{std::count_if(commandSessions.begin(), commandSessions.end(), [&](auto& entry)
 					{
-						return !entry.second->getStreamingSession();
+						return !entry.second->isReadyToSend();
 					})};
 
-					// if deferring time-out has not expired
-					if (!waitThresholdReached)
+					// if deferring time-out has expired
+					if (waitThresholdReached)
 					{
-						// if all HTTP sessions were established
-						if (!missingSessionsTotal)
+						result = true;
+						if (readyToSendTotal)
+						{
+							LOG(WARNING) << LABELS{"proto"} << "Could not defer chunk processing due to reached threshold";
+						}
+					}
+					else
+					{
+						// if all SlimProto sessions are ready to send data to the clients
+						if (!readyToSendTotal)
 						{
 							result = true;
 						}
@@ -385,14 +393,6 @@ namespace slim
 							// potentially this sleep may interfere with latency measuments so it should be as low as possible
 							std::this_thread::sleep_for(std::chrono::microseconds{500});
 						}
-					}
-					else
-					{
-						if (missingSessionsTotal)
-						{
-							LOG(WARNING) << LABELS{"proto"} << "Could not defer chunk processing due to reached threshold";
-						}
-						result = true;
 					}
 
 					return result;

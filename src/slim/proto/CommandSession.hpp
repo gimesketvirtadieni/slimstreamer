@@ -12,6 +12,7 @@
 
 #pragma once
 
+#include <algorithm>
 #include <chrono>
 #include <conwrap2/ProcessorProxy.hpp>
 #include <conwrap2/Timer.hpp>
@@ -47,16 +48,69 @@ namespace slim
 	{
 		namespace ts = type_safe;
 
-		struct StartStreamingEvent {};
-		struct StartBufferingEvent {};
-		struct StopStreamingEvent {};
+		enum Event
+		{
+			HandshakeEvent,
+			FlushedEvent,
+			StartEvent,
+			SendEvent,
+			PlayEvent,
+			StopEvent,
+			EndEvent,
+		};
+
+		enum State
+		{
+			CreatedState,
+			ReadyState,
+			InitializingState,
+			BufferingState,
+			PlayingState,
+			DrainingState,
+		};
+
+		struct Transition
+		{
+			Event                      event;
+			State                      fromState;
+			State                      toState;
+			std::function<void(Event)> action;
+		};
+
+		struct StateMachine
+		{
+			State                   state;
+			std::vector<Transition> transitions;
+
+			void processEvent(Event event)
+			{
+				// searching for a transition based on the event and the current state
+				auto found = std::find_if(transitions.begin(), transitions.end(), [&](const auto& transition)
+				{
+					return (transition.fromState == state && transition.event == event);
+				});
+
+				// if found then perform transition
+				if (found != transitions.end())
+				{
+					// invoking action, which is triggered on state change
+					(*found).action(event);
+
+					// changing state of the state machine
+					state = (*found).toState;
+				}
+				else
+				{
+					LOG(WARNING) << LABELS{"proto"} << "Could not find a state machine transition";
+				}
+			}
+		};
 
 		template<typename ConnectionType>
 		class CommandSession
 		{
-			using CommandHandlersMap   = std::unordered_map<std::string, std::function<std::size_t(unsigned char*, std::size_t, util::Timestamp)>>;
-			using EventHandlersMap     = std::unordered_map<std::string, std::function<void(client::CommandSTAT&, util::Timestamp)>>;
-			using StreamingSessionType = StreamingSession<ConnectionType>;
+			using CommandHandlersMap = std::unordered_map<std::string, std::function<std::size_t(unsigned char*, std::size_t, util::Timestamp)>>;
+			using EventHandlersMap   = std::unordered_map<std::string, std::function<void(client::CommandSTAT&, util::Timestamp)>>;
 
 			public:
 				CommandSession(conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>> pr, std::reference_wrapper<ConnectionType> co, std::string id, unsigned int po, FormatSelection fo, std::optional<unsigned int> ga)
@@ -78,14 +132,27 @@ namespace slim
 				{
 					{"STMc", [&](auto& commandSTAT, auto timestamp) {onSTMc(commandSTAT);}},
 					{"STMd", [&](auto& commandSTAT, auto timestamp) {}},
-					{"STMf", [&](auto& commandSTAT, auto timestamp) {}},
-					{"STMl", [&](auto& commandSTAT, auto timestamp) {onSTMl(commandSTAT);}},
+					{"STMf", [&](auto& commandSTAT, auto timestamp) {onSTMf(commandSTAT);}},
+					{"STMl", [&](auto& commandSTAT, auto timestamp) {}},
 					{"STMo", [&](auto& commandSTAT, auto timestamp) {}},
 					{"STMp", [&](auto& commandSTAT, auto timestamp) {}},
 					{"STMr", [&](auto& commandSTAT, auto timestamp) {}},
 					{"STMs", [&](auto& commandSTAT, auto timestamp) {onSTMs(commandSTAT);}},
 					{"STMt", [&](auto& commandSTAT, auto timestamp) {onSTMt(commandSTAT, timestamp);}},
 					{"STMu", [&](auto& commandSTAT, auto timestamp) {}},
+				}
+				, stateMachine
+				{
+					CreatedState,
+					{   // transition table definition
+						Transition{HandshakeEvent, CreatedState,      DrainingState,     [&](auto event) {stateChangeToDraining();}},
+						Transition{FlushedEvent,   DrainingState,     ReadyState,        [&](auto event) {stateChangeToReady();}},
+						Transition{StartEvent,     ReadyState,        InitializingState, [&](auto event) {stateChangeToInitializing();}},
+						Transition{SendEvent,      InitializingState, BufferingState,    [&](auto event) {}},
+						Transition{PlayEvent,      BufferingState,    PlayingState,      [&](auto event) {stateChangeToPlaying();}},
+						Transition{StopEvent,      PlayingState,      DrainingState,     [&](auto event) {stateChangeToDraining();}},
+						Transition{EndEvent,       DrainingState,     ReadyState,        [&](auto event) {stateChangeToReady();}},
+					}
 				}
 				{
 					LOG(DEBUG) << LABELS{"proto"} << "SlimProto session object was created (id=" << this << ")";
@@ -127,30 +194,23 @@ namespace slim
 					return samplingRate;
 				}
 
-				inline auto isConnectedReceived()
+				inline auto isReadyToSend()
 				{
-					return connectedReceived;
+					return stateMachine.state == BufferingState || stateMachine.state == PlayingState;
 				}
 
-				inline auto isResponseReceived()
+				inline void sendChunk(const Chunk& chunk)
 				{
-					return responseReceived;
-				}
-
-				inline void onChunk(const Chunk& chunk)
-				{
-					// TODO: work in progress - introduce state-machine
-					chunkCounter++;
-
-					if (startRequested && chunkCounter > 5)
-					{
-						send(server::CommandSTRM{CommandSelection::Unpause, 0});
-						startRequested = false;
-					}
-
 					ts::with(streamingSession, [&](auto& streamingSession)
 					{
 						streamingSession.onChunk(chunk);
+						chunkCounter++;
+
+						if (stateMachine.state != PlayingState && chunkCounter > 5)
+						{
+							// changing state to Playing
+							stateMachine.processEvent(PlayEvent);
+						}
 					});
 				}
 
@@ -211,24 +271,21 @@ namespace slim
 					samplingRate = s;
 				}
 
-				inline void setStreamingSession(ts::optional_ref<StreamingSessionType> s)
+				inline void setStreamingSession(ts::optional_ref<StreamingSession<ConnectionType>> s)
 				{
 					streamingSession = s;
-					if (!streamingSession.has_value())
-					{
-						connectedReceived = false;
-						responseReceived  = false;
-					}
 				}
 
 				inline void start()
 				{
-					onEvent(StartStreamingEvent{});
+					// changing state to Initializing
+					stateMachine.processEvent(StartEvent);
 				}
 
 				inline void stop()
 				{
-					onEvent(StopStreamingEvent{});
+					// changing state to Draining
+					stateMachine.processEvent(StopEvent);
 				}
 
 			protected:
@@ -255,11 +312,6 @@ namespace slim
 					return result;
 				}
 
-				inline auto isInitialized()
-				{
-					return streaming && commandHELO.has_value();
-				}
-
 				inline auto onDSCO(unsigned char* buffer, std::size_t size)
 				{
 					std::size_t result{0};
@@ -272,30 +324,27 @@ namespace slim
 					return result;
 				}
 
-				inline void onEvent(const StartBufferingEvent& startBufferingEvent)
+				inline void stateChangeToDraining()
+				{
+					// sending SlimProto Stop command will flush client's buffer which will initiate STAT/STMf message
+					send(server::CommandSTRM{CommandSelection::Stop});
+				}
+
+				inline void stateChangeToInitializing()
 				{
 					chunkCounter = 0;
 					send(server::CommandSTRM{CommandSelection::Start, formatSelection, streamingPort, samplingRate, clientID});
 				}
 
-				inline void onEvent(const StartStreamingEvent& startStreamingEvent)
+				inline void stateChangeToPlaying()
 				{
-					// if not streaming and handshake was received then it is ok to start buffering
-					if (!streaming && commandHELO.has_value())
-					{
-						onEvent(StartBufferingEvent{});
-					}
-					streaming = true;
+					send(server::CommandSTRM{CommandSelection::Unpause, 0});
 				}
 
-				inline void onEvent(const StopStreamingEvent& stopStreamingEvent)
+				inline void stateChangeToReady()
 				{
-					// if streaming and handshake was received
-					if (streaming && commandHELO.has_value())
-					{
-						send(server::CommandSTRM{CommandSelection::Stop});
-					}
-					streaming = false;
+					// just to make sure previous HTTP session does not interfer with a new init routine
+					streamingSession.reset();
 				}
 
 				inline auto onHELO(unsigned char* buffer, std::size_t size)
@@ -313,20 +362,14 @@ namespace slim
 					send(server::CommandAUDE{true, true});
 					send(server::CommandAUDG{gain});
 
-					// sending SlimProto Stop command will flush client's buffer which will initiate STAT/STMf message
-					send(server::CommandSTRM{CommandSelection::Stop});
-
 					// start sending ping commands after the 'handshake' commands
 					pingTimer = ts::ref(processorProxy.processWithDelay([&]
 					{
 						ping();
 					}, std::chrono::seconds{1}));
 
-					// TODO: work in progress
-					if (streaming)
-					{
-						send(server::CommandSTRM{CommandSelection::Start, formatSelection, streamingPort, samplingRate, clientID});
-					}
+					// changing state to Draining
+					stateMachine.processEvent(HandshakeEvent);
 
 					return result;
 				}
@@ -385,12 +428,14 @@ namespace slim
 
 				inline void onSTMc(client::CommandSTAT& commandSTAT)
 				{
-					connectedReceived = true;
+					// changing state to Buffering
+					stateMachine.processEvent(SendEvent);
 				}
 
-				inline void onSTMl(client::CommandSTAT& commandSTAT)
+				inline void onSTMf(client::CommandSTAT& commandSTAT)
 				{
-					startRequested = true;
+					// changing state to Ready
+					stateMachine.processEvent(EndEvent);
 				}
 
 				inline void onSTMs(client::CommandSTAT& commandSTAT)
@@ -514,20 +559,17 @@ namespace slim
 				std::optional<unsigned int>                              gain;
 				CommandHandlersMap                                       commandHandlers;
 				EventHandlersMap                                         eventHandlers;
-				bool                                                     streaming{false};
+				StateMachine                                             stateMachine;
 				unsigned int                                             samplingRate{0};
-				ts::optional_ref<StreamingSessionType>                   streamingSession{ts::nullopt};
-				bool                                                     connectedReceived{false};
-				bool                                                     responseReceived{false};
-				bool                                                     startRequested{false};
+				ts::optional_ref<StreamingSession<ConnectionType>>       streamingSession{ts::nullopt};
 				util::ExpandableBuffer                                   commandBuffer{std::size_t{0}, std::size_t{2048}};
 				ts::optional<client::CommandHELO>                        commandHELO{ts::nullopt};
-				util::BigInteger                                         chunkCounter{0};
+				ts::optional_ref<conwrap2::Timer>                        pingTimer{ts::nullopt};
 				util::TimestampCache<10>                                 timestampCache;
 				ts::optional<util::BigInteger>                           latency{ts::nullopt};
 				std::vector<util::BigInteger>                            latencySamples;
 				bool                                                     measuringLatency{false};
-				ts::optional_ref<conwrap2::Timer>                        pingTimer{ts::nullopt};
+				util::BigInteger                                         chunkCounter{0};
 		};
 	}
 }
