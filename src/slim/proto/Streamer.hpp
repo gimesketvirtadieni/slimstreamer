@@ -300,27 +300,10 @@ namespace slim
 					return (found != sessions.end());
 				}
 
-				inline auto calculatePlaybackStartTime()
+				inline void sendChunk(Chunk& chunk)
 				{
-					util::BigInteger maxLatency{0};
+					//chunk.setStreamingStartedAt();
 
-					for (auto& entry : commandSessions)
-					{
-						auto latency{entry.second->getLatency()};
-						ts::with(latency, [&](auto& latency)
-						{
-							if (maxLatency < latency)
-							{
-								maxLatency = latency;
-							}
-						});
-					}
-
-					return util::Timestamp::now() + std::chrono::milliseconds{maxLatency};
-				}
-
-				inline void sendChunk(const Chunk& chunk)
-				{
 					// sending chunk to all SlimProto sessions
 					for (auto& entry : commandSessions)
 					{
@@ -419,10 +402,6 @@ namespace slim
 					// capturing start stream time point (required for calculations like defer time-out, etc.)
 					streamingStartedAt = util::Timestamp::now();
 					streamingFrames    = 0;
-
-					// TODO: work in progress
-					// calculating the timepoint when clients start playing audio
-					//calculatePlaybackStartTime();
 
 					for (auto& entry : commandSessions)
 					{

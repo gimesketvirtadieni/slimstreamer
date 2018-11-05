@@ -75,6 +75,7 @@ namespace slim
 			State                      fromState;
 			State                      toState;
 			std::function<void(Event)> action;
+			std::function<bool()>      guard;
 		};
 
 		struct StateMachine
@@ -90,18 +91,21 @@ namespace slim
 					return (transition.fromState == state && transition.event == event);
 				});
 
-				// if found then perform transition
+				// if found then perform a transition if guard allows
 				if (found != transitions.end())
 				{
-					// invoking action, which is triggered on state change
-					(*found).action(event);
+					// invoking transition action if guar is satisfied
+					if ((*found).guard())
+					{
+						(*found).action(event);
 
-					// changing state of the state machine
-					state = (*found).toState;
+						// changing state of the state machine
+						state = (*found).toState;
+					}
 				}
 				else
 				{
-					LOG(WARNING) << LABELS{"proto"} << "Could not find a state machine transition";
+					LOG(WARNING) << LABELS{"proto"} << "Could not find a state machine transition (event=" << event << " state=" << state << ")";
 				}
 			}
 		};
@@ -130,7 +134,7 @@ namespace slim
 				}
 				, eventHandlers
 				{
-					{"STMc", [&](auto& commandSTAT, auto timestamp) {onSTMc(commandSTAT);}},
+					{"STMc", [&](auto& commandSTAT, auto timestamp) {}},
 					{"STMd", [&](auto& commandSTAT, auto timestamp) {}},
 					{"STMf", [&](auto& commandSTAT, auto timestamp) {onSTMf(commandSTAT);}},
 					{"STMl", [&](auto& commandSTAT, auto timestamp) {}},
@@ -145,13 +149,14 @@ namespace slim
 				{
 					CreatedState,
 					{   // transition table definition
-						Transition{HandshakeEvent, CreatedState,      DrainingState,     [&](auto event) {stateChangeToDraining();}},
-						Transition{FlushedEvent,   DrainingState,     ReadyState,        [&](auto event) {stateChangeToReady();}},
-						Transition{StartEvent,     ReadyState,        InitializingState, [&](auto event) {stateChangeToInitializing();}},
-						Transition{SendEvent,      InitializingState, BufferingState,    [&](auto event) {}},
-						Transition{PlayEvent,      BufferingState,    PlayingState,      [&](auto event) {stateChangeToPlaying();}},
-						Transition{StopEvent,      PlayingState,      DrainingState,     [&](auto event) {stateChangeToDraining();}},
-						Transition{EndEvent,       DrainingState,     ReadyState,        [&](auto event) {stateChangeToReady();}},
+						Transition{HandshakeEvent, CreatedState,      DrainingState,     [&](auto event) {LOG(DEBUG) << "DRAIN";stateChangeToDraining();},     [&] {return true;}},
+						Transition{FlushedEvent,   DrainingState,     ReadyState,        [&](auto event) {LOG(DEBUG) << "READY";stateChangeToReady();},        [&] {return true;}},
+						Transition{StartEvent,     ReadyState,        InitializingState, [&](auto event) {LOG(DEBUG) << "INIT"; stateChangeToInitializing();}, [&] {return true;}},
+						Transition{SendEvent,      InitializingState, BufferingState,    [&](auto event) {LOG(DEBUG) << "BUFFER";},                             [&] {return streamingSession.has_value() && latency.has_value();}},
+						Transition{SendEvent,      BufferingState,    BufferingState,    [&](auto event) {LOG(DEBUG) << "BUFFER";},                             [&] {return true;}},
+						Transition{PlayEvent,      BufferingState,    PlayingState,      [&](auto event) {LOG(DEBUG) << "PLAY";stateChangeToPlaying();},      [&] {return true;}},
+						Transition{StopEvent,      PlayingState,      DrainingState,     [&](auto event) {LOG(DEBUG) << "DRAIN";stateChangeToDraining();},     [&] {return true;}},
+						Transition{EndEvent,       DrainingState,     ReadyState,        [&](auto event) {LOG(DEBUG) << "READY";stateChangeToReady();},        [&] {return true;}},
 					}
 				}
 				{
@@ -203,14 +208,14 @@ namespace slim
 				{
 					ts::with(streamingSession, [&](auto& streamingSession)
 					{
-						streamingSession.onChunk(chunk);
-						chunkCounter++;
-
 						if (stateMachine.state != PlayingState && chunkCounter > 5)
 						{
 							// changing state to Playing
 							stateMachine.processEvent(PlayEvent);
 						}
+
+						streamingSession.onChunk(chunk);
+						chunkCounter++;
 					});
 				}
 
@@ -273,7 +278,15 @@ namespace slim
 
 				inline void setStreamingSession(ts::optional_ref<StreamingSession<ConnectionType>> s)
 				{
+					auto changeState{!streamingSession.has_value() && s.has_value()};
+
 					streamingSession = s;
+
+					// changing state to Buffering if needed
+					if (changeState)
+					{
+						stateMachine.processEvent(SendEvent);
+					}
 				}
 
 				inline void start()
@@ -426,12 +439,6 @@ namespace slim
 					return result;
 				}
 
-				inline void onSTMc(client::CommandSTAT& commandSTAT)
-				{
-					// changing state to Buffering
-					stateMachine.processEvent(SendEvent);
-				}
-
 				inline void onSTMf(client::CommandSTAT& commandSTAT)
 				{
 					// changing state to Ready
@@ -491,9 +498,18 @@ namespace slim
 							{
 								// calculating new latency value
 								auto averageLatency{calculateAverageLatency()};
-								ts::with(averageLatency, [&](auto& l)
+								ts::with(averageLatency, [&](auto& averageLatency)
 								{
-									latency = latency.value_or(l) * 0.8 + l * 0.2;
+									auto changeState{!latency.has_value()};
+
+									latency = latency.value_or(averageLatency) * 0.8 + averageLatency * 0.2;
+
+									// changing state to Buffering if needed
+									if (changeState)
+									{
+										// TODO: it may fail
+										stateMachine.processEvent(SendEvent);
+									}
 
 									// clearing the cache so it can be used for collecting a new sample
 									timestampCache.clear();
