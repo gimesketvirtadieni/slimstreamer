@@ -56,17 +56,16 @@ namespace slim
 			SendEvent,
 			PlayEvent,
 			StopEvent,
-			EndEvent,
 		};
 
 		enum State
 		{
 			CreatedState,
+			DrainingState,
 			ReadyState,
 			InitializingState,
 			BufferingState,
 			PlayingState,
-			DrainingState,
 		};
 
 		struct Transition
@@ -83,7 +82,8 @@ namespace slim
 			State                   state;
 			std::vector<Transition> transitions;
 
-			void processEvent(Event event)
+			template <typename ErrorHandlerType>
+			void processEvent(Event event, ErrorHandlerType errorHandler)
 			{
 				// searching for a transition based on the event and the current state
 				auto found = std::find_if(transitions.begin(), transitions.end(), [&](const auto& transition)
@@ -105,7 +105,7 @@ namespace slim
 				}
 				else
 				{
-					LOG(WARNING) << LABELS{"proto"} << "Could not find a state machine transition (event=" << event << " state=" << state << ")";
+					errorHandler(event, state);
 				}
 			}
 		};
@@ -149,14 +149,27 @@ namespace slim
 				{
 					CreatedState,
 					{   // transition table definition
-						Transition{HandshakeEvent, CreatedState,      DrainingState,     [&](auto event) {LOG(DEBUG) << "DRAIN";stateChangeToDraining();},     [&] {return true;}},
-						Transition{FlushedEvent,   DrainingState,     ReadyState,        [&](auto event) {LOG(DEBUG) << "READY";stateChangeToReady();},        [&] {return true;}},
-						Transition{StartEvent,     ReadyState,        InitializingState, [&](auto event) {LOG(DEBUG) << "INIT"; stateChangeToInitializing();}, [&] {return true;}},
-						Transition{SendEvent,      InitializingState, BufferingState,    [&](auto event) {LOG(DEBUG) << "BUFFER";},                             [&] {return streamingSession.has_value() && latency.has_value();}},
-						Transition{SendEvent,      BufferingState,    BufferingState,    [&](auto event) {LOG(DEBUG) << "BUFFER";},                             [&] {return true;}},
-						Transition{PlayEvent,      BufferingState,    PlayingState,      [&](auto event) {LOG(DEBUG) << "PLAY";stateChangeToPlaying();},      [&] {return true;}},
-						Transition{StopEvent,      PlayingState,      DrainingState,     [&](auto event) {LOG(DEBUG) << "DRAIN";stateChangeToDraining();},     [&] {return true;}},
-						Transition{EndEvent,       DrainingState,     ReadyState,        [&](auto event) {LOG(DEBUG) << "READY";stateChangeToReady();},        [&] {return true;}},
+						Transition{HandshakeEvent, CreatedState,      DrainingState,     [&](auto event) {stateChangeToDraining();},     [&] {return true;}},
+						Transition{FlushedEvent,   DrainingState,     ReadyState,        [&](auto event) {stateChangeToReady();},        [&] {return true;}},
+						Transition{FlushedEvent,   ReadyState,        ReadyState,        [&](auto event) {},                             [&] {return true;}},
+						Transition{FlushedEvent,   InitializingState, InitializingState, [&](auto event) {},                             [&] {return true;}},
+						Transition{FlushedEvent,   BufferingState,    BufferingState,    [&](auto event) {},                             [&] {return true;}},
+						Transition{FlushedEvent,   PlayingState,      PlayingState,      [&](auto event) {},                             [&] {return true;}},
+						Transition{StartEvent,     ReadyState,        InitializingState, [&](auto event) {stateChangeToInitializing();}, [&] {return true;}},
+						Transition{StartEvent,     InitializingState, InitializingState, [&](auto event) {},                             [&] {return true;}},
+						Transition{StartEvent,     BufferingState,    BufferingState,    [&](auto event) {},                             [&] {return true;}},
+						Transition{StartEvent,     PlayingState,      PlayingState,      [&](auto event) {},                             [&] {return true;}},
+						Transition{SendEvent,      ReadyState,        ReadyState,        [&](auto event) {},                             [&] {return true;}},
+						Transition{SendEvent,      InitializingState, BufferingState,    [&](auto event) {},                             [&] {return isReadyToSend();}},
+						Transition{SendEvent,      BufferingState,    BufferingState,    [&](auto event) {},                             [&] {return true;}},
+						Transition{SendEvent,      PlayingState,      PlayingState,      [&](auto event) {},                             [&] {return true;}},
+						Transition{PlayEvent,      BufferingState,    PlayingState,      [&](auto event) {stateChangeToPlaying();},      [&] {return true;}},
+						Transition{StopEvent,      CreatedState,      CreatedState,      [&](auto event) {},                             [&] {return true;}},
+						Transition{StopEvent,      DrainingState,     DrainingState,     [&](auto event) {},                             [&] {return true;}},
+						Transition{StopEvent,      ReadyState,        ReadyState,        [&](auto event) {},                             [&] {return true;}},
+						Transition{StopEvent,      InitializingState, DrainingState,     [&](auto event) {stateChangeToDraining();},     [&] {return true;}},
+						Transition{StopEvent,      BufferingState,    DrainingState,     [&](auto event) {stateChangeToDraining();},     [&] {return true;}},
+						Transition{StopEvent,      PlayingState,      DrainingState,     [&](auto event) {stateChangeToDraining();},     [&] {return true;}},
 					}
 				}
 				{
@@ -201,17 +214,22 @@ namespace slim
 
 				inline auto isReadyToSend()
 				{
-					return stateMachine.state == BufferingState || stateMachine.state == PlayingState;
+					return streamingSession.has_value() && latency.has_value();
 				}
 
 				inline void sendChunk(const Chunk& chunk)
 				{
 					ts::with(streamingSession, [&](auto& streamingSession)
 					{
-						if (stateMachine.state != PlayingState && chunkCounter > 5)
+						// TODO: use some status (instead of comparing the state) which is set when buffering starts
+						if (stateMachine.state == BufferingState && chunkCounter > 5)
 						{
 							// changing state to Playing
-							stateMachine.processEvent(PlayEvent);
+							stateMachine.processEvent(PlayEvent, [&](auto event, auto state)
+							{
+								LOG(WARNING) << LABELS{"proto"} << "Invalid SlimProto session state while processing Play event - closing the connection";
+								connection.get().stop();
+							});
 						}
 
 						streamingSession.onChunk(chunk);
@@ -285,20 +303,31 @@ namespace slim
 					// changing state to Buffering if needed
 					if (changeState)
 					{
-						stateMachine.processEvent(SendEvent);
+						stateMachine.processEvent(SendEvent, [&](auto event, auto state)
+						{
+							LOG(WARNING) << LABELS{"proto"} << "Invalid SlimProto session state while processing Send event - closing the connection";
+							connection.get().stop();
+						});
 					}
 				}
 
 				inline void start()
 				{
-					// changing state to Initializing
-					stateMachine.processEvent(StartEvent);
+					stateMachine.processEvent(StartEvent, [&](auto event, auto state)
+					{
+						LOG(WARNING) << LABELS{"proto"} << "Invalid SlimProto session state while processing Start event - closing the connection";
+						connection.get().stop();
+					});
 				}
 
 				inline void stop()
 				{
 					// changing state to Draining
-					stateMachine.processEvent(StopEvent);
+					stateMachine.processEvent(StopEvent, [&](auto event, auto state)
+					{
+						LOG(WARNING) << LABELS{"proto"} << "Invalid SlimProto session state while processing Stop event - closing the connection";
+						connection.get().stop();
+					});
 				}
 
 			protected:
@@ -362,27 +391,37 @@ namespace slim
 
 				inline auto onHELO(unsigned char* buffer, std::size_t size)
 				{
-					std::size_t result{0};
-
-					LOG(INFO) << LABELS{"proto"} << "HELO command received";
-
 					// deserializing HELO command
-					commandHELO = client::CommandHELO{buffer, size};
-					result      = commandHELO.value().getSize();
+					auto h{client::CommandHELO{buffer, size}};
+					auto result{h.getSize()};
 
-					send(server::CommandSETD{server::DeviceID::RequestName});
-					send(server::CommandSETD{server::DeviceID::Squeezebox3});
-					send(server::CommandAUDE{true, true});
-					send(server::CommandAUDG{gain});
-
-					// start sending ping commands after the 'handshake' commands
-					pingTimer = ts::ref(processorProxy.processWithDelay([&]
+					if (!commandHELO.has_value())
 					{
-						ping();
-					}, std::chrono::seconds{1}));
+						LOG(INFO) << LABELS{"proto"} << "HELO command received";
 
-					// changing state to Draining
-					stateMachine.processEvent(HandshakeEvent);
+						commandHELO = h;
+						send(server::CommandSETD{server::DeviceID::RequestName});
+						send(server::CommandSETD{server::DeviceID::Squeezebox3});
+						send(server::CommandAUDE{true, true});
+						send(server::CommandAUDG{gain});
+
+						// start sending ping commands after the 'handshake' commands
+						pingTimer = ts::ref(processorProxy.processWithDelay([&]
+						{
+							ping();
+						}, std::chrono::seconds{1}));
+
+						// changing state to Draining
+						stateMachine.processEvent(HandshakeEvent, [&](auto event, auto state)
+						{
+							LOG(WARNING) << LABELS{"proto"} << "Invalid SlimProto session state while processing HELO command - closing the connection";
+							connection.get().stop();
+						});
+					}
+					else
+					{
+						LOG(WARNING) << LABELS{"proto"} << "Multiple HELO command received - skipped";
+					}
 
 					return result;
 				}
@@ -442,7 +481,11 @@ namespace slim
 				inline void onSTMf(client::CommandSTAT& commandSTAT)
 				{
 					// changing state to Ready
-					stateMachine.processEvent(EndEvent);
+					stateMachine.processEvent(FlushedEvent, [&](auto event, auto state)
+					{
+						LOG(WARNING) << LABELS{"proto"} << "Invalid SlimProto session state while processing Flush event - closing the connection";
+						connection.get().stop();
+					});
 				}
 
 				inline void onSTMs(client::CommandSTAT& commandSTAT)
@@ -507,8 +550,11 @@ namespace slim
 									// changing state to Buffering if needed
 									if (changeState)
 									{
-										// TODO: it may fail
-										stateMachine.processEvent(SendEvent);
+										stateMachine.processEvent(SendEvent, [&](auto event, auto state)
+										{
+											LOG(WARNING) << LABELS{"proto"} << "Invalid SlimProto session state while processing Send event - closing the connection";
+											connection.get().stop();
+										});
 									}
 
 									// clearing the cache so it can be used for collecting a new sample
