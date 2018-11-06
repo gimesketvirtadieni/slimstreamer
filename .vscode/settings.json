@@ -87,7 +87,9 @@
         "xutility": "cpp",
         "*.tcc": "cpp",
         "bitset": "cpp",
-        "cwctype": "cpp"
+        "cwctype": "cpp",
+        "typeindex": "cpp",
+        "variant": "cpp"
     },
     "C_Cpp.intelliSenseEngineFallback": "Disabled"
 }
