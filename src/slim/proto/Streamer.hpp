@@ -90,15 +90,15 @@ namespace slim
 
 							// changing state to not streaming
 							streaming = false;
-						}
 
-						// assigning new sampling rate
-						setSamplingRate(chunk.getSamplingRate());
+							// it will make Chunk to be consumed
+							result = true;
+						}
 
 						// if this is the beginning of a stream
 						if (chunk.getSamplingRate())
 						{
-							startStreaming();
+							startStreaming(chunk.getSamplingRate());
 						}
 					}
 					// if streaming is ongoing without changes
@@ -119,7 +119,6 @@ namespace slim
 
 							// it will make Chunk to be consumed
 							result = true;
-							streamingFrames += chunk.getFrames();
 						}
 					}
 					else
@@ -144,7 +143,7 @@ namespace slim
 						if (commandSession.has_value())
 						{
 							// resetting HTTP session in its relevant SlimProto session
-							commandSession.value()->setStreamingSession(ts::optional_ref<StreamingSessionType>{ts::nullopt});
+							commandSession.value()->setStreamingSession(ts::nullopt);
 						}
 						else
 						{
@@ -236,28 +235,13 @@ namespace slim
 					auto commandSessionPtr{std::make_unique<CommandSessionType>(getProcessorProxy(), std::ref<ConnectionType>(connection), ss.str(), streamingPort, encoderBuilder.getFormat(), gain)};
 
 					// enable streaming for this session if required
-					if (streaming)
+					ts::with(streamingStartedAt, [&](auto& streamingStartedAt)
 					{
-						commandSessionPtr->setSamplingRate(getSamplingRate());
-						commandSessionPtr->start();
-					}
+						commandSessionPtr->startStreaming(getSamplingRate(), streamingStartedAt + std::chrono::microseconds{getStreamingDuration(util::microseconds)});
+					});
 
 					// saving command session in the map
 					addSession(commandSessions, connection, std::move(commandSessionPtr));
-				}
-
-				virtual void setSamplingRate(unsigned int s) override
-				{
-					Consumer::setSamplingRate(s);
-
-					for (auto& entry : commandSessions)
-					{
-						// setting new sampling rate to all the clients
-						entry.second->setSamplingRate(s);
-
-						// resetting links between SlimProto and HTTP sessions to keep track on HTTP sessions reconnects
-						entry.second->setStreamingSession(nullptr);
-					}
 				}
 
 				virtual void start() override {}
@@ -300,25 +284,6 @@ namespace slim
 					return (found != sessions.end());
 				}
 
-				inline void sendChunk(Chunk& chunk)
-				{
-					//chunk.setStreamingStartedAt();
-
-					// sending chunk to all SlimProto sessions
-					for (auto& entry : commandSessions)
-					{
-						entry.second->sendChunk(chunk);
-					}
-
-					LOG(DEBUG) << LABELS{"proto"} << "A chunk was distributed to the clients (total clients=" << commandSessions.size() << ", frames=" << chunk.getFrames() << ")";
-				}
-
-				template<typename RatioType>
-				inline util::BigInteger getDuration(RatioType ratio) const
-				{
-					return streamingFrames * ratio.den / getSamplingRate();
-				}
-
 				template<typename SessionType>
 				auto findSessionByID(SessionsMap<SessionType>& sessions,  std::string clientID)
 				{
@@ -343,40 +308,50 @@ namespace slim
 					return result;
 				}
 
+				template<typename RatioType>
+				inline util::BigInteger getStreamingDuration(RatioType ratio) const
+				{
+					return streamingFrames * ratio.den / getSamplingRate();
+				}
+
 				inline auto isReadyToSend()
 				{
 					auto result{false};
-					// TODO: deferring time-out should be configurable
-					auto waitThresholdReached{500 < (util::Timestamp::now().get(util::milliseconds) - streamingStartedAt.get(util::milliseconds))};
-					auto readyToSendTotal{std::count_if(commandSessions.begin(), commandSessions.end(), [&](auto& entry)
-					{
-						return !entry.second->isReadyToSend();
-					})};
 
-					// if deferring time-out has expired
-					if (waitThresholdReached)
+					ts::with(streamingStartedAt, [&](auto& streamingStartedAt)
 					{
-						result = true;
-						if (readyToSendTotal)
+						// TODO: deferring time-out should be configurable
+						auto waitThresholdReached{500 < (util::Timestamp::now().get(util::milliseconds) - streamingStartedAt.get(util::milliseconds))};
+						auto readyToSendTotal{std::count_if(commandSessions.begin(), commandSessions.end(), [&](auto& entry)
 						{
-							LOG(WARNING) << LABELS{"proto"} << "Could not defer chunk processing due to reached threshold";
-						}
-					}
-					else
-					{
-						// if all SlimProto sessions are ready to send data to the clients
-						if (!readyToSendTotal)
+							return !entry.second->isReadyToSend();
+						})};
+
+						// if deferring time-out has expired
+						if (waitThresholdReached)
 						{
 							result = true;
+							if (readyToSendTotal)
+							{
+								LOG(WARNING) << LABELS{"proto"} << "Could not defer chunk processing due to reached threshold";
+							}
 						}
 						else
 						{
-							// TODO: implement cruise control; for now sleep is good enough
-							// this sleep prevents from busy spinning until all HTTP sessions reconnect
-							// potentially this sleep may interfere with latency measuments so it should be as low as possible
-							std::this_thread::sleep_for(std::chrono::microseconds{500});
+							// if all SlimProto sessions are ready to send data to the clients
+							if (!readyToSendTotal)
+							{
+								result = true;
+							}
+							else
+							{
+								// TODO: implement cruise control; for now sleep is good enough
+								// this sleep prevents from busy spinning until all HTTP sessions reconnect
+								// potentially this sleep may interfere with latency measuments so it should be as low as possible
+								std::this_thread::sleep_for(std::chrono::microseconds{500});
+							}
 						}
-					}
+					});
 
 					return result;
 				}
@@ -397,16 +372,36 @@ namespace slim
 					return std::move(sessionPtr);
 				}
 
-				inline void startStreaming()
+				inline void sendChunk(Chunk& chunk)
 				{
+					// sending chunk to all SlimProto sessions
+					for (auto& entry : commandSessions)
+					{
+						entry.second->sendChunk(chunk);
+					}
+
+					// increasing played frames counter
+					streamingFrames += chunk.getFrames();
+
+					LOG(DEBUG) << LABELS{"proto"} << "A chunk was distributed to the clients (total clients=" << commandSessions.size() << ", frames=" << chunk.getFrames() << ")";
+				}
+
+				inline void startStreaming(unsigned int samplingRate)
+				{
+					// assigning new sampling rate
+					setSamplingRate(samplingRate);
+
 					// capturing start stream time point (required for calculations like defer time-out, etc.)
 					streamingStartedAt = util::Timestamp::now();
 					streamingFrames    = 0;
 
-					for (auto& entry : commandSessions)
+					ts::with(streamingStartedAt, [&](auto& streamingStartedAt)
 					{
-						entry.second->start();
-					}
+						for (auto& entry : commandSessions)
+						{
+							entry.second->startStreaming(samplingRate, streamingStartedAt);
+						}
+					});
 
 					LOG(DEBUG) << LABELS{"proto"} << "Started streaming (rate=" << getSamplingRate() << ")";
 				}
@@ -417,10 +412,10 @@ namespace slim
 					for (auto& entry : commandSessions)
 					{
 						// stopping SlimProto session will send end-of-stream command which normally triggers close of HTTP connection
-						entry.second->stop();
+						entry.second->stopStreaming();
 					}
 
-					LOG(DEBUG) << LABELS{"proto"} << "Stopped streaming (duration=" << getDuration(util::microseconds)  << " microsec)";
+					LOG(DEBUG) << LABELS{"proto"} << "Stopped streaming (duration=" << getStreamingDuration(util::seconds)  << " microsec)";
 				}
 
 			private:
@@ -431,8 +426,8 @@ namespace slim
 				SessionsMap<CommandSessionType>   commandSessions;
 				SessionsMap<StreamingSessionType> streamingSessions;
 				bool                              streaming{false};
+				ts::optional<util::Timestamp>     streamingStartedAt;
 				util::BigInteger                  streamingFrames{0};
-				util::Timestamp                   streamingStartedAt;
 		};
 	}
 }

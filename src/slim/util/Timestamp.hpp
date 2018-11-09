@@ -21,8 +21,9 @@ namespace slim
 {
 	namespace util
 	{
-		constexpr std::milli milliseconds;
-		constexpr std::micro microseconds;
+		constexpr std::milli       milliseconds;
+		constexpr std::micro       microseconds;
+		constexpr std::ratio<1, 1> seconds;
 
 		class Timestamp
 		{

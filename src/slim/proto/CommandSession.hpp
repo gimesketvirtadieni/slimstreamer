@@ -219,21 +219,23 @@ namespace slim
 
 				inline void sendChunk(const Chunk& chunk)
 				{
+					// if buffering duration is unknown then session is still buffering
+					if (!bufferingDuration.has_value() && streamingFrames > 10000)
+					{
+						bufferingDuration = streamingFrames * util::microseconds.den / getSamplingRate();
+
+						// changing state to Playing
+						stateMachine.processEvent(PlayEvent, [&](auto event, auto state)
+						{
+							LOG(WARNING) << LABELS{"proto"} << "Invalid SlimProto session state while processing Play event - closing the connection";
+							connection.get().stop();
+						});
+					}
+
 					ts::with(streamingSession, [&](auto& streamingSession)
 					{
-						// TODO: use some status (instead of comparing the state) which is set when buffering starts
-						if (stateMachine.state == BufferingState && chunkCounter > 5)
-						{
-							// changing state to Playing
-							stateMachine.processEvent(PlayEvent, [&](auto event, auto state)
-							{
-								LOG(WARNING) << LABELS{"proto"} << "Invalid SlimProto session state while processing Play event - closing the connection";
-								connection.get().stop();
-							});
-						}
-
 						streamingSession.onChunk(chunk);
-						chunkCounter++;
+						streamingFrames += chunk.getFrames();
 					});
 				}
 
@@ -288,12 +290,6 @@ namespace slim
 					} while (processedSize > 0);
 				}
 
-				inline void setSamplingRate(unsigned int s)
-				{
-					// TODO: implement proper processing
-					samplingRate = s;
-				}
-
 				inline void setStreamingSession(ts::optional_ref<StreamingSession<ConnectionType>> s)
 				{
 					auto changeState{!streamingSession.has_value() && s.has_value()};
@@ -311,8 +307,12 @@ namespace slim
 					}
 				}
 
-				inline void start()
+				inline void startStreaming(unsigned int s, util::Timestamp t)
 				{
+					// TODO: figure out how event may hold any data then it can be moved to stateChangeToInitializing
+					samplingRate       = s;
+					streamingStartedAt = t;
+
 					stateMachine.processEvent(StartEvent, [&](auto event, auto state)
 					{
 						LOG(WARNING) << LABELS{"proto"} << "Invalid SlimProto session state while processing Start event - closing the connection";
@@ -320,7 +320,7 @@ namespace slim
 					});
 				}
 
-				inline void stop()
+				inline void stopStreaming()
 				{
 					// changing state to Draining
 					stateMachine.processEvent(StopEvent, [&](auto event, auto state)
@@ -374,7 +374,10 @@ namespace slim
 
 				inline void stateChangeToInitializing()
 				{
-					chunkCounter = 0;
+					streamingFrames = 0;
+					playbackStartedAt.reset();
+					bufferingDuration.reset();
+
 					send(server::CommandSTRM{CommandSelection::Start, formatSelection, streamingPort, samplingRate, clientID});
 				}
 
@@ -408,7 +411,11 @@ namespace slim
 						// start sending ping commands after the 'handshake' commands
 						pingTimer = ts::ref(processorProxy.processWithDelay([&]
 						{
-							ping();
+							// releasing timer so a new 'delayed' request may be issued
+							pingTimer.reset();
+
+							// creating a timestamp cache entry required to allocate a key
+							ping(timestampCache.store());
 						}, std::chrono::seconds{1}));
 
 						// changing state to Draining
@@ -513,18 +520,8 @@ namespace slim
 					// making sure it is a proper response from the client
 					ts::with(sendTimestamp, [&](auto& sendTimestamp)
 					{
-						// if latency measurement was interfered by other commands then repeat round trip once again
-						if (!measuringLatency)
-						{
-							LOG(DEBUG) << LABELS{"proto"} << "Latency probe was skipped";
-
-							// capturing timestamp key by value
-							processorProxy.process([&, timestampKey{timestampKey}]
-							{
-								sendPing(timestampKey);
-							});
-						}
-						else
+						// if latency measurement was not interfered by other commands then repeat round trip once again
+						if (measuringLatency)
 						{
 							// saving latency sample for further processing
 							latencySamples.push_back((receiveTimestamp.get(util::microseconds) - sendTimestamp.get(util::microseconds)) / 2);
@@ -534,7 +531,8 @@ namespace slim
 							{
 								processorProxy.process([&]
 								{
-									ping();
+									// creating a timestamp cache entry required to allocate a key
+									ping(timestampCache.store());
 								});
 							}
 							else
@@ -557,43 +555,43 @@ namespace slim
 										});
 									}
 
-									// clearing the cache so it can be used for collecting a new sample
+									// clearing the cache so it can be used for collecting new samples
 									timestampCache.clear();
 									latencySamples.clear();
 
 									LOG(DEBUG) << LABELS{"proto"} << "Client latency updated (client id=" << clientID << ", latency=" << latency.value() << " microsec)";
 								});
 
-								// TODO: make it resistant to clients 'loosing' requests
-								// submitting a new ping request
-								pingTimer = ts::ref(processorProxy.processWithDelay([&]
-								{
-									ping();
 								// TODO: make it configurable
-								}, std::chrono::seconds{5}));
+								// TODO: make it resistant to clients 'loosing' requests
+								// submitting a new ping request if there is no other pending request
+								if (!pingTimer.has_value())
+								{
+									pingTimer = ts::ref(processorProxy.processWithDelay([&]
+									{
+										// releasing timer so a new 'delayed' request may be issued
+										pingTimer.reset();
+
+										// creating a timestamp cache entry required to allocate a key
+										ping(timestampCache.store());
+									}, std::chrono::seconds{5}));
+								}
 							}
+						}
+						else
+						{
+							LOG(DEBUG) << LABELS{"proto"} << "Latency probe was skipped";
+
+							// capturing timestamp key by value
+							processorProxy.process([&, timestampKey{timestampKey}]
+							{
+								ping(timestampKey);
+							});
 						}
 					});
 				}
 
-				inline void ping()
-				{
-					pingTimer.reset();
-
-					// creating a timestamp cache entry required to allocate a key
-					sendPing(timestampCache.store());
-				}
-
-				template<typename CommandType>
-				inline void send(CommandType&& command)
-				{
-					measuringLatency = false;
-
-					// TODO: use local buffer and async API to prevent from interfering while measuring latency
-					connection.get().write(command.getBuffer(), command.getSize());
-				}
-
-				inline void sendPing(std::uint32_t timestampKey)
+				inline void ping(std::uint32_t timestampKey)
 				{
 					// creating a ping command
 					auto command{server::CommandSTRM{CommandSelection::Time}};
@@ -610,6 +608,15 @@ namespace slim
 
 					// storing the actual send timestamp in the cache
 					timestampCache.update(timestampKey, timestamp);
+				}
+
+				template<typename CommandType>
+				inline void send(CommandType&& command)
+				{
+					measuringLatency = false;
+
+					// TODO: use local buffer and async API to prevent from interfering while measuring latency
+					connection.get().write(command.getBuffer(), command.getSize());
 				}
 
 			private:
@@ -631,7 +638,10 @@ namespace slim
 				ts::optional<util::BigInteger>                           latency{ts::nullopt};
 				std::vector<util::BigInteger>                            latencySamples;
 				bool                                                     measuringLatency{false};
-				util::BigInteger                                         chunkCounter{0};
+				ts::optional<util::Timestamp>                            streamingStartedAt{ts::nullopt};
+				ts::optional<util::Timestamp>                            playbackStartedAt{ts::nullopt};
+				ts::optional<std::chrono::microseconds>                  bufferingDuration{ts::nullopt};
+				util::BigInteger                                         streamingFrames{0};
 		};
 	}
 }

@@ -12,7 +12,9 @@
 
 #pragma once
 
+#include "slim/util/BigInteger.hpp"
 #include "slim/util/ExpandableBuffer.hpp"
+#include "slim/util/Timestamp.hpp"
 
 
 namespace slim
