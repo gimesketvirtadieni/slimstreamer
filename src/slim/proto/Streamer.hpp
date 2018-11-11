@@ -408,6 +408,8 @@ namespace slim
 
 				inline void stopStreaming()
 				{
+					streamingStartedAt.reset();
+
 					// it is enough to send stop SlimProto command here
 					for (auto& entry : commandSessions)
 					{
@@ -415,7 +417,8 @@ namespace slim
 						entry.second->stopStreaming();
 					}
 
-					LOG(DEBUG) << LABELS{"proto"} << "Stopped streaming (duration=" << getStreamingDuration(util::seconds)  << " microsec)";
+					LOG(DEBUG) << LABELS{"proto"} << "Stopped streaming (duration=" << getStreamingDuration(util::milliseconds) << " millisec)";
+					//LOG(DEBUG) << LABELS{"proto"} << "Stopped streaming (duration=" << streamingStoppedAt.get(util::milliseconds) - streamingStartedAt.value().get(util::milliseconds)  << " millisec)";
 				}
 
 			private:

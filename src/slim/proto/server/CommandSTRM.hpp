@@ -66,6 +66,7 @@ namespace slim
 					CommandSTRM(CommandSelection commandSelection, std::uint32_t startAt)
 					: CommandSTRM{commandSelection, FormatSelection::FLAC, 0, 0, {}}
 					{
+						strm.data.replayGain = htonl(startAt);
 					}
 
 					CommandSTRM(CommandSelection commandSelection, FormatSelection formatSelection, unsigned int port, unsigned int samplingRate, std::string clientID)
