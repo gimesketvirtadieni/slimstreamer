@@ -108,7 +108,7 @@ namespace slim
 						if (!streaming)
 						{
 							// checking if all conditions for streaming were met
-							streaming = isReadyToSend();
+							streaming = isReadyToPlay();
 						}
 
 						// if streaming is all set
@@ -314,7 +314,7 @@ namespace slim
 					return streamingFrames * ratio.den / getSamplingRate();
 				}
 
-				inline auto isReadyToSend()
+				inline auto isReadyToPlay()
 				{
 					auto result{false};
 
@@ -324,7 +324,7 @@ namespace slim
 						auto waitThresholdReached{500 < (util::Timestamp::now().get(util::milliseconds) - streamingStartedAt.get(util::milliseconds))};
 						auto readyToSendTotal{std::count_if(commandSessions.begin(), commandSessions.end(), [&](auto& entry)
 						{
-							return !entry.second->isReadyToSend();
+							return !entry.second->isReadyToPlay();
 						})};
 
 						// if deferring time-out has expired
