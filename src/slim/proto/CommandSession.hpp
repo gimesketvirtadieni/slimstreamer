@@ -148,16 +148,22 @@ namespace slim
 				{
 					CreatedState,
 					{   // transition table definition
-						Transition{HandshakeEvent, CreatedState,      DrainingState,     [&](auto event) {LOG(DEBUG) << "DRAIN";stateChangeToDraining();},    [&] {return true;}},
+						Transition{HandshakeEvent, CreatedState,      DrainingState,     [&](auto event) {LOG(DEBUG) << "DRAINING";stateChangeToDraining();}, [&] {return true;}},
 						Transition{FlushedEvent,   DrainingState,     ReadyState,        [&](auto event) {LOG(DEBUG) << "READY";stateChangeToReady();},       [&] {return true;}},
-						Transition{StartEvent,     ReadyState,        InitializingState, [&](auto event) {LOG(DEBUG) << "INIT";stateChangeToInitializing();}, [&] {return true;}},
-						Transition{PlayEvent,      InitializingState, PlayingState,      [&](auto event) {LOG(DEBUG) << "PLAY";stateChangeToPlaying();},      [&] {return isReadyToPlay();}},
-						Transition{StopEvent,      InitializingState, DrainingState,     [&](auto event) {LOG(DEBUG) << "DRAIN";stateChangeToDraining();},    [&] {return true;}},
-						Transition{StopEvent,      PlayingState,      DrainingState,     [&](auto event) {LOG(DEBUG) << "DRAIN";stateChangeToDraining();},    [&] {return true;}},
 						Transition{FlushedEvent,   ReadyState,        ReadyState,        [&](auto event) {},                                                  [&] {return true;}},
+						Transition{FlushedEvent,   InitializingState, InitializingState, [&](auto event) {},                                                  [&] {return true;}},
+						Transition{FlushedEvent,   PlayingState,      PlayingState,      [&](auto event) {},                                                  [&] {return true;}},
+						Transition{StartEvent,     ReadyState,        InitializingState, [&](auto event) {LOG(DEBUG) << "INIT";stateChangeToInitializing();}, [&] {return true;}},
 						Transition{StartEvent,     InitializingState, InitializingState, [&](auto event) {},                                                  [&] {return true;}},
+						Transition{StartEvent,     PlayingState,      PlayingState,      [&](auto event) {},                                                  [&] {return true;}},
+						Transition{PlayEvent,      InitializingState, PlayingState,      [&](auto event) {LOG(DEBUG) << "PLAY";stateChangeToPlaying();},      [&] {return isReadyToPlay();}},
+						Transition{PlayEvent,      ReadyState,        ReadyState,        [&](auto event) {},                                                  [&] {return true;}},
+						Transition{PlayEvent,      PlayingState,      PlayingState,      [&](auto event) {},                                                  [&] {return true;}},
+						Transition{StopEvent,      PlayingState,      DrainingState,     [&](auto event) {LOG(DEBUG) << "DRAIN";stateChangeToDraining();},    [&] {return true;}},
+						Transition{StopEvent,      InitializingState, DrainingState,     [&](auto event) {LOG(DEBUG) << "DRAIN";stateChangeToDraining();},    [&] {return true;}},
 						Transition{StopEvent,      CreatedState,      CreatedState,      [&](auto event) {},                                                  [&] {return true;}},
 						Transition{StopEvent,      DrainingState,     DrainingState,     [&](auto event) {},                                                  [&] {return true;}},
+						Transition{StopEvent,      ReadyState,        ReadyState,        [&](auto event) {},                                                  [&] {return true;}},
 					}
 				}
 				{
@@ -373,6 +379,12 @@ namespace slim
 				{
 					ts::with(timeDifference, [&](auto& timeDifference)
 					{
+/*
+						auto tt{streamingStartedAt.get(util::milliseconds) + bufferingThreshold.count() - timeDifference};
+						if (tt > numeric_limits<std::uint32_t>::max())
+						{
+						}
+*/
 						auto playbackTime{std::uint32_t{streamingStartedAt.get(util::milliseconds) + bufferingThreshold.count() - timeDifference}};
 
 						send(server::CommandSTRM{CommandSelection::Unpause, playbackTime});

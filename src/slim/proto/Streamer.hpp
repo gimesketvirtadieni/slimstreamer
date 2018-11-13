@@ -311,6 +311,7 @@ namespace slim
 				template<typename RatioType>
 				inline util::BigInteger getStreamingDuration(RatioType ratio) const
 				{
+					// TODO: consider division by 0
 					return streamingFrames * ratio.den / getSamplingRate();
 				}
 
@@ -408,8 +409,6 @@ namespace slim
 
 				inline void stopStreaming()
 				{
-					streamingStartedAt.reset();
-
 					// it is enough to send stop SlimProto command here
 					for (auto& entry : commandSessions)
 					{
@@ -419,6 +418,10 @@ namespace slim
 
 					LOG(DEBUG) << LABELS{"proto"} << "Stopped streaming (duration=" << getStreamingDuration(util::milliseconds) << " millisec)";
 					//LOG(DEBUG) << LABELS{"proto"} << "Stopped streaming (duration=" << streamingStoppedAt.get(util::milliseconds) - streamingStartedAt.value().get(util::milliseconds)  << " millisec)";
+
+					// TODO: use optional for samplingRate
+					setSamplingRate(0);
+					streamingStartedAt.reset();
 				}
 
 			private:
