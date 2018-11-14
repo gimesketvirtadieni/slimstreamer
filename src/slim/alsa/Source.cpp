@@ -269,7 +269,7 @@ namespace slim
 						queue.enqueue([&](Chunk& chunk)
 						{
 							// setting chunk 'meta' data
-							chunk.setSamplingRate(0);
+							chunk.setSamplingRate(parameters.getSamplingRate());
 							chunk.setChannels(parameters.getLogicalChannels());
 							chunk.setBitsPerSample(parameters.getBitsPerSample());
 							chunk.setEndOfStream(true);

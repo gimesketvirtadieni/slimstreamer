@@ -14,6 +14,7 @@
 
 #include <conwrap2/ProcessorProxy.hpp>
 #include <memory>
+#include <type_safe/optional.hpp>
 
 #include "slim/Chunk.hpp"
 #include "slim/ContainerBase.hpp"
@@ -22,12 +23,13 @@
 
 namespace slim
 {
+	namespace ts = type_safe;
+
 	class Consumer
 	{
 		public:
-			Consumer(conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>> p, unsigned int s)
-			: processorProxy{p}
-			, samplingRate{s} {}
+			Consumer(conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>> p)
+			: processorProxy{p} {}
 
 			virtual     ~Consumer() = default;
 			virtual bool consumeChunk(Chunk&) = 0;
@@ -37,14 +39,24 @@ namespace slim
 				return processorProxy;
 			}
 
-			virtual unsigned int getSamplingRate() const
+			virtual ts::optional<unsigned int> getSamplingRate() const
 			{
 				return samplingRate;
 			}
 
-			virtual void setSamplingRate(unsigned int s)
+			virtual void setSamplingRate(ts::optional<unsigned int> s)
 			{
-				samplingRate = s;
+				samplingRate = s.map([&](auto& samplingRate)
+				{
+					auto result{ts::optional<unsigned int>{ts::nullopt}};
+
+					if (samplingRate)
+					{
+						result = samplingRate;
+					}
+
+					return result;
+				});
 			}
 
 			virtual void start() = 0;
@@ -52,6 +64,6 @@ namespace slim
 
 		private:
 			conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>> processorProxy;
-			unsigned int                                             samplingRate;
+			ts::optional<unsigned int>                               samplingRate{ts::nullopt};
 	};
 }

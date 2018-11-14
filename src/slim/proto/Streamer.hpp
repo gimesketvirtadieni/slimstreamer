@@ -55,7 +55,7 @@ namespace slim
 
 			public:
 				Streamer(conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>> pp, unsigned int sp, EncoderBuilder eb, std::optional<unsigned int> ga)
-				: Consumer{pp, 0}
+				: Consumer{pp}
 				, streamingPort{sp}
 				, encoderBuilder{eb}
 				, gain{ga}
@@ -77,53 +77,45 @@ namespace slim
 				virtual bool consumeChunk(Chunk& chunk) override
 				{
 					auto result{false};
-					auto samplingRate{getSamplingRate()};
+					auto streamSamplingRate{getSamplingRate()};
+					auto chunkSamplingRate{chunk.getSamplingRate()};
 
-					// if PCM stream changes
-					if (samplingRate != chunk.getSamplingRate())
+					if (!chunkSamplingRate)
 					{
-						// if streaming is ongoing
-						if (chunk.isEndOfStream())
-						{
-							// propogating end-of-stream to all the clients
-							stopStreaming();
+						LOG(WARNING) << LABELS{"proto"} << "Chunk was skipped due to invalid sampling rate (rate=0)";
 
-							// changing state to not streaming
-							streaming = false;
-
-							// it will make Chunk to be consumed
-							result = true;
-						}
-
-						// if this is the beginning of a stream
-						if (chunk.getSamplingRate())
-						{
-							startStreaming(chunk.getSamplingRate());
-						}
+						// skipping chunks with sampling rate = 0 so skip it
+						result = true;
 					}
-					// if streaming is ongoing without changes
-					else if (samplingRate)
+					else if (!streamSamplingRate.has_value() && !chunk.isEndOfStream())
 					{
-						// if streaming is being initialized
-						if (!streaming)
-						{
-							// checking if all conditions for streaming were met
-							streaming = isReadyToPlay();
-						}
+						// this is the beginning of a stream
+						startStreaming(chunkSamplingRate);
+					}
+					else if (chunk.isEndOfStream())
+					{
+						// this is the end of the stream so propogating end-of-stream to all the clients
+						stopStreaming();
 
-						// if streaming is all set
-						if (streaming)
+						// it will make Chunk to be consumed
+						result = true;
+					}
+					else if (streamSamplingRate.value_or(chunkSamplingRate) != chunkSamplingRate)
+					{
+						ts::with(streamSamplingRate, [&](auto& streamSamplingRate)
 						{
-							// sending out Chunk to all the clients
-							sendChunk(chunk);
+							LOG(WARNING) << LABELS{"proto"} << "Sampling rate change in the middle of a stream (current rate=" << streamSamplingRate << "; new rate=" << chunkSamplingRate << ")";
+						});
 
-							// it will make Chunk to be consumed
-							result = true;
-						}
+						// sampling rate has changed in the middle of the stream so stop streaming so a new stream can be initialized
+						stopStreaming();
 					}
 					else
 					{
-						// consuming Chunk in case when samplingRate == chunk.getSamplingRate() == 0
+						// this is a middle of the stream, so just distributing a chunk
+						sendChunk(chunk);
+
+						// it will make Chunk to be consumed
 						result = true;
 					}
 
@@ -173,26 +165,29 @@ namespace slim
 
 						LOG(INFO) << LABELS{"proto"} << "Client ID was parsed (clientID=" << clientID.value() << ")";
 
-						// setting encoder sampling rate
-						encoderBuilder.setSamplingRate(getSamplingRate());
-
-						// creating streaming session object
-						auto streamingSessionPtr{std::make_unique<StreamingSessionType>(std::ref<ConnectionType>(connection), clientID.value(), encoderBuilder)};
-
-						// saving Streaming session reference in the relevant Command session
-						auto commandSession{findSessionByID(commandSessions, clientID.value())};
-						if (!commandSession.has_value())
+						ts::with(getSamplingRate(), [&](auto samplingRate)
 						{
-							connection.stop();
-							throw slim::Exception("Could not correlate provided client ID with a valid SlimProto session");
-						}
-						commandSession.value()->setStreamingSession(ts::optional_ref<StreamingSessionType>{*streamingSessionPtr});
+							// setting encoder sampling rate
+							encoderBuilder.setSamplingRate(samplingRate);
 
-						// processing request by a proper Streaming session mapped to this connection
-						streamingSessionPtr->onRequest(buffer, receivedSize);
+							// creating streaming session object
+							auto streamingSessionPtr{std::make_unique<StreamingSessionType>(std::ref<ConnectionType>(connection), clientID.value(), encoderBuilder)};
 
-						// saving Streaming session as a part of this Streamer
-						addSession(streamingSessions, connection, std::move(streamingSessionPtr));
+							// saving Streaming session reference in the relevant Command session
+							auto commandSession{findSessionByID(commandSessions, clientID.value())};
+							if (!commandSession.has_value())
+							{
+								connection.stop();
+								throw slim::Exception("Could not correlate provided client ID with a valid SlimProto session");
+							}
+							commandSession.value()->setStreamingSession(ts::optional_ref<StreamingSessionType>{*streamingSessionPtr});
+
+							// processing request by a proper Streaming session mapped to this connection
+							streamingSessionPtr->onRequest(buffer, receivedSize);
+
+							// saving Streaming session as a part of this Streamer
+							addSession(streamingSessions, connection, std::move(streamingSessionPtr));
+						});
 					}
 				}
 
@@ -237,7 +232,10 @@ namespace slim
 					// enable streaming for this session if required
 					ts::with(streamingStartedAt, [&](auto& streamingStartedAt)
 					{
-						commandSessionPtr->startStreaming(getSamplingRate(), streamingStartedAt + std::chrono::microseconds{getStreamingDuration(util::microseconds)});
+						ts::with(getSamplingRate(), [&](auto samplingRate)
+						{
+							commandSessionPtr->startStreaming(samplingRate, streamingStartedAt + std::chrono::microseconds{getStreamingDuration(util::microseconds)});
+						});
 					});
 
 					// saving command session in the map
@@ -309,11 +307,17 @@ namespace slim
 				}
 
 				template<typename RatioType>
-				inline util::BigInteger getStreamingDuration(RatioType ratio) const
-				{
-					// TODO: consider division by 0
-					return streamingFrames * ratio.den / getSamplingRate();
-				}
+				inline auto getStreamingDuration(RatioType ratio) const
+ 				{
+					auto result{util::BigInteger{0}};
+
+					ts::with(getSamplingRate(), [&](auto samplingRate)
+					{
+						result = streamingFrames * ratio.den / samplingRate;
+					});
+
+					return result;
+ 				}
 
 				inline auto isReadyToPlay()
 				{
@@ -389,39 +393,49 @@ namespace slim
 
 				inline void startStreaming(unsigned int samplingRate)
 				{
-					// assigning new sampling rate
-					setSamplingRate(samplingRate);
-
-					// capturing start stream time point (required for calculations like defer time-out, etc.)
-					streamingStartedAt = util::Timestamp::now();
-					streamingFrames    = 0;
-
-					ts::with(streamingStartedAt, [&](auto& streamingStartedAt)
+					if (!streaming)
 					{
-						for (auto& entry : commandSessions)
-						{
-							entry.second->startStreaming(samplingRate, streamingStartedAt);
-						}
-					});
+						streaming = true;
 
-					LOG(DEBUG) << LABELS{"proto"} << "Started streaming (rate=" << getSamplingRate() << ")";
+						// assigning new sampling rate
+						setSamplingRate(samplingRate);
+
+						// capturing start stream time point (required for calculations like defer time-out, etc.)
+						streamingStartedAt = util::Timestamp::now();
+						streamingFrames    = 0;
+
+						ts::with(streamingStartedAt, [&](auto& streamingStartedAt)
+ 						{
+							for (auto& entry : commandSessions)
+							{
+								entry.second->startStreaming(samplingRate, streamingStartedAt);
+							}
+						});
+
+						LOG(DEBUG) << LABELS{"proto"} << "Started streaming (rate=" << samplingRate << ")";
+					}
 				}
 
 				inline void stopStreaming()
 				{
-					// it is enough to send stop SlimProto command here
-					for (auto& entry : commandSessions)
-					{
-						// stopping SlimProto session will send end-of-stream command which normally triggers close of HTTP connection
-						entry.second->stopStreaming();
+					if (streaming)
+ 					{
+						streaming = false;
+
+						// it is enough to send stop SlimProto command here
+						for (auto& entry : commandSessions)
+						{
+							// stopping SlimProto session will send end-of-stream command which normally triggers close of HTTP connection
+							entry.second->stopStreaming();
+						}
+ 
+						LOG(DEBUG) << LABELS{"proto"} << "Stopped streaming (duration=" << getStreamingDuration(util::milliseconds) << " millisec)";
+						//LOG(DEBUG) << LABELS{"proto"} << "Stopped streaming (duration=" << streamingStoppedAt.get(util::milliseconds) - streamingStartedAt.value().get(util::milliseconds)  << " millisec)";
+
+						// TODO: use optional for samplingRate
+						setSamplingRate(ts::nullopt);
+						streamingStartedAt.reset();
 					}
-
-					LOG(DEBUG) << LABELS{"proto"} << "Stopped streaming (duration=" << getStreamingDuration(util::milliseconds) << " millisec)";
-					//LOG(DEBUG) << LABELS{"proto"} << "Stopped streaming (duration=" << streamingStoppedAt.get(util::milliseconds) - streamingStartedAt.value().get(util::milliseconds)  << " millisec)";
-
-					// TODO: use optional for samplingRate
-					setSamplingRate(0);
-					streamingStartedAt.reset();
 				}
 
 			private:

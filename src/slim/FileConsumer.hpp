@@ -31,10 +31,12 @@ namespace slim
 	{
 		public:
 			FileConsumer(conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>> p, std::unique_ptr<util::AsyncWriter> w, EncoderBuilder eb)
-			: Consumer{p, eb.getSamplingRate()}
-			, writerPtr{std::move(w)}
-			, headerRequired{eb.getHeader()}
-			{
+			: Consumer{p}
+ 			, writerPtr{std::move(w)}
+ 			, headerRequired{eb.getHeader()}
+ 			{
+				setSamplingRate(eb.getSamplingRate());
+
 				eb.setEncodedCallback([&](auto* data, auto size)
 				{
 					writerPtr->writeAsync(data, size, [](auto error, auto written)
