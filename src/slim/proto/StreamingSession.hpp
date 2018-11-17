@@ -95,16 +95,16 @@ namespace slim
 					return framesProvided;
 				}
 
-				inline void onChunk(const Chunk& chunk)
+				inline void sendChunk(const Chunk& chunk)
 				{
 					if (encoderPtr->getSamplingRate() == chunk.getSamplingRate())
 					{
-						framesProvided += (chunk.getSize() / ((encoderPtr->getBitsPerSample() >> 3) * encoderPtr->getChannels()));
 						encoderPtr->encode(chunk.getData(), chunk.getSize());
+						framesProvided += chunk.getFrames();
 					}
 					else
 					{
-						LOG(WARNING) << LABELS{"proto"} << "Closing HTTP connection due to different sampling rate used by a client (session rate=" << encoderPtr->getSamplingRate() << "; data rate=" << chunk.getSamplingRate() << ")";
+						LOG(ERROR) << LABELS{"proto"} << "Closing HTTP connection due to different sampling rate used by a client (session rate=" << encoderPtr->getSamplingRate() << "; data rate=" << chunk.getSamplingRate() << ")";
 						connection.get().stop();
 					}
 				}

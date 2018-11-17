@@ -22,7 +22,8 @@
 #include <string>
 #include <type_safe/optional.hpp>
 #include <type_safe/optional_ref.hpp>
-#include <utility>
+#include <unordered_map>
+#include <vector>
 
 #include "slim/ContainerBase.hpp"
 #include "slim/Exception.hpp"
@@ -40,6 +41,7 @@
 #include "slim/util/ArrayCache.hpp"
 #include "slim/util/BigInteger.hpp"
 #include "slim/util/ExpandableBuffer.hpp"
+#include "slim/util/StateMachine.hpp"
 #include "slim/util/Timestamp.hpp"
 
 
@@ -65,48 +67,6 @@ namespace slim
 			ReadyState,
 			InitializingState,
 			PlayingState,
-		};
-
-		struct Transition
-		{
-			Event                      event;
-			State                      fromState;
-			State                      toState;
-			std::function<void(Event)> action;
-			std::function<bool()>      guard;
-		};
-
-		struct StateMachine
-		{
-			State                   state;
-			std::vector<Transition> transitions;
-
-			template <typename ErrorHandlerType>
-			void processEvent(Event event, ErrorHandlerType errorHandler)
-			{
-				// searching for a transition based on the event and the current state
-				auto found = std::find_if(transitions.begin(), transitions.end(), [&](const auto& transition)
-				{
-					return (transition.fromState == state && transition.event == event);
-				});
-
-				// if found then perform a transition if guard allows
-				if (found != transitions.end())
-				{
-					// invoking transition action if guar is satisfied
-					if ((*found).guard())
-					{
-						(*found).action(event);
-
-						// changing state of the state machine
-						state = (*found).toState;
-					}
-				}
-				else
-				{
-					errorHandler(event, state);
-				}
-			}
 		};
 
 		template<typename ConnectionType>
@@ -148,22 +108,22 @@ namespace slim
 				{
 					CreatedState,
 					{   // transition table definition
-						Transition{HandshakeEvent, CreatedState,      DrainingState,     [&](auto event) {LOG(DEBUG) << "DRAINING";stateChangeToDraining();}, [&] {return true;}},
-						Transition{FlushedEvent,   DrainingState,     ReadyState,        [&](auto event) {LOG(DEBUG) << "READY";stateChangeToReady();},       [&] {return true;}},
-						Transition{FlushedEvent,   ReadyState,        ReadyState,        [&](auto event) {},                                                  [&] {return true;}},
-						Transition{FlushedEvent,   InitializingState, InitializingState, [&](auto event) {},                                                  [&] {return true;}},
-						Transition{FlushedEvent,   PlayingState,      PlayingState,      [&](auto event) {},                                                  [&] {return true;}},
-						Transition{StartEvent,     ReadyState,        InitializingState, [&](auto event) {LOG(DEBUG) << "INIT";stateChangeToInitializing();}, [&] {return true;}},
-						Transition{StartEvent,     InitializingState, InitializingState, [&](auto event) {},                                                  [&] {return true;}},
-						Transition{StartEvent,     PlayingState,      PlayingState,      [&](auto event) {},                                                  [&] {return true;}},
-						Transition{PlayEvent,      InitializingState, PlayingState,      [&](auto event) {LOG(DEBUG) << "PLAY";stateChangeToPlaying();},      [&] {return isReadyToPlay();}},
-						Transition{PlayEvent,      ReadyState,        ReadyState,        [&](auto event) {},                                                  [&] {return true;}},
-						Transition{PlayEvent,      PlayingState,      PlayingState,      [&](auto event) {},                                                  [&] {return true;}},
-						Transition{StopEvent,      PlayingState,      DrainingState,     [&](auto event) {LOG(DEBUG) << "DRAIN";stateChangeToDraining();},    [&] {return true;}},
-						Transition{StopEvent,      InitializingState, DrainingState,     [&](auto event) {LOG(DEBUG) << "DRAIN";stateChangeToDraining();},    [&] {return true;}},
-						Transition{StopEvent,      CreatedState,      CreatedState,      [&](auto event) {},                                                  [&] {return true;}},
-						Transition{StopEvent,      DrainingState,     DrainingState,     [&](auto event) {},                                                  [&] {return true;}},
-						Transition{StopEvent,      ReadyState,        ReadyState,        [&](auto event) {},                                                  [&] {return true;}},
+						{HandshakeEvent, CreatedState,      DrainingState,     [&](auto event) {LOG(DEBUG) << "DRAINING";stateChangeToDraining();}, [&] {return true;}},
+						{FlushedEvent,   DrainingState,     ReadyState,        [&](auto event) {LOG(DEBUG) << "READY";},                            [&] {return true;}},
+						{FlushedEvent,   ReadyState,        ReadyState,        [&](auto event) {},                                                  [&] {return true;}},
+						{FlushedEvent,   InitializingState, InitializingState, [&](auto event) {},                                                  [&] {return true;}},
+						{FlushedEvent,   PlayingState,      PlayingState,      [&](auto event) {},                                                  [&] {return true;}},
+						{StartEvent,     ReadyState,        InitializingState, [&](auto event) {LOG(DEBUG) << "INIT";stateChangeToInitializing();}, [&] {return isReadyToStream();}},
+						{StartEvent,     InitializingState, InitializingState, [&](auto event) {},                                                  [&] {return true;}},
+						{StartEvent,     PlayingState,      PlayingState,      [&](auto event) {},                                                  [&] {return true;}},
+						{PlayEvent,      InitializingState, PlayingState,      [&](auto event) {LOG(DEBUG) << "PLAY";stateChangeToPlaying();},      [&] {return isReadyToPlay();}},
+						{PlayEvent,      ReadyState,        ReadyState,        [&](auto event) {},                                                  [&] {return true;}},
+						{PlayEvent,      PlayingState,      PlayingState,      [&](auto event) {},                                                  [&] {return true;}},
+						{StopEvent,      PlayingState,      DrainingState,     [&](auto event) {LOG(DEBUG) << "DRAIN";stateChangeToDraining();},    [&] {return true;}},
+						{StopEvent,      InitializingState, DrainingState,     [&](auto event) {LOG(DEBUG) << "DRAIN";stateChangeToDraining();},    [&] {return true;}},
+						{StopEvent,      CreatedState,      CreatedState,      [&](auto event) {},                                                  [&] {return true;}},
+						{StopEvent,      DrainingState,     DrainingState,     [&](auto event) {},                                                  [&] {return true;}},
+						{StopEvent,      ReadyState,        ReadyState,        [&](auto event) {},                                                  [&] {return true;}},
 					}
 				}
 				{
@@ -191,28 +151,14 @@ namespace slim
 					return clientID;
 				}
 
-				inline auto getStreamingSession()
-				{
-					return streamingSession;
-				}
-
-				inline auto getSamplingRate()
-				{
-					return samplingRate;
-				}
-
 				inline auto isReadyToPlay()
 				{
-					return streamingSession.has_value() && timeDifference.has_value();
+					return isReadyToStream() && streamingSession.has_value();
 				}
 
-				inline void sendChunk(const Chunk& chunk)
+				inline auto isReadyToStream()
 				{
-					ts::with(streamingSession, [&](auto& streamingSession)
-					{
-						streamingSession.onChunk(chunk);
-						streamingFrames += chunk.getFrames();
-					});
+					return timeDifference.has_value();
 				}
 
 				inline void onRequest(unsigned char* buffer, std::size_t size, util::Timestamp timestamp)
@@ -266,49 +212,64 @@ namespace slim
 					} while (processedSize > 0);
 				}
 
-				inline void setStreamingSession(ts::optional_ref<StreamingSession<ConnectionType>> s)
+				inline void sendChunk(const Chunk& chunk)
 				{
-					auto wasReadyToPlay{isReadyToPlay()};
-
-					streamingSession = s;
-
-					// changing state to Buffering if needed
-					if (!wasReadyToPlay && isReadyToPlay())
+					// TODO: work in progress
+					if (stateMachine.state == ReadyState && isReadyToStream())
 					{
+						// changing state to Initializing if needed
+						stateMachine.processEvent(StartEvent, [&](auto event, auto state)
+						{
+							LOG(WARNING) << LABELS{"proto"} << "Invalid SlimProto session state while processing Send event - closing the connection";
+							connection.get().stop();
+						});
+					}
+
+					if (stateMachine.state == InitializingState && isReadyToPlay())
+					{
+						// changing state to Playing if needed
 						stateMachine.processEvent(PlayEvent, [&](auto event, auto state)
 						{
 							LOG(WARNING) << LABELS{"proto"} << "Invalid SlimProto session state while processing Send event - closing the connection";
 							connection.get().stop();
 						});
 					}
+
+					if (stateMachine.state == PlayingState && chunk.isEndOfStream())
+					{
+						// changing state to Draining
+						stateMachine.processEvent(StopEvent, [&](auto event, auto state)
+						{
+							LOG(WARNING) << LABELS{"proto"} << "Invalid SlimProto session state while processing Stop event - closing the connection";
+							connection.get().stop();
+						});
+					}
+
+					// TODO: implement accounting for amount of frames which were not sent out
+					ts::with(streamingSession, [&](auto& streamingSession)
+					{
+						streamingSession.sendChunk(chunk);
+					});
+				}
+
+				inline void setStreamingSession(ts::optional_ref<StreamingSession<ConnectionType>> s)
+				{
+					streamingSession = s;
 				}
 
 				inline void startStreaming(unsigned int s, util::Timestamp t)
 				{
-					// TODO: figure out how event may hold any data then it can be moved to stateChangeToInitializing
-					samplingRate             = s;
-					streamingStartedAt       = t;
-					streamingFrames          = 0;
+					samplingRate       = s;
+					streamingStartedAt = t;
 
 					// TODO: parametrize
 					bufferingThreshold       = std::chrono::milliseconds{500};
-					bufferingThresholdFrames = bufferingThreshold.count() * getSamplingRate() / 1000;
-
-					stateMachine.processEvent(StartEvent, [&](auto event, auto state)
-					{
-						LOG(WARNING) << LABELS{"proto"} << "Invalid SlimProto session state while processing Start event - closing the connection";
-						connection.get().stop();
-					});
+					bufferingThresholdFrames = bufferingThreshold.count() * samplingRate / 1000;
 				}
 
 				inline void stopStreaming()
 				{
-					// changing state to Draining
-					stateMachine.processEvent(StopEvent, [&](auto event, auto state)
-					{
-						LOG(WARNING) << LABELS{"proto"} << "Invalid SlimProto session state while processing Stop event - closing the connection";
-						connection.get().stop();
-					});
+					streamingStartedAt.reset();
 				}
 
 			protected:
@@ -368,6 +329,9 @@ namespace slim
 				{
 					// sending SlimProto Stop command will flush client's buffer which will initiate STAT/STMf message
 					send(server::CommandSTRM{CommandSelection::Stop});
+
+					// just to make sure previous HTTP session does not interfer with a new init routine
+					streamingSession.reset();
 				}
 
 				inline void stateChangeToInitializing()
@@ -379,22 +343,20 @@ namespace slim
 				{
 					ts::with(timeDifference, [&](auto& timeDifference)
 					{
-/*
-						auto tt{streamingStartedAt.get(util::milliseconds) + bufferingThreshold.count() - timeDifference};
-						if (tt > numeric_limits<std::uint32_t>::max())
+						ts::with(streamingStartedAt, [&](auto& streamingStartedAt)
 						{
-						}
-*/
-						auto playbackTime{std::uint32_t{streamingStartedAt.get(util::milliseconds) + bufferingThreshold.count() - timeDifference}};
-
-						send(server::CommandSTRM{CommandSelection::Unpause, playbackTime});
+							auto playbackTime{streamingStartedAt.get(util::milliseconds) + bufferingThreshold.count() - timeDifference};
+							if (playbackTime <= std::numeric_limits<std::uint32_t>::max())
+							{
+								send(server::CommandSTRM{CommandSelection::Unpause, static_cast<std::uint32_t>(playbackTime)});
+							}
+							else
+							{
+								LOG(ERROR) << LABELS{"proto"} << "Calculated playback time exceeded max limit - closing SlimProto session (started=" << streamingStartedAt.get(util::milliseconds) << "; buffering=" << bufferingThreshold.count() << "; diff=" << timeDifference << ")";
+								connection.get().stop();
+							}
+						});
 					});
-				}
-
-				inline void stateChangeToReady()
-				{
-					// just to make sure previous HTTP session does not interfer with a new init routine
-					streamingSession.reset();
 				}
 
 				inline auto onHELO(unsigned char* buffer, std::size_t size)
@@ -543,8 +505,6 @@ namespace slim
 							}
 							else
 							{
-								auto wasReadyToPlay{isReadyToPlay()};
-
 								// calculating new latency value
 								auto averageLatency{calculateAverage(latencySamples)};
 								ts::with(averageLatency, [&](auto& averageLatency)
@@ -560,16 +520,6 @@ namespace slim
 										timeDifference = (timeDifference.value_or(averageTimeDifference) * 0.8 + averageTimeDifference * 0.2) + latency.value() / 1000;
 									});
 								});
-
-								// changing state to Playing if needed
-								if (!wasReadyToPlay && isReadyToPlay())
-								{
-									stateMachine.processEvent(PlayEvent, [&](auto event, auto state)
-									{
-										LOG(WARNING) << LABELS{"proto"} << "Invalid SlimProto session state while processing Send event - closing the connection";
-										connection.get().stop();
-									});
-								}
 
 								// clearing the cache so it can be used for collecting new samples
 								timestampCache.clear();
@@ -642,7 +592,7 @@ namespace slim
 				std::optional<unsigned int>                              gain;
 				CommandHandlersMap                                       commandHandlers;
 				EventHandlersMap                                         eventHandlers;
-				StateMachine                                             stateMachine;
+				util::StateMachine<Event, State>                         stateMachine;
 				unsigned int                                             samplingRate{0};
 				ts::optional_ref<StreamingSession<ConnectionType>>       streamingSession{ts::nullopt};
 				util::ExpandableBuffer                                   commandBuffer{std::size_t{0}, std::size_t{2048}};
@@ -654,10 +604,9 @@ namespace slim
 				std::vector<util::BigInteger>                            latencySamples;
 				std::vector<util::BigInteger>                            timeDifferenceSamples;
 				bool                                                     measuringLatency{false};
-				util::Timestamp                                          streamingStartedAt;
+				ts::optional<util::Timestamp>                            streamingStartedAt;
 				std::chrono::milliseconds                                bufferingThreshold{0};
 				util::BigInteger                                         bufferingThresholdFrames{0};
-				util::BigInteger                                         streamingFrames{0};
 		};
 	}
 }

@@ -83,12 +83,6 @@ namespace slim
 			{
 				taskTimer.reset();
 
-				// defining consumer function
-				std::function<bool(Chunk&)> consumer{[&](auto& chunk)
-				{
-					return consumerPtr->consumeChunk(chunk);
-				}};
-
 				// TODO: calculate total chunks per processing quantum
 				// processing up to max(chunksToProcess) chunks within one event-loop quantum
 				auto delayProcessing{std::chrono::milliseconds{0}};
@@ -104,7 +98,10 @@ namespace slim
 					};
 
 					// producing / consuming chunk
-					delayProcessing = producerPtr->produceChunk(consumer).value_or(std::chrono::milliseconds{0});
+					delayProcessing = producerPtr->produceChunk([&](auto& chunk)
+					{
+						return consumerPtr->consumeChunk(chunk);
+					}).value_or(std::chrono::milliseconds{0});
 				}
 				catch (const Exception& error)
 				{
