@@ -235,7 +235,13 @@ namespace slim
 						});
 					}
 
-					if (stateMachine.state == PlayingState && chunk.isEndOfStream())
+					// TODO: implement accounting for amount of frames which were not sent out
+					ts::with(streamingSession, [&](auto& streamingSession)
+					{
+						streamingSession.sendChunk(chunk);
+					});
+
+					if (chunk.isEndOfStream())
 					{
 						// changing state to Draining
 						stateMachine.processEvent(StopEvent, [&](auto event, auto state)
@@ -244,12 +250,6 @@ namespace slim
 							connection.get().stop();
 						});
 					}
-
-					// TODO: implement accounting for amount of frames which were not sent out
-					ts::with(streamingSession, [&](auto& streamingSession)
-					{
-						streamingSession.sendChunk(chunk);
-					});
 				}
 
 				inline void setStreamingSession(ts::optional_ref<StreamingSession<ConnectionType>> s)
@@ -263,7 +263,7 @@ namespace slim
 					streamingStartedAt = t;
 
 					// TODO: parametrize
-					bufferingThreshold       = std::chrono::milliseconds{500};
+					bufferingThreshold       = std::chrono::milliseconds{1000};
 					bufferingThresholdFrames = bufferingThreshold.count() * samplingRate / 1000;
 				}
 
@@ -275,38 +275,15 @@ namespace slim
 			protected:
 				inline auto calculateAverage(std::vector<util::BigInteger>& samples)
 				{
-					ts::optional<util::BigInteger> result{ts::nullopt};
+					util::BigInteger result{0};
 
-					// sorting latency samples
+					// sorting samples
 					std::sort(samples.begin(), samples.end());
 
-					// making sure there is enough sample to calculate latency
+					// making sure there is enough sample
 					if (samples.size() > 7)
 					{
-						util::BigInteger accumulator{0};
-
-						// skipping first 2 (smallest) and last two (biggest) latency samples
-						for (std::size_t i{1}; i < samples.size() - 2; i++)
-						{
-							accumulator += samples[i];
-						}
-						result = accumulator / (samples.size() - 4);
-					}
-
-					return result;
-				}
-
-				// TODO: this is a temp version until proper BigInteger is implemented
-				inline auto calculateAverage2(std::vector<util::BigInteger>& samples)
-				{
-					ts::optional<util::BigInteger> result{ts::nullopt};
-
-					// sorting latency samples
-					std::sort(samples.begin(), samples.end());
-
-					// making sure there is enough sample to calculate latency
-					if (samples.size() > 7)
-					{
+						// TODO: this is a temp version until BigInteger does not cause overflow
 						result = samples[samples.size() >> 1];
 					}
 
@@ -494,32 +471,21 @@ namespace slim
 							latencySamples.push_back((receiveTimestamp.get(util::microseconds) - sendTimestamp.get(util::microseconds)) / 2);
 							timeDifferenceSamples.push_back(sendTimestamp.get(util::milliseconds) - commandSTAT.getBuffer()->jiffies);
 
-							// if there is no enough samples to calculate latency
-							if (timestampCache.size() < timestampCache.capacity())
-							{
-								processorProxy.process([&]
-								{
-									// creating a timestamp cache entry required to allocate a key
-									ping(timestampCache.store(util::Timestamp::now()));
-								});
-							}
-							else
+							// if there is enough samples to calculate latency and time difference
+							if (timestampCache.size() >= timestampCache.capacity())
 							{
 								// calculating new latency value
 								auto averageLatency{calculateAverage(latencySamples)};
-								ts::with(averageLatency, [&](auto& averageLatency)
-								{
-									latency = latency.value_or(averageLatency) * 0.8 + averageLatency * 0.2;
 
-									LOG(DEBUG) << LABELS{"proto"} << "Client latency updated (client id=" << clientID << ", latency=" << latency.value() << " microsec)";
+								// updating current latency value
+								latency = latency.value_or(averageLatency) * 0.8 + averageLatency * 0.2;
+								LOG(DEBUG) << LABELS{"proto"} << "Client latency updated (client id=" << clientID << ", latency=" << latency.value() << " microsec)";
 
-									// calculating new time difference value based on lateny
-									auto averageTimeDifference{calculateAverage2(timeDifferenceSamples)};
-									ts::with(averageTimeDifference, [&](auto& averageTimeDifference)
-									{
-										timeDifference = (timeDifference.value_or(averageTimeDifference) * 0.8 + averageTimeDifference * 0.2) + latency.value() / 1000;
-									});
-								});
+								// calculating new time difference value based on latency
+								auto averageTimeDifference{calculateAverage(timeDifferenceSamples)};
+
+								// updating current time difference value
+								timeDifference = (timeDifference.value_or(averageTimeDifference) * 0.8 + averageTimeDifference * 0.2) + latency.value() / 1000;
 
 								// clearing the cache so it can be used for collecting new samples
 								timestampCache.clear();
@@ -540,6 +506,14 @@ namespace slim
 										ping(timestampCache.store(util::Timestamp::now()));
 									}, std::chrono::seconds{5}));
 								}
+							}
+							else
+							{
+								processorProxy.process([&]
+								{
+									// creating a timestamp cache entry required to allocate a key
+									ping(timestampCache.store(util::Timestamp::now()));
+								});
 							}
 						}
 						else
