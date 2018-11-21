@@ -80,8 +80,10 @@ namespace slim
 						}
 
 						// converting used fields
-						stat.jiffies             = ntohl(stat.jiffies);
-						stat.elapsedMilliseconds = ntohl(stat.elapsedMilliseconds);
+						stat.streamBufferSize     = ntohl(stat.streamBufferSize);
+						stat.streamBufferFullness = ntohl(stat.streamBufferFullness);
+						stat.jiffies              = ntohl(stat.jiffies);
+						stat.elapsedMilliseconds  = ntohl(stat.elapsedMilliseconds);
 					}
 
 					// using Rule Of Zero

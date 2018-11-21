@@ -74,8 +74,9 @@ namespace slim
 						memset(&strm, 0, sizeof(STRM));
 						memcpy(&strm.data.opcode, "strm", sizeof(strm.data.opcode));
 
-						strm.data.command    = static_cast<char>(commandSelection);
-						strm.data.autostart  = '0';  // autostart
+						strm.data.command   = static_cast<char>(commandSelection);
+						strm.data.autostart = '0';  // autostart
+						strm.data.threshold = 200;  // streaming buffer threshold (when reached then client sends STMl event)
 
 						if (formatSelection == FormatSelection::PCM)
 						{

@@ -96,7 +96,7 @@ namespace slim
 					{"STMc", [&](auto& commandSTAT, auto timestamp) {}},
 					{"STMd", [&](auto& commandSTAT, auto timestamp) {}},
 					{"STMf", [&](auto& commandSTAT, auto timestamp) {onSTMf(commandSTAT);}},
-					{"STMl", [&](auto& commandSTAT, auto timestamp) {}},
+					{"STMl", [&](auto& commandSTAT, auto timestamp) {onSTMl(commandSTAT);}},
 					{"STMo", [&](auto& commandSTAT, auto timestamp) {}},
 					{"STMp", [&](auto& commandSTAT, auto timestamp) {}},
 					{"STMr", [&](auto& commandSTAT, auto timestamp) {}},
@@ -158,7 +158,7 @@ namespace slim
 
 				inline auto isReadyToStream()
 				{
-					return timeDifference.has_value();
+					return timeOffset.has_value();
 				}
 
 				inline void onRequest(unsigned char* buffer, std::size_t size, util::Timestamp timestamp)
@@ -225,16 +225,6 @@ namespace slim
 						});
 					}
 
-					if (stateMachine.state == InitializingState && isReadyToPlay())
-					{
-						// changing state to Playing if needed
-						stateMachine.processEvent(PlayEvent, [&](auto event, auto state)
-						{
-							LOG(WARNING) << LABELS{"proto"} << "Invalid SlimProto session state while processing Send event - closing the connection";
-							connection.get().stop();
-						});
-					}
-
 					// TODO: implement accounting for amount of frames which were not sent out
 					ts::with(streamingSession, [&](auto& streamingSession)
 					{
@@ -263,7 +253,7 @@ namespace slim
 					streamingStartedAt = t;
 
 					// TODO: parametrize
-					bufferingThreshold       = std::chrono::milliseconds{1000};
+					bufferingThreshold       = std::chrono::milliseconds{500};
 					bufferingThresholdFrames = bufferingThreshold.count() * samplingRate / 1000;
 				}
 
@@ -273,7 +263,7 @@ namespace slim
 				}
 
 			protected:
-				inline auto calculateAverage(std::vector<util::BigInteger>& samples)
+				inline auto calculateMean(std::vector<util::BigInteger>& samples)
 				{
 					util::BigInteger result{0};
 
@@ -318,20 +308,13 @@ namespace slim
 
 				inline void stateChangeToPlaying()
 				{
-					ts::with(timeDifference, [&](auto& timeDifference)
+					ts::with(streamingStartedAt, [&](auto& streamingStartedAt)
 					{
-						ts::with(streamingStartedAt, [&](auto& streamingStartedAt)
+						ts::with(timeOffset, [&](auto& timeOffset)
 						{
-							auto playbackTime{streamingStartedAt.get(util::milliseconds) + bufferingThreshold.count() - timeDifference};
-							if (playbackTime <= std::numeric_limits<std::uint32_t>::max())
-							{
-								send(server::CommandSTRM{CommandSelection::Unpause, static_cast<std::uint32_t>(playbackTime)});
-							}
-							else
-							{
-								LOG(ERROR) << LABELS{"proto"} << "Calculated playback time exceeded max limit - closing SlimProto session (started=" << streamingStartedAt.get(util::milliseconds) << "; buffering=" << bufferingThreshold.count() << "; diff=" << timeDifference << ")";
-								connection.get().stop();
-							}
+							// TODO: work in progress
+							auto playbackTime{streamingStartedAt.get(util::milliseconds) - timeOffset + 2000};
+							send(server::CommandSTRM{CommandSelection::Unpause, static_cast<std::uint32_t>(playbackTime)});
 						});
 					});
 				}
@@ -401,7 +384,7 @@ namespace slim
 					return result;
 				}
 
-				inline auto onSTAT(unsigned char* buffer, std::size_t size, util::Timestamp timestamp)
+				inline auto onSTAT(unsigned char* buffer, std::size_t size, util::Timestamp receiveTimestamp)
 				{
 					client::CommandSTAT commandSTAT{buffer, size};
 					std::size_t         result{commandSTAT.getSize()};
@@ -419,7 +402,7 @@ namespace slim
 						}
 
 						// invoking STAT event handler
-						(*found).second(commandSTAT, timestamp);
+						(*found).second(commandSTAT, receiveTimestamp);
 					}
 					else
 					{
@@ -439,9 +422,33 @@ namespace slim
 					});
 				}
 
+				inline void onSTMl(client::CommandSTAT& commandSTAT)
+				{
+					auto bufferSize{commandSTAT.getBuffer()->streamBufferSize};
+					auto fullness{commandSTAT.getBuffer()->streamBufferFullness};
+
+					LOG(DEBUG) << LABELS{"proto"}
+							<<  "bufferSize=" << bufferSize
+							<< " fullness="   << fullness << " (" << 100 * fullness / bufferSize << "%)";
+
+					// TODO: work in progress
+					// changing state to Playing if needed
+					stateMachine.processEvent(PlayEvent, [&](auto event, auto state)
+					{
+						LOG(WARNING) << LABELS{"proto"} << "Invalid SlimProto session state while processing Send event - closing the connection";
+						connection.get().stop();
+					});
+				}
+
 				inline void onSTMs(client::CommandSTAT& commandSTAT)
 				{
 					// TODO: work in progress
+					auto bufferSize{commandSTAT.getBuffer()->streamBufferSize};
+					auto fullness{commandSTAT.getBuffer()->streamBufferFullness};
+					LOG(DEBUG) << LABELS{"proto"}
+							<<  "bufferSize=" << bufferSize
+							<< " fullness="   << fullness << " (" << 100 * fullness / bufferSize << "%)";
+
 					LOG(DEBUG) << LABELS{"proto"} << "client played=" << commandSTAT.getBuffer()->elapsedMilliseconds;
 
 					ts::with(streamingSession, [&](auto& streamingSession)
@@ -467,30 +474,26 @@ namespace slim
 						// if latency measurement was not interfered by other commands then repeat round trip once again
 						if (measuringLatency)
 						{
-							// saving latency and time difference samples for further processing
+							// saving latency sample for further processing
 							latencySamples.push_back((receiveTimestamp.get(util::microseconds) - sendTimestamp.get(util::microseconds)) / 2);
-							timeDifferenceSamples.push_back(sendTimestamp.get(util::milliseconds) - commandSTAT.getBuffer()->jiffies);
+							timeOffsetSamples.push_back(sendTimestamp.get(util::milliseconds) - commandSTAT.getBuffer()->jiffies);
 
-							// if there is enough samples to calculate latency and time difference
+							// if there is enough samples to calculate latency
 							if (timestampCache.size() >= timestampCache.capacity())
 							{
 								// calculating new latency value
-								auto averageLatency{calculateAverage(latencySamples)};
+								auto meanLatency{calculateMean(latencySamples)};
+								auto meanTimeOffset{calculateMean(timeOffsetSamples)};
 
 								// updating current latency value
-								latency = latency.value_or(averageLatency) * 0.8 + averageLatency * 0.2;
+								latency    = latency.value_or(meanLatency)       * 0.8 + meanLatency    * 0.2;
+								timeOffset = timeOffset.value_or(meanTimeOffset) * 0.8 + meanTimeOffset * 0.2;
 								LOG(DEBUG) << LABELS{"proto"} << "Client latency updated (client id=" << clientID << ", latency=" << latency.value() << " microsec)";
-
-								// calculating new time difference value based on latency
-								auto averageTimeDifference{calculateAverage(timeDifferenceSamples)};
-
-								// updating current time difference value
-								timeDifference = (timeDifference.value_or(averageTimeDifference) * 0.8 + averageTimeDifference * 0.2) + latency.value() / 1000;
 
 								// clearing the cache so it can be used for collecting new samples
 								timestampCache.clear();
 								latencySamples.clear();
-								timeDifferenceSamples.clear();
+								timeOffsetSamples.clear();
 
 								// TODO: make it configurable
 								// TODO: make it resistant to clients 'loosing' requests
@@ -573,10 +576,11 @@ namespace slim
 				ts::optional<client::CommandHELO>                        commandHELO{ts::nullopt};
 				ts::optional_ref<conwrap2::Timer>                        pingTimer{ts::nullopt};
 				util::ArrayCache<util::Timestamp, 10>                    timestampCache;
+				// TODO: used std::chrono::microseconds instead of BigInteger
 				ts::optional<util::BigInteger>                           latency{ts::nullopt};
-				ts::optional<util::BigInteger>                           timeDifference{ts::nullopt};
 				std::vector<util::BigInteger>                            latencySamples;
-				std::vector<util::BigInteger>                            timeDifferenceSamples;
+				ts::optional<util::BigInteger>                           timeOffset{ts::nullopt};
+				std::vector<util::BigInteger>                            timeOffsetSamples;
 				bool                                                     measuringLatency{false};
 				ts::optional<util::Timestamp>                            streamingStartedAt;
 				std::chrono::milliseconds                                bufferingThreshold{0};
