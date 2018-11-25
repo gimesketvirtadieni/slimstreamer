@@ -95,7 +95,7 @@ namespace slim
 					return framesProvided;
 				}
 
-				inline void sendChunk(const Chunk& chunk)
+				inline void streamChunk(const Chunk& chunk)
 				{
 					if (encoderPtr->getSamplingRate() == chunk.getSamplingRate())
 					{

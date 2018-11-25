@@ -84,26 +84,13 @@ namespace slim
 					{
 						LOG(WARNING) << LABELS{"proto"} << "Chunk was skipped due to invalid sampling rate (rate=0)";
 
-						// skipping chunks with sampling rate = 0 so skip it
+						// skipping chunks with sampling rate = 0
 						result = true;
 					}
-					else if (!streamSamplingRate.has_value() && !chunk.isEndOfStream())
+					else if (!streamSamplingRate.has_value())
 					{
 						// this is the beginning of a stream
 						startStreaming(chunkSamplingRate);
-						sendChunk(chunk);
-
-						// it will make Chunk to be consumed
-						result = true;
-					}
-					else if (chunk.isEndOfStream())
-					{
-						// this is the end of the stream so propogating end-of-stream to all the clients
-						sendChunk(chunk);
-						stopStreaming();
-
-						// it will make Chunk to be consumed
-						result = true;
 					}
 					else if (streamSamplingRate.value_or(chunkSamplingRate) != chunkSamplingRate)
 					{
@@ -114,10 +101,16 @@ namespace slim
 					}
 					else
 					{
-						// this is a middle of the stream, so just distributing a chunk
-						sendChunk(chunk);
+						// this is the middle of a stream, so just distributing a chunk
+						streamChunk(chunk);
 
-						// it will make Chunk to be consumed
+						if (chunk.isEndOfStream())
+						{
+							// this is the end of the stream
+							stopStreaming();
+						}
+
+						// consuming chunk
 						result = true;
 					}
 
@@ -379,12 +372,12 @@ namespace slim
 					return std::move(sessionPtr);
 				}
 
-				inline void sendChunk(Chunk& chunk)
+				inline void streamChunk(Chunk& chunk)
 				{
 					// sending chunk to all SlimProto sessions
 					for (auto& entry : commandSessions)
 					{
-						entry.second->sendChunk(chunk);
+						entry.second->streamChunk(chunk);
 					}
 
 					// increasing played frames counter
@@ -437,6 +430,7 @@ namespace slim
 						// resetting samplingRate
 						setSamplingRate(ts::nullopt);
 					});
+
 					streamingStartedAt.reset();
 				}
 

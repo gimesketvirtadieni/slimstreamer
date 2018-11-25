@@ -212,7 +212,7 @@ namespace slim
 					} while (processedSize > 0);
 				}
 
-				inline void sendChunk(const Chunk& chunk)
+				inline void streamChunk(const Chunk& chunk)
 				{
 					// TODO: work in progress
 					if (stateMachine.state == ReadyState && isReadyToStream())
@@ -228,7 +228,7 @@ namespace slim
 					// TODO: implement accounting for amount of frames which were not sent out
 					ts::with(streamingSession, [&](auto& streamingSession)
 					{
-						streamingSession.sendChunk(chunk);
+						streamingSession.streamChunk(chunk);
 					});
 
 					if (chunk.isEndOfStream())
