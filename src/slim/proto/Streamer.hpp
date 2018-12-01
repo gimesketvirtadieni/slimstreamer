@@ -96,22 +96,42 @@ namespace slim
 					{
 						LOG(WARNING) << LABELS{"proto"} << "Sampling rate change in the middle of a stream (current rate=" << streamSamplingRate.value_or(0) << "; new rate=" << chunkSamplingRate << ")";
 
-						// sampling rate has changed in the middle of the stream so a sampling rate must be initialized
+						// sampling rate has changed in the middle of the stream so a new stream must be initialized
 						streamSamplingRate.reset();
 					}
 					else
 					{
-						// this is the middle of a stream, so just distributing a chunk
-						streamChunk(chunk);
-
-						if (chunk.isEndOfStream())
+						// if initialization of a stream was done
+						if (!initializingStream || isReadyToStream())
 						{
-							// this is the end of the stream
-							stopStreaming();
-						}
+							initializingStream = false;
 
-						// consuming chunk
-						result = true;
+							// this is the middle of a stream, so just distributing a chunk
+							streamChunk(chunk);
+
+							// if buffering is ongoing then ckeck if it has completed
+							if (streamingStartedAt.has_value() && !playbackStartedAt.has_value() && isReadyToPlay())
+							{
+								startPlayback();
+							}
+
+							// if this is the end of a stream
+							if (chunk.isEndOfStream())
+							{
+								// this is the end of the stream
+								stopStreaming();
+							}
+
+							// consuming chunk
+							result = true;
+						}
+						else
+						{
+							// TODO: implement cruise control; for now sleep is good enough
+							// this sleep prevents from busy spinning until all HTTP sessions reconnect
+							// potentially this sleep may interfere with latency measuments so it should be as low as possible
+							std::this_thread::sleep_for(std::chrono::microseconds{500});
+						}
 					}
 
 					return result;
@@ -277,6 +297,26 @@ namespace slim
 					return (found != sessions.end());
 				}
 
+				inline auto calculatePlaybackTime()
+				{
+					auto maxLatency{std::chrono::microseconds{100}};
+					
+					for (auto& entry : commandSessions)
+					{
+						auto latency{entry.second->getLatency()};
+						ts::with(latency, [&](auto& latency)
+						{
+							if (maxLatency.count() < latency)
+							{
+								maxLatency = std::chrono::microseconds{latency};
+							}
+						});
+					}
+
+					// adding extra milli second for sending out command to all the clients
+					return util::Timestamp::now() + maxLatency + std::chrono::milliseconds{1};
+				}
+
 				template<typename SessionType>
 				auto findSessionByID(SessionsMap<SessionType>& sessions,  std::string clientID)
 				{
@@ -314,6 +354,15 @@ namespace slim
 					return result;
  				}
 
+				inline auto isReadyToPlay()
+				{
+					// TODO: introduce timeout threshold
+					return commandSessions.size() == static_cast<unsigned int>(std::count_if(commandSessions.begin(), commandSessions.end(), [&](auto& entry)
+					{
+						return entry.second->isReadyToPlay();
+					}));
+				}
+
 				inline auto isReadyToStream()
 				{
 					auto result{false};
@@ -331,25 +380,16 @@ namespace slim
 						if (waitThresholdReached)
 						{
 							result = true;
+
 							if (readyToStreamTotal)
 							{
 								LOG(WARNING) << LABELS{"proto"} << "Could not defer chunk processing due to reached threshold";
 							}
 						}
-						else
+						else if (!readyToStreamTotal)
 						{
-							// if all SlimProto sessions are ready to send data to the clients
-							if (!readyToStreamTotal)
-							{
-								result = true;
-							}
-							else
-							{
-								// TODO: implement cruise control; for now sleep is good enough
-								// this sleep prevents from busy spinning until all HTTP sessions reconnect
-								// potentially this sleep may interfere with latency measuments so it should be as low as possible
-								std::this_thread::sleep_for(std::chrono::microseconds{500});
-							}
+							// all SlimProto sessions are ready to stream
+							result = true;
 						}
 					});
 
@@ -372,44 +412,39 @@ namespace slim
 					return std::move(sessionPtr);
 				}
 
-				inline void streamChunk(Chunk& chunk)
+				inline auto startPlayback()
 				{
-					// sending chunk to all SlimProto sessions
-					for (auto& entry : commandSessions)
+					// capturing start playback time point
+					playbackStartedAt = calculatePlaybackTime();
+
+					ts::with(playbackStartedAt, [&](auto& playbackStartedAt)
 					{
-						entry.second->streamChunk(chunk);
-					}
-
-					// increasing played frames counter
-					streamingFrames += chunk.getFrames();
-
-					LOG(DEBUG) << LABELS{"proto"} << "A chunk was distributed to the clients (total clients=" << streamingSessions.size() << ", frames=" << chunk.getFrames() << ")";
+						for (auto& entry : commandSessions)
+						{
+							entry.second->startPlayback(playbackStartedAt);
+						}
+					});
 				}
 
 				inline void startStreaming(unsigned int samplingRate)
 				{
 					if (!streamingStartedAt.has_value())
 					{
-						// capturing start stream time point (required for calculations like defer time-out, etc.)
+						// assigning new sampling rate
+						setSamplingRate(samplingRate);
+
+						// capturing start streaming time point (required for calculations like defer time-out, etc.)
 						streamingStartedAt = util::Timestamp::now();
 						streamingFrames    = 0;
+						initializingStream = true;
 
-						// if everything is set for streaming (otherwise reprocess this chunk later)
-						if (isReadyToStream())
+						// TODO: consider isReadyToStart
+						for (auto& entry : commandSessions)
 						{
-							// assigning new sampling rate
-							setSamplingRate(samplingRate);
-
-							ts::with(streamingStartedAt, [&](auto& streamingStartedAt)
-							{
-								for (auto& entry : commandSessions)
-								{
-									entry.second->startStreaming(samplingRate, streamingStartedAt);
-								}
-							});
-
-							LOG(DEBUG) << LABELS{"proto"} << "Started streaming (rate=" << samplingRate << ")";
+							entry.second->startStreaming(samplingRate, streamingStartedAt.value_or(util::Timestamp::now()));
 						}
+
+						LOG(DEBUG) << LABELS{"proto"} << "Started streaming (rate=" << samplingRate << ")";
 					}
 				}
 
@@ -432,6 +467,21 @@ namespace slim
 					});
 
 					streamingStartedAt.reset();
+					playbackStartedAt.reset();
+				}
+
+				inline void streamChunk(Chunk& chunk)
+				{
+					// sending chunk to all SlimProto sessions
+					for (auto& entry : commandSessions)
+					{
+						entry.second->streamChunk(chunk);
+					}
+
+					// increasing played frames counter
+					streamingFrames += chunk.getFrames();
+
+					LOG(DEBUG) << LABELS{"proto"} << "A chunk was distributed to the clients (total clients=" << streamingSessions.size() << ", frames=" << chunk.getFrames() << ")";
 				}
 
 			private:
@@ -441,8 +491,10 @@ namespace slim
 				util::BigInteger                  nextID{0};
 				SessionsMap<CommandSessionType>   commandSessions;
 				SessionsMap<StreamingSessionType> streamingSessions;
-				ts::optional<util::Timestamp>     streamingStartedAt;
+				ts::optional<util::Timestamp>     streamingStartedAt{ts::nullopt};
 				util::BigInteger                  streamingFrames{0};
+				ts::optional<util::Timestamp>     playbackStartedAt{ts::nullopt};
+				bool                              initializingStream{false};
 		};
 	}
 }
