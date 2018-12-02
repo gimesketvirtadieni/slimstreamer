@@ -32,6 +32,7 @@ namespace slim
 			{
 				char          opcode[4];
 				std::uint32_t size;
+				std::uint8_t  reason;
 			};
 			#pragma pack(pop)
 

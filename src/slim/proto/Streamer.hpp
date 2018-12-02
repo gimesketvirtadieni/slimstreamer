@@ -101,16 +101,14 @@ namespace slim
 					}
 					else
 					{
-						// if initialization of a stream was done
-						if (!initializingStream || isReadyToStream())
+						// this is the middle of a stream, so just distributing a chunk
+						result = streamChunk(chunk);
+
+						// if chunk to be consumed
+						if (result)
 						{
-							initializingStream = false;
-
-							// this is the middle of a stream, so just distributing a chunk
-							streamChunk(chunk);
-
-							// if buffering is ongoing then ckeck if it has completed
-							if (streamingStartedAt.has_value() && !playbackStartedAt.has_value() && isReadyToPlay())
+							// if buffering is ongoing then ckecking if it's completed
+							if (!initializingStream && streamingStartedAt.has_value() && !playbackStartedAt.has_value() && isReadyToPlay())
 							{
 								startPlayback();
 							}
@@ -121,9 +119,6 @@ namespace slim
 								// this is the end of the stream
 								stopStreaming();
 							}
-
-							// consuming chunk
-							result = true;
 						}
 						else
 						{
@@ -313,8 +308,8 @@ namespace slim
 						});
 					}
 
-					// adding extra milli second for sending out command to all the clients
-					return util::Timestamp::now() + maxLatency + std::chrono::milliseconds{1};
+					// adding extra 5 milliseconds required for sending out command to all the clients
+					return util::Timestamp::now() + maxLatency + std::chrono::milliseconds{5};
 				}
 
 				template<typename SessionType>
@@ -470,18 +465,30 @@ namespace slim
 					playbackStartedAt.reset();
 				}
 
-				inline void streamChunk(Chunk& chunk)
+				inline bool streamChunk(Chunk& chunk)
 				{
-					// sending chunk to all SlimProto sessions
-					for (auto& entry : commandSessions)
+					auto result{false};
+
+					// if initialization of a stream was done
+					if (!initializingStream || isReadyToStream())
 					{
-						entry.second->streamChunk(chunk);
+						// consuming chunk
+						result             = true;
+						initializingStream = false;
+
+						// sending chunk to all SlimProto sessions
+						for (auto& entry : commandSessions)
+						{
+							entry.second->streamChunk(chunk);
+						}
+
+						// increasing played frames counter
+						streamingFrames += chunk.getFrames();
+
+						LOG(DEBUG) << LABELS{"proto"} << "A chunk was distributed to the clients (total clients=" << streamingSessions.size() << ", frames=" << chunk.getFrames() << ")";
 					}
 
-					// increasing played frames counter
-					streamingFrames += chunk.getFrames();
-
-					LOG(DEBUG) << LABELS{"proto"} << "A chunk was distributed to the clients (total clients=" << streamingSessions.size() << ", frames=" << chunk.getFrames() << ")";
+					return result;
 				}
 
 			private:

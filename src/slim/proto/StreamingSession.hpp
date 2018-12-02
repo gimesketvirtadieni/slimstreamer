@@ -75,7 +75,7 @@ namespace slim
 					connection.get().write(ss.str());
 				}
 
-				virtual ~StreamingSession()
+				~StreamingSession()
 				{
 					LOG(DEBUG) << LABELS{"proto"} << "HTTP session object was deleted (id=" << this << ")";
 				}
@@ -93,20 +93,6 @@ namespace slim
 				inline unsigned long getFramesProvided()
 				{
 					return framesProvided;
-				}
-
-				inline void streamChunk(const Chunk& chunk)
-				{
-					if (encoderPtr->getSamplingRate() == chunk.getSamplingRate())
-					{
-						encoderPtr->encode(chunk.getData(), chunk.getSize());
-						framesProvided += chunk.getFrames();
-					}
-					else
-					{
-						LOG(ERROR) << LABELS{"proto"} << "Closing HTTP connection due to different sampling rate used by a client (session rate=" << encoderPtr->getSamplingRate() << "; data rate=" << chunk.getSamplingRate() << ")";
-						connection.get().stop();
-					}
 				}
 
 				inline void onRequest(unsigned char* data, std::size_t size)
@@ -134,6 +120,27 @@ namespace slim
 					}
 
 					return result;
+				}
+
+				inline void streamChunk(const Chunk& chunk)
+				{
+					if (chunk.getSamplingRate() == encoderPtr->getSamplingRate())
+					{
+						if (!chunk.isEndOfStream())
+						{
+							encoderPtr->encode(chunk.getData(), chunk.getSize());
+							framesProvided += chunk.getFrames();
+						}
+						else
+						{
+							connection.get().stop();
+						}
+					}
+					else
+					{
+						LOG(ERROR) << LABELS{"proto"} << "Closing HTTP connection due to different sampling rate used by a client (session rate=" << encoderPtr->getSamplingRate() << "; data rate=" << chunk.getSamplingRate() << ")";
+						connection.get().stop();
+					}
 				}
 
 			private:

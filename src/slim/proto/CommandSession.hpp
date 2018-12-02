@@ -308,7 +308,6 @@ namespace slim
 					// making sure there is enough sample
 					if (samples.size() > 7)
 					{
-						// TODO: this is a temp version until BigInteger does not cause overflow
 						result = samples[samples.size() >> 1];
 					}
 
@@ -329,9 +328,6 @@ namespace slim
 
 				inline void stateChangeToDraining()
 				{
-					// sending SlimProto Stop command will flush client's buffer which will initiate STAT/STMf message
-					send(server::CommandSTRM{CommandSelection::Stop});
-
 					// just to make sure previous HTTP session does not interfer with a new init routine
 					streamingSession.reset();
 				}
@@ -343,9 +339,9 @@ namespace slim
 
 				inline void stateChangeToPlaying()
 				{
-					ts::with(timeOffset, [&](auto& timeOffset)
+					ts::with(playbackStartedAt, [&](auto& playbackStartedAt)
 					{
-						ts::with(playbackStartedAt, [&](auto& playbackStartedAt)
+						ts::with(timeOffset, [&](auto& timeOffset)
 						{
 							// TODO: work in progress
 							auto playbackTime{playbackStartedAt.get(util::milliseconds) - timeOffset};
@@ -381,6 +377,10 @@ namespace slim
 							// creating a timestamp cache entry required to allocate a key
 							ping(timestampCache.store(util::Timestamp::now()));
 						}, std::chrono::seconds{1}));
+
+						// TODO: work in progress
+						// sending SlimProto Stop command will flush client's buffer which will initiate STAT/STMf message
+						send(server::CommandSTRM{CommandSelection::Stop});
 
 						// changing state to Draining
 						stateMachine.processEvent(HandshakeEvent, [&](auto event, auto state)
@@ -504,8 +504,11 @@ namespace slim
 						// if latency measurement was not interfered by other commands then repeat round trip once again
 						if (measuringLatency)
 						{
+							// latency is calculated assuming that server->client part takes 66% of a round-trip
+							auto latencySample{util::BigInteger{(receiveTimestamp.get(util::microseconds) - sendTimestamp.get(util::microseconds)) * 2 / 3}};
+
 							// saving latency sample for further processing
-							latencySamples.push_back((receiveTimestamp.get(util::microseconds) - sendTimestamp.get(util::microseconds)) / 2);
+							latencySamples.push_back(latencySample);
 							timeOffsetSamples.push_back(sendTimestamp.get(util::milliseconds) - commandSTAT.getBuffer()->jiffies);
 
 							// if there is enough samples to calculate latency
