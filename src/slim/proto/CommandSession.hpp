@@ -39,7 +39,6 @@
 #include "slim/proto/server/CommandSTRM.hpp"
 #include "slim/proto/StreamingSession.hpp"
 #include "slim/util/ArrayCache.hpp"
-#include "slim/util/BigInteger.hpp"
 #include "slim/util/ExpandableBuffer.hpp"
 #include "slim/util/StateMachine.hpp"
 #include "slim/util/Timestamp.hpp"
@@ -104,7 +103,7 @@ namespace slim
 					{"STMr", [&](auto& commandSTAT, auto timestamp) {}},
 					{"STMs", [&](auto& commandSTAT, auto timestamp) {onSTMs(commandSTAT);}},
 					{"STMt", [&](auto& commandSTAT, auto timestamp) {onSTMt(commandSTAT, timestamp);}},
-					{"STMu", [&](auto& commandSTAT, auto timestamp) {}},
+					{"STMu", [&](auto& commandSTAT, auto timestamp) {onSTMu(commandSTAT);}},
 				}
 				, stateMachine
 				{
@@ -298,9 +297,10 @@ namespace slim
 				}
 
 			protected:
-				inline auto calculateMean(std::vector<util::BigInteger>& samples)
+				template <typename DurationType>
+				inline auto calculateMean(std::vector<DurationType>& samples)
 				{
-					util::BigInteger result{0};
+					DurationType result{0};
 
 					// sorting samples
 					std::sort(samples.begin(), samples.end());
@@ -344,8 +344,8 @@ namespace slim
 						ts::with(timeOffset, [&](auto& timeOffset)
 						{
 							// TODO: work in progress
-							auto playbackTime{playbackStartedAt.get(util::milliseconds) - timeOffset};
-							send(server::CommandSTRM{CommandSelection::Unpause, static_cast<std::uint32_t>(playbackTime)});
+							auto playbackTime{playbackStartedAt - timeOffset};
+							send(server::CommandSTRM{CommandSelection::Unpause, playbackTime});
 
 							readyToPlay = false;
 						});
@@ -505,11 +505,11 @@ namespace slim
 						if (measuringLatency)
 						{
 							// latency is calculated assuming that server->client part takes 66% of a round-trip
-							auto latencySample{util::BigInteger{(receiveTimestamp.get(util::microseconds) - sendTimestamp.get(util::microseconds)) * 2 / 3}};
+							auto latencySample{std::chrono::duration_cast<std::chrono::microseconds>(((receiveTimestamp - sendTimestamp) * 2) / 3)};
 
 							// saving latency sample for further processing
 							latencySamples.push_back(latencySample);
-							timeOffsetSamples.push_back(sendTimestamp.get(util::milliseconds) - commandSTAT.getBuffer()->jiffies);
+							timeOffsetSamples.emplace_back(sendTimestamp.get(util::milliseconds) - commandSTAT.getBuffer()->jiffies);
 
 							// if there is enough samples to calculate latency
 							if (timestampCache.size() >= timestampCache.capacity())
@@ -519,9 +519,9 @@ namespace slim
 								auto meanTimeOffset{calculateMean(timeOffsetSamples)};
 
 								// updating current latency value
-								latency    = latency.value_or(meanLatency)       * 0.8 + meanLatency    * 0.2;
-								timeOffset = timeOffset.value_or(meanTimeOffset) * 0.8 + meanTimeOffset * 0.2;
-								LOG(DEBUG) << LABELS{"proto"} << "Client latency updated (client id=" << clientID << ", latency=" << latency.value() << " microsec)";
+								latency    = (latency.value_or(meanLatency)       * 8 + meanLatency    * 2) / 10;
+								timeOffset = (timeOffset.value_or(meanTimeOffset) * 8 + meanTimeOffset * 2) / 10;
+								LOG(DEBUG) << LABELS{"proto"} << "Client latency updated (client id=" << clientID << ", latency=" << latency.value().count() << " microsec)";
 
 								// clearing the cache so it can be used for collecting new samples
 								timestampCache.clear();
@@ -562,6 +562,16 @@ namespace slim
 								ping(timestampKey);
 							});
 						}
+					});
+				}
+
+				inline void onSTMu(client::CommandSTAT& commandSTAT)
+				{
+					// changing state to Ready
+					stateMachine.processEvent(FlushedEvent, [&](auto event, auto state)
+					{
+						LOG(WARNING) << LABELS{"proto"} << "Invalid SlimProto session state while processing Flush event - closing the connection";
+						connection.get().stop();
 					});
 				}
 
@@ -610,11 +620,10 @@ namespace slim
 				ts::optional_ref<conwrap2::Timer>                        pingTimer{ts::nullopt};
 				util::ArrayCache<util::Timestamp, 10>                    timestampCache;
 				bool                                                     measuringLatency{false};
-				// TODO: used std::chrono::microseconds instead of BigInteger
-				ts::optional<util::BigInteger>                           latency{ts::nullopt};
-				std::vector<util::BigInteger>                            latencySamples;
-				ts::optional<util::BigInteger>                           timeOffset{ts::nullopt};
-				std::vector<util::BigInteger>                            timeOffsetSamples;
+				ts::optional<std::chrono::microseconds>                  latency{ts::nullopt};
+				std::vector<std::chrono::microseconds>                   latencySamples;
+				ts::optional<std::chrono::microseconds>                  timeOffset{ts::nullopt};
+				std::vector<std::chrono::microseconds>                   timeOffsetSamples;
 				ts::optional<util::Timestamp>                            streamingStartedAt;
 				ts::optional<util::Timestamp>                            playbackStartedAt{ts::nullopt};
 				bool                                                     readyToPlay{false};

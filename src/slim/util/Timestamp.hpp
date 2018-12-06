@@ -65,6 +65,11 @@ namespace slim
 					return *this;
 				}
 
+				inline auto operator-(const Timestamp& rhs)
+				{
+					return timestamp - rhs.timestamp;
+				}
+
 			private:
 				std::chrono::high_resolution_clock::time_point timestamp;
 		};

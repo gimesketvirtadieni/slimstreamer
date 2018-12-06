@@ -101,17 +101,19 @@ namespace slim
 					}
 					else
 					{
-						// this is the middle of a stream, so just distributing a chunk
-						result = streamChunk(chunk);
-
-						// if chunk to be consumed
-						if (result)
+						// if buffering is ongoing then ckecking if it's completed
+						if (!initializingStream && streamingStartedAt.has_value() && !playbackStartedAt.has_value() && isReadyToPlay())
 						{
-							// if buffering is ongoing then ckecking if it's completed
-							if (!initializingStream && streamingStartedAt.has_value() && !playbackStartedAt.has_value() && isReadyToPlay())
-							{
-								startPlayback();
-							}
+							startPlayback();
+						}
+
+						// if initialization of a stream was done
+						if (!initializingStream || isReadyToStream())
+						{
+							initializingStream = false;
+
+							// this is the middle of a stream, so just distributing a chunk
+							streamChunk(chunk);
 
 							// if this is the end of a stream
 							if (chunk.isEndOfStream())
@@ -119,6 +121,8 @@ namespace slim
 								// this is the end of the stream
 								stopStreaming();
 							}
+
+							result = true;
 						}
 						else
 						{
@@ -244,7 +248,7 @@ namespace slim
 					{
 						ts::with(getSamplingRate(), [&](auto samplingRate)
 						{
-							commandSessionPtr->startStreaming(samplingRate, streamingStartedAt + std::chrono::microseconds{getStreamingDuration(util::microseconds)});
+							commandSessionPtr->startStreaming(samplingRate, streamingStartedAt + getStreamingDuration(util::microseconds));
 						});
 					});
 
@@ -301,9 +305,9 @@ namespace slim
 						auto latency{entry.second->getLatency()};
 						ts::with(latency, [&](auto& latency)
 						{
-							if (maxLatency.count() < latency)
+							if (maxLatency.count() < latency.count())
 							{
-								maxLatency = std::chrono::microseconds{latency};
+								maxLatency = latency;
 							}
 						});
 					}
@@ -339,11 +343,11 @@ namespace slim
 				template<typename RatioType>
 				inline auto getStreamingDuration(RatioType ratio) const
  				{
-					auto result{util::BigInteger{0}};
+					auto result{std::chrono::duration<long long, RatioType>{0}};
 
 					ts::with(getSamplingRate(), [&](auto samplingRate)
 					{
-						result = streamingFrames * ratio.den / samplingRate;
+						result = std::chrono::duration<long long, RatioType>{streamingFrames * ratio.den / samplingRate};
 					});
 
 					return result;
@@ -365,7 +369,7 @@ namespace slim
 					ts::with(streamingStartedAt, [&](auto& streamingStartedAt)
 					{
 						// TODO: deferring time-out should be configurable
-						auto waitThresholdReached{500 < (util::Timestamp::now().get(util::milliseconds) - streamingStartedAt.get(util::milliseconds))};
+						auto waitThresholdReached{std::chrono::milliseconds{500} < (util::Timestamp::now() - streamingStartedAt)};
 						auto readyToStreamTotal{std::count_if(commandSessions.begin(), commandSessions.end(), [&](auto& entry)
 						{
 							return !entry.second->isReadyToStream();
@@ -454,7 +458,7 @@ namespace slim
 							entry.second->stopStreaming();
 						}
  
-						LOG(DEBUG) << LABELS{"proto"} << "Stopped streaming (duration=" << getStreamingDuration(util::milliseconds) << " millisec)";
+						LOG(DEBUG) << LABELS{"proto"} << "Stopped streaming (duration=" << getStreamingDuration(util::milliseconds).count() << " millisec)";
 						//LOG(DEBUG) << LABELS{"proto"} << "Stopped streaming (duration=" << streamingStoppedAt.get(util::milliseconds) - streamingStartedAt.value().get(util::milliseconds)  << " millisec)";
 
 						// resetting samplingRate
@@ -465,30 +469,18 @@ namespace slim
 					playbackStartedAt.reset();
 				}
 
-				inline bool streamChunk(Chunk& chunk)
+				inline void streamChunk(Chunk& chunk)
 				{
-					auto result{false};
-
-					// if initialization of a stream was done
-					if (!initializingStream || isReadyToStream())
+					// sending chunk to all SlimProto sessions
+					for (auto& entry : commandSessions)
 					{
-						// consuming chunk
-						result             = true;
-						initializingStream = false;
-
-						// sending chunk to all SlimProto sessions
-						for (auto& entry : commandSessions)
-						{
-							entry.second->streamChunk(chunk);
-						}
-
-						// increasing played frames counter
-						streamingFrames += chunk.getFrames();
-
-						LOG(DEBUG) << LABELS{"proto"} << "A chunk was distributed to the clients (total clients=" << streamingSessions.size() << ", frames=" << chunk.getFrames() << ")";
+						entry.second->streamChunk(chunk);
 					}
 
-					return result;
+					// increasing played frames counter
+					streamingFrames += chunk.getFrames();
+
+					LOG(DEBUG) << LABELS{"proto"} << "A chunk was distributed to the clients (total clients=" << streamingSessions.size() << ", frames=" << chunk.getFrames() << ")";
 				}
 
 			private:

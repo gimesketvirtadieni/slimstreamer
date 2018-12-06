@@ -17,6 +17,7 @@
 
 #include "slim/log/log.hpp"
 #include "slim/proto/Command.hpp"
+#include "slim/util/Timestamp.hpp"
 
 
 namespace slim
@@ -63,10 +64,10 @@ namespace slim
 					CommandSTRM(CommandSelection commandSelection)
 					: CommandSTRM{commandSelection, FormatSelection::FLAC, 0, 0, {}} {}
 
-					CommandSTRM(CommandSelection commandSelection, std::uint32_t startAt)
+					CommandSTRM(CommandSelection commandSelection, util::Timestamp startAt)
 					: CommandSTRM{commandSelection, FormatSelection::FLAC, 0, 0, {}}
 					{
-						strm.data.replayGain = htonl(startAt);
+						strm.data.replayGain = htonl(static_cast<std::uint32_t>(startAt.get(util::milliseconds)));
 					}
 
 					CommandSTRM(CommandSelection commandSelection, FormatSelection formatSelection, unsigned int port, unsigned int samplingRate, std::string clientID)
