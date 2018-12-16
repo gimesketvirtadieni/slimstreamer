@@ -50,31 +50,31 @@ namespace slim
 	{
 		namespace ts = type_safe;
 
-		enum Event
-		{
-			HandshakeEvent,
-			FlushedEvent,
-			StartEvent,
-			StreamEvent,
-			PlayEvent,
-			StopEvent,
-		};
-
-		enum State
-		{
-			CreatedState,
-			DrainingState,
-			ReadyState,
-			InitializingState,
-			BufferingState,
-			PlayingState,
-		};
-
 		template<typename ConnectionType>
 		class CommandSession
 		{
 			using CommandHandlersMap = std::unordered_map<std::string, std::function<std::size_t(unsigned char*, std::size_t, util::Timestamp)>>;
 			using EventHandlersMap   = std::unordered_map<std::string, std::function<void(client::CommandSTAT&, util::Timestamp)>>;
+
+			enum Event
+			{
+				HandshakeEvent,
+				FlushedEvent,
+				StartEvent,
+				StreamEvent,
+				PlayEvent,
+				StopEvent,
+			};
+
+			enum State
+			{
+				CreatedState,
+				DrainingState,
+				ReadyState,
+				InitializingState,
+				BufferingState,
+				PlayingState,
+			};
 
 			public:
 				CommandSession(conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>> pr, std::reference_wrapper<ConnectionType> co, std::string id, unsigned int po, FormatSelection fo, std::optional<unsigned int> ga)
@@ -107,7 +107,7 @@ namespace slim
 				}
 				, stateMachine
 				{
-					CreatedState,
+					CreatedState,  // initial state
 					{   // transition table definition
 						{HandshakeEvent, CreatedState,      DrainingState,     [&](auto event) {LOG(DEBUG) << "DRAINING";stateChangeToDraining();}, [&] {return true;}},
 						{FlushedEvent,   DrainingState,     ReadyState,        [&](auto event) {LOG(DEBUG) << "READY";},                            [&] {return true;}},

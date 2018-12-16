@@ -36,6 +36,7 @@
 #include "slim/proto/CommandSession.hpp"
 #include "slim/proto/StreamingSession.hpp"
 #include "slim/util/BigInteger.hpp"
+#include "slim/util/StateMachine.hpp"
 #include "slim/util/Timestamp.hpp"
 
 
@@ -53,12 +54,34 @@ namespace slim
 			using CommandSessionType   = CommandSession<ConnectionType>;
 			using StreamingSessionType = StreamingSession<ConnectionType>;
 
+			enum Event
+			{
+				StreamEvent,
+				StopEvent,
+			};
+
+			enum State
+			{
+				ReadyState,
+				BufferingState,
+			};
+
 			public:
 				Streamer(conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>> pp, unsigned int sp, EncoderBuilder eb, std::optional<unsigned int> ga)
 				: Consumer{pp}
 				, streamingPort{sp}
 				, encoderBuilder{eb}
 				, gain{ga}
+				, stateMachine
+				{
+					ReadyState,  // initial state
+					{   // transition table definition
+						{StreamEvent, ReadyState,     BufferingState, [&](auto event) {LOG(DEBUG) << "BUFFER";stateChangeToBuffering();}, [&] {return true;}},
+						{StreamEvent, ReadyState,     ReadyState,     [&](auto event) {}, [&] {return true;}},
+						{StopEvent,   BufferingState, ReadyState,     [&](auto event) {LOG(DEBUG) << "READY";stateChangeToReady();}, [&] {return true;}},
+						{StopEvent,   ReadyState,     ReadyState,     [&](auto event) {}, [&] {return true;}},
+					}
+				}
 				{
 					LOG(DEBUG) << LABELS{"proto"} << "Streamer object was created (id=" << this << ")";
 				}
@@ -80,28 +103,32 @@ namespace slim
 					auto streamSamplingRate{getSamplingRate()};
 					auto chunkSamplingRate{chunk.getSamplingRate()};
 
+					// skipping chunks with sampling rate = 0
 					if (!chunkSamplingRate)
 					{
 						LOG(WARNING) << LABELS{"proto"} << "Chunk was skipped due to invalid sampling rate (rate=0)";
 
-						// skipping chunks with sampling rate = 0
 						result = true;
 					}
-					else if (!streamSamplingRate.has_value())
-					{
-						// this is the beginning of a stream
-						startStreaming(chunkSamplingRate);
-					}
-					else if (streamSamplingRate.value_or(chunkSamplingRate) != chunkSamplingRate)
-					{
-						LOG(WARNING) << LABELS{"proto"} << "Sampling rate change in the middle of a stream (current rate=" << streamSamplingRate.value_or(0) << "; new rate=" << chunkSamplingRate << ")";
 
-						// sampling rate has changed in the middle of the stream so a new stream must be initialized
-						streamSamplingRate.reset();
-					}
-					else
+					// if this is the beginning of a stream then changing state to BufferingState
+					if (chunkSamplingRate && !streamSamplingRate.has_value())
 					{
-						// if buffering is ongoing then ckecking if it's completed
+						// assigning new sampling rate
+						setSamplingRate(chunkSamplingRate);
+						streamSamplingRate = chunkSamplingRate;
+
+						stateMachine.processEvent(StreamEvent, [&](auto event, auto state)
+						{
+							LOG(WARNING) << LABELS{"proto"} << "Invalid Streamer state while processing Stream event - skipping chunk";
+							result = true;
+						});
+					}
+
+					// if streaming is ongoing (the most common case)
+					if (chunkSamplingRate && chunkSamplingRate == streamSamplingRate.value_or(0))
+					{
+						// if buffering is still ongoing then ckecking if it's completed
 						if (!initializingStream && streamingStartedAt.has_value() && !playbackStartedAt.has_value() && isReadyToPlay())
 						{
 							startPlayback();
@@ -115,22 +142,40 @@ namespace slim
 							// this is the middle of a stream, so just distributing a chunk
 							streamChunk(chunk);
 
-							// if this is the end of a stream
-							if (chunk.isEndOfStream())
-							{
-								// this is the end of the stream
-								stopStreaming();
-							}
-
 							result = true;
 						}
-						else
+					}
+
+					// TODO: consider DrainingState
+					// if sampling rate is changing in the middle of the stream then a new stream must be initialized
+					if (chunkSamplingRate && chunkSamplingRate != streamSamplingRate.value_or(chunkSamplingRate))
+					{
+						LOG(WARNING) << LABELS{"proto"} << "Sampling rate has changed in the middle of a stream (current rate=" << streamSamplingRate.value_or(0) << "; new rate=" << chunkSamplingRate << ")";
+
+						stateMachine.processEvent(StopEvent, [&](auto event, auto state)
 						{
-							// TODO: implement cruise control; for now sleep is good enough
-							// this sleep prevents from busy spinning until all HTTP sessions reconnect
-							// potentially this sleep may interfere with latency measuments so it should be as low as possible
-							std::this_thread::sleep_for(std::chrono::microseconds{500});
-						}
+							LOG(WARNING) << LABELS{"proto"} << "Invalid Streamer state while processing Stop event - skipping chunk";
+							result = true;
+						});
+
+						// resetting samplingRate
+						streamSamplingRate.reset();
+						setSamplingRate(streamSamplingRate);
+					}
+
+					// TODO: consider DrainingState
+					// if this is the end of a stream then changing state to ReadyState
+					if (chunk.isEndOfStream())
+					{
+						stateMachine.processEvent(StopEvent, [&](auto event, auto state)
+						{
+							LOG(WARNING) << LABELS{"proto"} << "Invalid Streamer state while processing Stop event - skipping chunk";
+							result = true;
+						});
+
+						// resetting samplingRate
+						streamSamplingRate.reset();
+						setSamplingRate(streamSamplingRate);
 					}
 
 					return result;
@@ -425,33 +470,33 @@ namespace slim
 					});
 				}
 
-				inline void startStreaming(unsigned int samplingRate)
+				inline void stateChangeToBuffering()
 				{
 					if (!streamingStartedAt.has_value())
 					{
-						// assigning new sampling rate
-						setSamplingRate(samplingRate);
-
-						// capturing start streaming time point (required for calculations like defer time-out, etc.)
-						streamingStartedAt = util::Timestamp::now();
-						streamingFrames    = 0;
-						initializingStream = true;
-
-						// TODO: consider isReadyToStart
-						for (auto& entry : commandSessions)
+						ts::with(getSamplingRate(), [&](auto samplingRate)
 						{
-							entry.second->startStreaming(samplingRate, streamingStartedAt.value_or(util::Timestamp::now()));
-						}
+							// capturing start streaming time point (required for calculations like defer time-out, etc.)
+							streamingStartedAt = util::Timestamp::now();
+							streamingFrames    = 0;
+							initializingStream = true;
 
-						LOG(DEBUG) << LABELS{"proto"} << "Started streaming (rate=" << samplingRate << ")";
+							// TODO: consider isReadyToStart
+							for (auto& entry : commandSessions)
+							{
+								entry.second->startStreaming(samplingRate, streamingStartedAt.value_or(util::Timestamp::now()));
+							}
+
+							LOG(DEBUG) << LABELS{"proto"} << "Started streaming (rate=" << samplingRate << ")";
+						});
 					}
 				}
 
-				inline void stopStreaming()
+				inline void stateChangeToReady()
 				{
+					// stop streaming if streaming is ongoing 
 					ts::with(streamingStartedAt, [&](auto& streamingStartedAt)
 					{
-						// it is enough to send stop SlimProto command here
 						for (auto& entry : commandSessions)
 						{
 							// stopping SlimProto session will send end-of-stream command which normally triggers close of HTTP connection
@@ -460,9 +505,6 @@ namespace slim
  
 						LOG(DEBUG) << LABELS{"proto"} << "Stopped streaming (duration=" << getStreamingDuration(util::milliseconds).count() << " millisec)";
 						//LOG(DEBUG) << LABELS{"proto"} << "Stopped streaming (duration=" << streamingStoppedAt.get(util::milliseconds) - streamingStartedAt.value().get(util::milliseconds)  << " millisec)";
-
-						// resetting samplingRate
-						setSamplingRate(ts::nullopt);
 					});
 
 					streamingStartedAt.reset();
@@ -487,6 +529,7 @@ namespace slim
 				unsigned int                      streamingPort;
 				EncoderBuilder                    encoderBuilder;
 				std::optional<unsigned int>       gain;
+				util::StateMachine<Event, State>  stateMachine;
 				util::BigInteger                  nextID{0};
 				SessionsMap<CommandSessionType>   commandSessions;
 				SessionsMap<StreamingSessionType> streamingSessions;
