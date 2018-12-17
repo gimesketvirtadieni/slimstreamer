@@ -57,6 +57,7 @@ namespace slim
 			enum Event
 			{
 				StreamEvent,
+				PlayEvent,
 				StopEvent,
 			};
 
@@ -64,6 +65,7 @@ namespace slim
 			{
 				ReadyState,
 				BufferingState,
+				PlayingState,
 			};
 
 			public:
@@ -78,6 +80,8 @@ namespace slim
 					{   // transition table definition
 						{StreamEvent, ReadyState,     BufferingState, [&](auto event) {LOG(DEBUG) << "BUFFER";stateChangeToBuffering();}, [&] {return true;}},
 						{StreamEvent, ReadyState,     ReadyState,     [&](auto event) {}, [&] {return true;}},
+						{PlayEvent,   BufferingState, PlayingState,   [&](auto event) {LOG(DEBUG) << "PLAY";stateChangeToPlaying();}, [&] {return true;}},
+						{PlayEvent,   PlayingState,   PlayingState,   [&](auto event) {}, [&] {return true;}},
 						{StopEvent,   BufferingState, ReadyState,     [&](auto event) {LOG(DEBUG) << "READY";stateChangeToReady();}, [&] {return true;}},
 						{StopEvent,   ReadyState,     ReadyState,     [&](auto event) {}, [&] {return true;}},
 					}
@@ -129,9 +133,15 @@ namespace slim
 					if (chunkSamplingRate && chunkSamplingRate == streamSamplingRate.value_or(0))
 					{
 						// if buffering is still ongoing then ckecking if it's completed
-						if (!initializingStream && streamingStartedAt.has_value() && !playbackStartedAt.has_value() && isReadyToPlay())
+						// TODO: think of a better way to identify buffering state
+						//if (!initializingStream && streamingStartedAt.has_value() && !playbackStartedAt.has_value() && isReadyToPlay())
+						if (stateMachine.state == BufferingState)
 						{
-							startPlayback();
+							stateMachine.processEvent(PlayEvent, [&](auto event, auto state)
+							{
+								LOG(WARNING) << LABELS{"proto"} << "Invalid Streamer state while processing Play event - skipping chunk";
+								result = true;
+							});
 						}
 
 						// if initialization of a stream was done
@@ -490,6 +500,11 @@ namespace slim
 							LOG(DEBUG) << LABELS{"proto"} << "Started streaming (rate=" << samplingRate << ")";
 						});
 					}
+				}
+
+				inline void stateChangeToReady()
+				{
+					startPlayback();
 				}
 
 				inline void stateChangeToReady()
