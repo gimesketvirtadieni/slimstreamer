@@ -258,10 +258,9 @@ namespace slim
 					});
 				}
 
-				inline void startStreaming(unsigned int s, const util::Timestamp& t)
+				inline void startStreaming(unsigned int s)
 				{
-					samplingRate       = s;
-					streamingStartedAt = t;
+					samplingRate = s;
 
 					// changing state to Initializing
 					stateMachine.processEvent(StartEvent, [&](auto event, auto state)
@@ -271,11 +270,7 @@ namespace slim
 					});
 				}
 
-				inline void stopStreaming()
-				{
-					streamingStartedAt.reset();
-					playbackStartedAt.reset();
-				}
+				inline void stopStreaming() {}
 
 				inline void streamChunk(const Chunk& chunk)
 				{
@@ -328,12 +323,14 @@ namespace slim
 
 				inline void stateChangeToDraining()
 				{
-					// just to make sure previous HTTP session does not interfer with a new init routine
+					// this is to make sure previous HTTP session does not interfer with a 'new' initialization
 					streamingSession.reset();
 				}
 
 				inline void stateChangeToInitializing()
 				{
+					playbackStartedAt.reset();
+
 					send(server::CommandSTRM{CommandSelection::Start, formatSelection, streamingPort, samplingRate, clientID});
 				}
 
@@ -624,7 +621,6 @@ namespace slim
 				std::vector<std::chrono::microseconds>                   latencySamples;
 				ts::optional<std::chrono::microseconds>                  timeOffset{ts::nullopt};
 				std::vector<std::chrono::microseconds>                   timeOffsetSamples;
-				ts::optional<util::Timestamp>                            streamingStartedAt;
 				ts::optional<util::Timestamp>                            playbackStartedAt{ts::nullopt};
 				bool                                                     readyToPlay{false};
 		};
