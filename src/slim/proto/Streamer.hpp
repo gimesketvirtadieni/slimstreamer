@@ -113,6 +113,9 @@ namespace slim
 					auto result{ts::optional<bool>{ts::nullopt}};
 					auto chunkSamplingRate{chunk.getSamplingRate()};
 
+					// updating SlimProto sessions' status before processing a chunk
+					updateSessionsStatus();
+
 					// skipping chunks with sampling rate = 0
 					if (!chunkSamplingRate)
 					{
@@ -177,7 +180,6 @@ namespace slim
 							transitionSucceeded = false;
 						});
 
-						// if stop streaming succeeded
 						if (transitionSucceeded)
 						{
 							result = false;
@@ -211,17 +213,19 @@ namespace slim
 
 				void onHTTPClose(ConnectionType& connection)
 				{
-					LOG(INFO) << LABELS{"proto"} << "HTTP close callback (connection=" << &connection << ")";
+					LOG(DEBUG) << LABELS{"proto"} << "HTTP session close callback (connection=" << &connection << ")";
 
-					auto streamingSessionPtr{removeSession(streamingSessions, connection)};
-					if (streamingSessionPtr)
+					if (auto found{streamingSessions.find(&connection)}; found != streamingSessions.end())
 					{
-						// if there is a relevant SlimProto connection found
-						auto clientID{streamingSessionPtr->getClientID()};
-						auto commandSession{findSessionByID(commandSessions, clientID)};
-						if (commandSession.has_value())
+						auto sessionPtr = std::move((*found).second);
+						streamingSessions.erase(found);
+						LOG(DEBUG) << LABELS{"proto"} << "HTTP session was removed (id=" << sessionPtr.get()
+						                              << ", total sessions=" << streamingSessions.size() << ")";
+
+						// if there is a relevant SlimProto session then reset the reference
+						auto clientID{sessionPtr->getClientID()};
+						if (auto commandSession{findSessionByID(commandSessions, clientID)}; commandSession.has_value())
 						{
-							// resetting HTTP session in its relevant SlimProto session
 							commandSession.value()->setStreamingSession(ts::nullopt);
 						}
 						else
@@ -231,7 +235,7 @@ namespace slim
 					}
 					else
 					{
-						LOG(WARNING) << LABELS{"proto"} << "Could not find HTTP session object";
+						LOG(WARNING) << LABELS{"proto"} << "Could not find HTTP session by provided connection";
 					}
 				}
 
@@ -260,7 +264,7 @@ namespace slim
 							// creating streaming session object
 							auto streamingSessionPtr{std::make_unique<StreamingSessionType>(std::ref<ConnectionType>(connection), clientID.value(), encoderBuilder)};
 
-							// saving Streaming session reference in the relevant Command session
+							// saving HTTP session reference in the relevant SlimProto session
 							auto commandSession{findSessionByID(commandSessions, clientID.value())};
 							if (!commandSession.has_value())
 							{
@@ -280,12 +284,26 @@ namespace slim
 
 				void onHTTPOpen(ConnectionType& connection)
 				{
-					LOG(INFO) << LABELS{"proto"} << "New HTTP session request received (connection=" << &connection << ")";
+					LOG(DEBUG) << LABELS{"proto"} << "HTTP session open callback (connection=" << &connection << ")";
 				}
 
 				void onSlimProtoClose(ConnectionType& connection)
 				{
-					removeSession(commandSessions, connection);
+					LOG(DEBUG) << LABELS{"proto"} << "SlimProto close callback (connection=" << &connection << ")";
+
+					if (auto foundSession{commandSessions.find(&connection)}; foundSession != commandSessions.end())
+					{
+						// removing session from the owning container
+						auto sessionPtr = std::move((*foundSession).second);
+						commandSessions.erase(foundSession);
+
+						LOG(DEBUG) << LABELS{"proto"} << "SlimProto session was removed (id=" << sessionPtr.get()
+						                              << ", total sessions=" << commandSessions.size() << ")";
+					}
+					else
+					{
+						LOG(WARNING) << LABELS{"proto"} << "Could not find SlimProto session by provided connection";
+					}
 				}
 
 				void onSlimProtoData(ConnectionType& connection, unsigned char* buffer, std::size_t size, util::Timestamp timestamp)
@@ -309,6 +327,8 @@ namespace slim
 
 				void onSlimProtoOpen(ConnectionType& connection)
 				{
+					LOG(DEBUG) << LABELS{"proto"} << "SlimProto session open callback (connection=" << &connection << ")";
+
 					// using regular counter for session ID's instead of MAC's; it allows running multiple players on one host
 					std::stringstream ss;
 					ss << (++nextID);
@@ -368,28 +388,31 @@ namespace slim
 
 				inline auto calculatePlaybackTime()
 				{
-					auto maxLatency{std::chrono::microseconds{100}};
-					
+					// for whatever reason gcc gives '‘maxLatency’ may be used uninitialized in this function'
+					// to prevent this warrning, initializing it explicit and then resetting value
+					auto maxLatency{ts::optional<std::chrono::microseconds>{0}};
+					maxLatency.reset();
+
 					for (auto& entry : commandSessions)
 					{
 						auto latency{entry.second->getLatency()};
 						ts::with(latency, [&](auto& latency)
 						{
-							if (maxLatency.count() < latency.count())
+							if (maxLatency.value_or(std::chrono::microseconds{0}) < latency)
 							{
 								maxLatency = latency;
 							}
 						});
 					}
 
-					// adding extra 5 milliseconds required for sending out command to all the clients
-					return util::Timestamp::now() + maxLatency + std::chrono::milliseconds{5};
+					// adding extra 10 milliseconds required for sending out command to all the clients
+					return util::Timestamp::now() + std::chrono::milliseconds{10} + maxLatency.value_or(std::chrono::microseconds{0});
 				}
 
 				template<typename SessionType>
 				auto findSessionByID(SessionsMap<SessionType>& sessions,  std::string clientID)
 				{
-					auto result{std::optional<SessionType*>{std::nullopt}};
+					auto result{ts::optional<SessionType*>{ts::nullopt}};
 					auto found{std::find_if(sessions.begin(), sessions.end(), [&](auto& entry) -> bool
 					{
 						auto found{false};
@@ -462,22 +485,6 @@ namespace slim
 					return result;
 				}
 
-				template<typename SessionType>
-				inline auto removeSession(SessionsMap<SessionType>& sessions, ConnectionType& connection)
-				{
-					std::unique_ptr<SessionType> sessionPtr{};
-					auto                         found{sessions.find(&connection)};
-
-					if (found != sessions.end())
-					{
-						sessionPtr = std::move((*found).second);
-						sessions.erase(found);
-						LOG(DEBUG) << LABELS{"proto"} << "Session was removed (id=" << sessionPtr.get() << ", sessions=" << sessions.size() << ")";
-					}
-
-					return std::move(sessionPtr);
-				}
-
 				inline void stateChangeToInitializing()
 				{
 					ts::with(getSamplingRate(), [&](auto samplingRate)
@@ -532,6 +539,19 @@ namespace slim
 					streamingFrames += chunk.getFrames();
 
 					LOG(DEBUG) << LABELS{"proto"} << "A chunk was distributed to the clients (total clients=" << streamingSessions.size() << ", frames=" << chunk.getFrames() << ")";
+				}
+
+				inline void updateSessionsStatus()
+				{
+/*
+					for (auto& entry : commandSessions)
+					{
+						if (entry.second->isReadyToStream())
+						{
+
+						}
+					}
+*/
 				}
 
 			private:
