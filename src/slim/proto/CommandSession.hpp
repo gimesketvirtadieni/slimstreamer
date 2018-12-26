@@ -109,8 +109,8 @@ namespace slim
 				{
 					CreatedState,  // initial state
 					{   // transition table definition
-						{HandshakeEvent, CreatedState,      DrainingState,     [&](auto event) {LOG(DEBUG) << "DRAINING";stateChangeToDraining();}, [&] {return true;}},
-						{FlushedEvent,   DrainingState,     ReadyState,        [&](auto event) {LOG(DEBUG) << "READY";},                            [&] {return true;}},
+						{HandshakeEvent, CreatedState,      DrainingState,     [&](auto event) {LOG(DEBUG) << "DRAINING";},                         [&] {return true;}},
+						{FlushedEvent,   DrainingState,     ReadyState,        [&](auto event) {LOG(DEBUG) << "READY";stateChangeToReady();},       [&] {return true;}},
 						{FlushedEvent,   ReadyState,        ReadyState,        [&](auto event) {},                                                  [&] {return true;}},
 						{FlushedEvent,   InitializingState, InitializingState, [&](auto event) {},                                                  [&] {return true;}},
 						{FlushedEvent,   BufferingState,    BufferingState,    [&](auto event) {},                                                  [&] {return true;}},
@@ -125,9 +125,9 @@ namespace slim
 						{PlayEvent,      BufferingState,    PlayingState,      [&](auto event) {LOG(DEBUG) << "PLAY";stateChangeToPlaying();},      [&] {return isReadyToPlay();}},
 						{PlayEvent,      ReadyState,        ReadyState,        [&](auto event) {},                                                  [&] {return true;}},
 						{PlayEvent,      PlayingState,      PlayingState,      [&](auto event) {},                                                  [&] {return true;}},
-						{StopEvent,      InitializingState, DrainingState,     [&](auto event) {LOG(DEBUG) << "DRAIN";stateChangeToDraining();},    [&] {return true;}},
-						{StopEvent,      BufferingState,    DrainingState,     [&](auto event) {LOG(DEBUG) << "DRAIN";stateChangeToDraining();},    [&] {return true;}},
-						{StopEvent,      PlayingState,      DrainingState,     [&](auto event) {LOG(DEBUG) << "DRAIN";stateChangeToDraining();},    [&] {return true;}},
+						{StopEvent,      InitializingState, DrainingState,     [&](auto event) {LOG(DEBUG) << "DRAIN";},                            [&] {return true;}},
+						{StopEvent,      BufferingState,    DrainingState,     [&](auto event) {LOG(DEBUG) << "DRAIN";},                            [&] {return true;}},
+						{StopEvent,      PlayingState,      DrainingState,     [&](auto event) {LOG(DEBUG) << "DRAIN";},                            [&] {return true;}},
 						{StopEvent,      CreatedState,      CreatedState,      [&](auto event) {},                                                  [&] {return true;}},
 						{StopEvent,      DrainingState,     DrainingState,     [&](auto event) {},                                                  [&] {return true;}},
 						{StopEvent,      ReadyState,        ReadyState,        [&](auto event) {},                                                  [&] {return true;}},
@@ -321,16 +321,8 @@ namespace slim
 					return result;
 				}
 
-				inline void stateChangeToDraining()
-				{
-					// this is to make sure previous HTTP session does not interfer with a 'new' initialization
-					streamingSession.reset();
-				}
-
 				inline void stateChangeToInitializing()
 				{
-					playbackStartedAt.reset();
-
 					send(server::CommandSTRM{CommandSelection::Start, formatSelection, streamingPort, samplingRate, clientID});
 				}
 
@@ -340,13 +332,19 @@ namespace slim
 					{
 						ts::with(timeOffset, [&](auto& timeOffset)
 						{
-							// TODO: work in progress
 							auto playbackTime{playbackStartedAt - timeOffset};
 							send(server::CommandSTRM{CommandSelection::Unpause, playbackTime});
-
-							readyToPlay = false;
 						});
 					});
+				}
+
+				inline void stateChangeToReady()
+				{
+					samplingRate = 0;
+					readyToPlay  = false;
+
+					streamingSession.reset();
+					playbackStartedAt.reset();
 				}
 
 				inline auto onHELO(unsigned char* buffer, std::size_t size)

@@ -111,7 +111,6 @@ namespace slim
 				virtual bool consumeChunk(Chunk& chunk) override
 				{
 					auto result{ts::optional<bool>{ts::nullopt}};
-					auto streamSamplingRate{getSamplingRate()};
 					auto chunkSamplingRate{chunk.getSamplingRate()};
 
 					// skipping chunks with sampling rate = 0
@@ -122,11 +121,10 @@ namespace slim
 					}
 
 					// if this is the beginning of a stream then changing state to BufferingState
-					if (!result.has_value() && !streamSamplingRate.has_value())
+					if (!result.has_value() && !getSamplingRate().has_value())
 					{
 						// assigning new sampling rate
 						setSamplingRate(chunkSamplingRate);
-						streamSamplingRate = chunkSamplingRate;
 
 						stateMachine.processEvent(StartEvent, [&](auto event, auto state)
 						{
@@ -136,7 +134,7 @@ namespace slim
 					}
 
 					// if streaming is ongoing (the most common case)
-					if (!result.has_value() && chunkSamplingRate == streamSamplingRate.value_or(0))
+					if (!result.has_value() && chunkSamplingRate == getSamplingRate().value_or(0))
 					{
 						// if initialization is ongoing
 						// TODO: think of a better way to identify states
@@ -168,9 +166,9 @@ namespace slim
 
 					// TODO: consider DrainingState
 					// if sampling rate is changing in the middle of the stream then a new stream must be initialized
-					if (!result.has_value() && chunkSamplingRate != streamSamplingRate.value_or(chunkSamplingRate))
+					if (!result.has_value() && chunkSamplingRate != getSamplingRate().value_or(chunkSamplingRate))
 					{
-						LOG(WARNING) << LABELS{"proto"} << "Sampling rate has changed in the middle of a stream (current rate=" << streamSamplingRate.value_or(0) << "; new rate=" << chunkSamplingRate << ")";
+						LOG(WARNING) << LABELS{"proto"} << "Sampling rate has changed in the middle of a stream (current rate=" << getSamplingRate().value_or(0) << "; new rate=" << chunkSamplingRate << ")";
 
 						auto transitionSucceeded{true};
 						stateMachine.processEvent(StopEvent, [&](auto event, auto state)
@@ -182,23 +180,16 @@ namespace slim
 						// if stop streaming succeeded
 						if (transitionSucceeded)
 						{
-							LOG(DEBUG) << LABELS{"proto"} << "Stopped streaming (duration=" << getStreamingDuration(util::milliseconds).count() << " millisec)";
 							result = false;
-
-							// resetting samplingRate
-							streamSamplingRate.reset();
-							setSamplingRate(streamSamplingRate);
 						}
 					}
 
-					// TODO: consider DrainingState
-					// if this is the end of a stream then changing state to ReadyState
-					// if (!result.has_value() || (result.has_value() && result.value()))
 					auto chunkWillBeReprocessed = result.map([](auto& result)
 					{
 						return result;
 					}).value_or(false);
 
+					// if chunk will not be reprocessed and it is the end of a stream then changing state to ReadyState
 					if (!chunkWillBeReprocessed && chunk.isEndOfStream())
 					{
 						auto transitionSucceeded{true};
@@ -211,11 +202,7 @@ namespace slim
 
 						if (transitionSucceeded)
 						{
-							LOG(DEBUG) << LABELS{"proto"} << "Stopped streaming (duration=" << getStreamingDuration(util::milliseconds).count() << " millisec)";
-
-							// resetting samplingRate
-							streamSamplingRate.reset();
-							setSamplingRate(streamSamplingRate);
+							result = true;
 						}
 					}
 
@@ -493,14 +480,10 @@ namespace slim
 
 				inline void stateChangeToInitializing()
 				{
-					initializationStartedAt.reset();
-					playbackStartedAt.reset();
-
 					ts::with(getSamplingRate(), [&](auto samplingRate)
 					{
-						// capturing start streaming time point (required for calculations like defer time-out, etc.)
+						// initialization start time is required for calculating defer time-out
 						initializationStartedAt = util::Timestamp::now();
-						streamingFrames         = 0;
 
 						// TODO: consider isReadyToStart
 						for (auto& entry : commandSessions)
@@ -525,7 +508,16 @@ namespace slim
 
 				inline void stateChangeToReady()
 				{
-					// TODO: probably missed some initialization???
+					if (getSamplingRate().has_value())
+					{
+						LOG(DEBUG) << LABELS{"proto"} << "Stopped streaming (duration=" << getStreamingDuration(util::milliseconds).count() << " millisec)";
+					}
+
+					// resetting state
+					initializationStartedAt.reset();
+					playbackStartedAt.reset();
+					setSamplingRate(ts::nullopt);
+					streamingFrames = 0;
 				}
 
 				inline void streamChunk(Chunk& chunk)
