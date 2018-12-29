@@ -50,7 +50,7 @@ namespace slim
 	{
 		namespace ts = type_safe;
 
-		template<typename ConnectionType>
+		template<typename ConnectionType, typename StreamerType>
 		class CommandSession
 		{
 			using CommandHandlersMap = std::unordered_map<std::string, std::function<std::size_t(unsigned char*, std::size_t, util::Timestamp)>>;
@@ -77,9 +77,9 @@ namespace slim
 			};
 
 			public:
-				CommandSession(conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>> pr, std::reference_wrapper<ConnectionType> co, std::string id, unsigned int po, FormatSelection fo, std::optional<unsigned int> ga)
-				: processorProxy{pr}
-				, connection{co}
+				CommandSession(std::reference_wrapper<ConnectionType> co, std::reference_wrapper<StreamerType> st, std::string id, unsigned int po, FormatSelection fo, std::optional<unsigned int> ga)
+				: connection{co}
+				, streamer{st}
 				, clientID{id}
 				, streamingPort{po}
 				, formatSelection{fo}
@@ -115,7 +115,7 @@ namespace slim
 						{FlushedEvent,   InitializingState, InitializingState, [&](auto event) {},                                                  [&] {return true;}},
 						{FlushedEvent,   BufferingState,    BufferingState,    [&](auto event) {},                                                  [&] {return true;}},
 						{FlushedEvent,   PlayingState,      PlayingState,      [&](auto event) {},                                                  [&] {return true;}},
-						{StartEvent,     ReadyState,        InitializingState, [&](auto event) {LOG(DEBUG) << "INIT";stateChangeToInitializing();}, [&] {return isReadyToStart();}},
+						{StartEvent,     ReadyState,        InitializingState, [&](auto event) {LOG(DEBUG) << "INIT";stateChangeToInitializing();}, [&] {return isReadyToInitialize();}},
 						{StartEvent,     InitializingState, InitializingState, [&](auto event) {},                                                  [&] {return true;}},
 						{StartEvent,     BufferingState,    BufferingState,    [&](auto event) {},                                                  [&] {return true;}},
 						{StartEvent,     PlayingState,      PlayingState,      [&](auto event) {},                                                  [&] {return true;}},
@@ -163,14 +163,14 @@ namespace slim
 					return latency;
 				}
 
+				inline auto isReadyToInitialize()
+				{
+					return timeOffset.has_value();
+				}
+
 				inline auto isReadyToPlay()
 				{
 					return readyToPlay;
-				}
-
-				inline auto isReadyToStart()
-				{
-					return timeOffset.has_value();
 				}
 
 				inline auto isReadyToStream()
@@ -229,6 +229,18 @@ namespace slim
 					} while (processedSize > 0);
 				}
 
+				inline auto prepare(const unsigned int& s)
+				{
+					samplingRate = s;
+
+					// changing state to Initializing
+					stateMachine.processEvent(StartEvent, [&](auto event, auto state)
+					{
+						LOG(WARNING) << LABELS{"proto"} << "Invalid SlimProto session state while processing Start event - closing the connection";
+						connection.get().stop();
+					});
+				}
+
 				inline void setStreamingSession(ts::optional_ref<StreamingSession<ConnectionType>> s)
 				{
 					auto hadValue{streamingSession.has_value()};
@@ -257,20 +269,6 @@ namespace slim
 						connection.get().stop();
 					});
 				}
-
-				inline void startStreaming(unsigned int s)
-				{
-					samplingRate = s;
-
-					// changing state to Initializing
-					stateMachine.processEvent(StartEvent, [&](auto event, auto state)
-					{
-						LOG(WARNING) << LABELS{"proto"} << "Invalid SlimProto session state while processing Send event - closing the connection";
-						connection.get().stop();
-					});
-				}
-
-				inline void stopStreaming() {}
 
 				inline void streamChunk(const Chunk& chunk)
 				{
@@ -323,7 +321,10 @@ namespace slim
 
 				inline void stateChangeToInitializing()
 				{
-					send(server::CommandSTRM{CommandSelection::Start, formatSelection, streamingPort, samplingRate, clientID});
+					ts::with(samplingRate, [&](auto& samplingRate)
+					{
+						send(server::CommandSTRM{CommandSelection::Start, formatSelection, streamingPort, samplingRate, clientID});
+					});
 				}
 
 				inline void stateChangeToPlaying()
@@ -332,6 +333,11 @@ namespace slim
 					{
 						ts::with(timeOffset, [&](auto& timeOffset)
 						{
+
+							LOG(DEBUG) << LABELS{"proto"} << "playtime=" << playbackStartedAt.get(util::milliseconds);
+							LOG(DEBUG) << LABELS{"proto"} << "offset=" << timeOffset.count();
+							LOG(DEBUG) << LABELS{"proto"} << "result=" << (playbackStartedAt - timeOffset).get(util::milliseconds);
+
 							auto playbackTime{playbackStartedAt - timeOffset};
 							send(server::CommandSTRM{CommandSelection::Unpause, playbackTime});
 						});
@@ -340,9 +346,9 @@ namespace slim
 
 				inline void stateChangeToReady()
 				{
-					samplingRate = 0;
-					readyToPlay  = false;
+					readyToPlay = false;
 
+					samplingRate.reset();
 					streamingSession.reset();
 					playbackStartedAt.reset();
 				}
@@ -364,7 +370,7 @@ namespace slim
 						send(server::CommandAUDG{gain});
 
 						// start sending ping commands after the 'handshake' commands
-						pingTimer = ts::ref(processorProxy.processWithDelay([&]
+						pingTimer = ts::ref(streamer.get().getProcessorProxy().processWithDelay([&]
 						{
 							// releasing timer so a new 'delayed' request may be issued
 							pingTimer.reset();
@@ -478,7 +484,10 @@ namespace slim
 
 					ts::with(streamingSession, [&](auto& streamingSession)
 					{
-						LOG(DEBUG) << LABELS{"proto"} << "server played=" << ((streamingSession.getFramesProvided() / samplingRate) * 1000);
+						ts::with(samplingRate, [&](auto& samplingRate)
+						{
+							LOG(DEBUG) << LABELS{"proto"} << "server played=" << ((streamingSession.getFramesProvided() / samplingRate) * 1000);
+						});
 					});
 				}
 
@@ -496,6 +505,8 @@ namespace slim
 					// making sure it is a proper response from the client
 					ts::with(sendTimestamp, [&](auto& sendTimestamp)
 					{
+						auto processorProxy{streamer.get().getProcessorProxy()};
+
 						// if latency measurement was not interfered by other commands then repeat round trip once again
 						if (measuringLatency)
 						{
@@ -599,8 +610,8 @@ namespace slim
 				}
 
 			private:
-				conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>> processorProxy;
 				std::reference_wrapper<ConnectionType>                   connection;
+				std::reference_wrapper<StreamerType>                     streamer;
 				std::string                                              clientID;
 				unsigned int                                             streamingPort;
 				FormatSelection                                          formatSelection;
@@ -608,7 +619,7 @@ namespace slim
 				CommandHandlersMap                                       commandHandlers;
 				EventHandlersMap                                         eventHandlers;
 				util::StateMachine<Event, State>                         stateMachine;
-				unsigned int                                             samplingRate{0};
+				ts::optional<unsigned int>                               samplingRate{ts::nullopt};
 				ts::optional_ref<StreamingSession<ConnectionType>>       streamingSession{ts::nullopt};
 				util::ExpandableBuffer                                   commandBuffer{std::size_t{0}, std::size_t{2048}};
 				ts::optional<client::CommandHELO>                        commandHELO{ts::nullopt};
@@ -617,8 +628,8 @@ namespace slim
 				bool                                                     measuringLatency{false};
 				ts::optional<std::chrono::microseconds>                  latency{ts::nullopt};
 				std::vector<std::chrono::microseconds>                   latencySamples;
-				ts::optional<std::chrono::microseconds>                  timeOffset{ts::nullopt};
-				std::vector<std::chrono::microseconds>                   timeOffsetSamples;
+				ts::optional<std::chrono::milliseconds>                  timeOffset{ts::nullopt};
+				std::vector<std::chrono::milliseconds>                   timeOffsetSamples;
 				ts::optional<util::Timestamp>                            playbackStartedAt{ts::nullopt};
 				bool                                                     readyToPlay{false};
 		};

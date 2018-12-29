@@ -51,7 +51,7 @@ namespace slim
 		{
 			template<typename SessionType>
 			using SessionsMap          = std::unordered_map<ConnectionType*, std::unique_ptr<SessionType>>;
-			using CommandSessionType   = CommandSession<ConnectionType>;
+			using CommandSessionType   = CommandSession<ConnectionType, Streamer>;
 			using StreamingSessionType = StreamingSession<ConnectionType>;
 
 			enum Event
@@ -80,17 +80,17 @@ namespace slim
 				{
 					ReadyState,  // initial state
 					{   // transition table definition
-						{StartEvent,  ReadyState,        InitializingState, [&](auto event) {LOG(DEBUG) << "INIT";stateChangeToInitializing();}, [&] {return true;}},
-						{StartEvent,  ReadyState,        ReadyState,        [&](auto event) {}, [&] {return true;}},
-						{StreamEvent, InitializingState, BufferingState,    [&](auto event) {LOG(DEBUG) << "BUFFER";}, [&] {return isReadyToStream();}},
-						{StreamEvent, BufferingState,    BufferingState,    [&](auto event) {}, [&] {return true;}},
-						{StreamEvent, PlayingState,      PlayingState,      [&](auto event) {}, [&] {return true;}},
-						{PlayEvent,   BufferingState,    PlayingState,      [&](auto event) {LOG(DEBUG) << "PLAY";stateChangeToPlaying();}, [&] {return isReadyToPlay();}},
-						{PlayEvent,   PlayingState,      PlayingState,      [&](auto event) {}, [&] {return true;}},
-						{StopEvent,   InitializingState, ReadyState,        [&](auto event) {LOG(DEBUG) << "READY";stateChangeToReady();}, [&] {return true;}},
-						{StopEvent,   BufferingState,    ReadyState,        [&](auto event) {LOG(DEBUG) << "READY";stateChangeToReady();}, [&] {return true;}},
-						{StopEvent,   PlayingState,      ReadyState,        [&](auto event) {LOG(DEBUG) << "READY";stateChangeToReady();}, [&] {return true;}},
-						{StopEvent,   ReadyState,        ReadyState,        [&](auto event) {}, [&] {return true;}},
+						{StartEvent,  ReadyState,        InitializingState, [&](auto event) {LOG(DEBUG) << "INIT";stateChangeToInitializing();}, [&] {return isReadyToInitialize();}},
+						{StartEvent,  ReadyState,        ReadyState,        [&](auto event) {},                                                  [&] {return true;}},
+						{StreamEvent, InitializingState, BufferingState,    [&](auto event) {LOG(DEBUG) << "BUFFER";},                           [&] {return isReadyToStream();}},
+						{StreamEvent, BufferingState,    BufferingState,    [&](auto event) {},                                                  [&] {return true;}},
+						{StreamEvent, PlayingState,      PlayingState,      [&](auto event) {},                                                  [&] {return true;}},
+						{PlayEvent,   BufferingState,    PlayingState,      [&](auto event) {LOG(DEBUG) << "PLAY";stateChangeToPlaying();},      [&] {return isReadyToPlay();}},
+						{PlayEvent,   PlayingState,      PlayingState,      [&](auto event) {},                                                  [&] {return true;}},
+						{StopEvent,   InitializingState, ReadyState,        [&](auto event) {LOG(DEBUG) << "READY";stateChangeToReady();},       [&] {return true;}},
+						{StopEvent,   BufferingState,    ReadyState,        [&](auto event) {LOG(DEBUG) << "READY";stateChangeToReady();},       [&] {return true;}},
+						{StopEvent,   PlayingState,      ReadyState,        [&](auto event) {LOG(DEBUG) << "READY";stateChangeToReady();},       [&] {return true;}},
+						{StopEvent,   ReadyState,        ReadyState,        [&](auto event) {},                                                  [&] {return true;}},
 					}
 				}
 				{
@@ -113,9 +113,6 @@ namespace slim
 					auto result{ts::optional<bool>{ts::nullopt}};
 					auto chunkSamplingRate{chunk.getSamplingRate()};
 
-					// updating SlimProto sessions' status before processing a chunk
-					updateSessionsStatus();
-
 					// skipping chunks with sampling rate = 0
 					if (!chunkSamplingRate)
 					{
@@ -126,8 +123,12 @@ namespace slim
 					// if this is the beginning of a stream then changing state to BufferingState
 					if (!result.has_value() && !getSamplingRate().has_value())
 					{
-						// assigning new sampling rate
-						setSamplingRate(chunkSamplingRate);
+						// if transition went fine then assigning new sampling rate
+						if (!result.has_value())
+						{
+							setSamplingRate(chunkSamplingRate);
+							LOG(DEBUG) << LABELS{"proto"} << "Started streaming (rate=" << chunkSamplingRate << ")";
+						}
 
 						stateMachine.processEvent(StartEvent, [&](auto event, auto state)
 						{
@@ -334,13 +335,7 @@ namespace slim
 					ss << (++nextID);
 
 					// creating command session object
-					auto commandSessionPtr{std::make_unique<CommandSessionType>(getProcessorProxy(), std::ref<ConnectionType>(connection), ss.str(), streamingPort, encoderBuilder.getFormat(), gain)};
-
-					// enable streaming for this session if required
-					ts::with(getSamplingRate(), [&](auto samplingRate)
-					{
-						commandSessionPtr->startStreaming(samplingRate);
-					});
+					auto commandSessionPtr{std::make_unique<CommandSessionType>(std::ref<ConnectionType>(connection), std::ref<Streamer>(*this), ss.str(), streamingPort, encoderBuilder.getFormat(), gain)};
 
 					// saving command session in the map
 					addSession(commandSessions, connection, std::move(commandSessionPtr));
@@ -388,17 +383,14 @@ namespace slim
 
 				inline auto calculatePlaybackTime()
 				{
-					// for whatever reason gcc gives '‘maxLatency’ may be used uninitialized in this function'
-					// to prevent this warrning, initializing it explicit and then resetting value
-					auto maxLatency{ts::optional<std::chrono::microseconds>{0}};
-					maxLatency.reset();
+					auto maxLatency{std::chrono::microseconds{0}};
 
 					for (auto& entry : commandSessions)
 					{
 						auto latency{entry.second->getLatency()};
 						ts::with(latency, [&](auto& latency)
 						{
-							if (maxLatency.value_or(std::chrono::microseconds{0}) < latency)
+							if (maxLatency < latency)
 							{
 								maxLatency = latency;
 							}
@@ -406,7 +398,7 @@ namespace slim
 					}
 
 					// adding extra 10 milliseconds required for sending out command to all the clients
-					return util::Timestamp::now() + std::chrono::milliseconds{10} + maxLatency.value_or(std::chrono::microseconds{0});
+					return util::Timestamp::now() + std::chrono::milliseconds{10} + maxLatency;
 				}
 
 				template<typename SessionType>
@@ -445,6 +437,11 @@ namespace slim
 
 					return result;
  				}
+
+				inline auto isReadyToInitialize()
+				{
+					return getSamplingRate().has_value();
+				}
 
 				inline auto isReadyToPlay()
 				{
@@ -487,29 +484,28 @@ namespace slim
 
 				inline void stateChangeToInitializing()
 				{
+					// initialization start time is required for calculating defer time-out
+					initializationStartedAt = util::Timestamp::now();
+
 					ts::with(getSamplingRate(), [&](auto samplingRate)
 					{
-						// initialization start time is required for calculating defer time-out
-						initializationStartedAt = util::Timestamp::now();
-
-						// TODO: consider isReadyToStart
+						LOG(DEBUG) << LABELS{"proto"} << "total sessions=" << commandSessions.size();
 						for (auto& entry : commandSessions)
 						{
-							entry.second->startStreaming(samplingRate);
+							entry.second->prepare(samplingRate);
 						}
-
-						LOG(DEBUG) << LABELS{"proto"} << "Started streaming (rate=" << samplingRate << ")";
 					});
 				}
 
 				inline void stateChangeToPlaying()
 				{
 					// capturing start playback time point
-					playbackStartedAt = calculatePlaybackTime();
+					auto timestamp{calculatePlaybackTime()};
+					playbackStartedAt = timestamp;
 
 					for (auto& entry : commandSessions)
 					{
-						entry.second->startPlayback(playbackStartedAt.value_or(util::Timestamp::now()));
+						entry.second->startPlayback(timestamp);
 					}
 				}
 
@@ -539,19 +535,6 @@ namespace slim
 					streamingFrames += chunk.getFrames();
 
 					LOG(DEBUG) << LABELS{"proto"} << "A chunk was distributed to the clients (total clients=" << streamingSessions.size() << ", frames=" << chunk.getFrames() << ")";
-				}
-
-				inline void updateSessionsStatus()
-				{
-/*
-					for (auto& entry : commandSessions)
-					{
-						if (entry.second->isReadyToStream())
-						{
-
-						}
-					}
-*/
 				}
 
 			private:
