@@ -163,6 +163,11 @@ namespace slim
 					return latency;
 				}
 
+				inline auto isReady()
+				{
+					return stateMachine.state == ReadyState;
+				}
+
 				inline auto isReadyToInitialize()
 				{
 					return timeOffset.has_value();

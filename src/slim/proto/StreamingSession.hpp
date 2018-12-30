@@ -112,8 +112,8 @@ namespace slim
 				{
 					auto result{std::optional<std::string>{std::nullopt}};
 					auto separator{std::string{"="}};
+					auto index{header.find(separator)};
 
-					auto index = header.find(separator);
 					if (index != std::string::npos)
 					{
 						result = std::string{header.c_str() + index + separator.length(), header.length() - index - separator.length()};

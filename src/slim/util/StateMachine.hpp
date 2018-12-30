@@ -38,8 +38,10 @@ namespace slim
 			std::vector<Transition<EventType, StateType>> transitions;
 
 			template <typename ErrorHandlerType>
-			void processEvent(EventType event, ErrorHandlerType errorHandler)
+			bool processEvent(EventType event, ErrorHandlerType errorHandler)
 			{
+				auto result{false};
+
 				// searching for a transition based on the event and the current state
 				auto found = std::find_if(transitions.begin(), transitions.end(), [&](const auto& transition)
 				{
@@ -54,14 +56,17 @@ namespace slim
 					{
 						(*found).action(event);
 
-						// changing state of the state machine
-						state = (*found).toState;
+						// changing state of the state machine and reporting about successful transition
+						state  = (*found).toState;
+						result = true;
 					}
 				}
 				else
 				{
 					errorHandler(event, state);
 				}
+
+				return result;
 			}
 		};
 	}
