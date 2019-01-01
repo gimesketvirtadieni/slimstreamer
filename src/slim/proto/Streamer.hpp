@@ -115,7 +115,8 @@ namespace slim
 
 				virtual bool consumeChunk(Chunk& chunk) override
 				{
-					auto result{ts::optional<bool>{ts::nullopt}};
+					auto result{ts::optional<bool>{false}};
+					result.reset();
 					auto chunkSamplingRate{chunk.getSamplingRate()};
 
 					// skipping chunks with sampling rate = 0
@@ -125,7 +126,7 @@ namespace slim
 						result = true;
 					}
 
-					// if this is the beginning of a stream then changing state to BufferingState
+					// if this is the beginning of a stream then changing state to InitializingState
 					if (!result.has_value() && !getSamplingRate().has_value())
 					{
 						// if processing was not done then setting sampling rate so it can be used by transition routine
@@ -143,8 +144,10 @@ namespace slim
 						{
 							// resetting sampling rate due to failed transition
 							setSamplingRate(ts::nullopt);
-							result = false;
 						}
+
+						// chunk will be reprocessed after init is over
+						result = false;
 					}
 
 					// if streaming is ongoing (the most common case)
@@ -154,7 +157,7 @@ namespace slim
 						// TODO: think of a better way to identify states
 						if (stateMachine.state == InitializingState)
 						{
-							stateMachine.processEvent(StreamEvent, [&](auto event, auto state)
+							result = stateMachine.processEvent(StreamEvent, [&](auto event, auto state)
 							{
 								LOG(WARNING) << LABELS{"proto"} << "Invalid Streamer state while processing Stream event - skipping chunk";
 								result = true;
@@ -175,6 +178,7 @@ namespace slim
 						if (stateMachine.state != InitializingState && stateMachine.state != DrainingState)
 						{
 							streamChunk(chunk);
+							result = true;
 						}
 					}
 

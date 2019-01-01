@@ -338,11 +338,6 @@ namespace slim
 					{
 						ts::with(timeOffset, [&](auto& timeOffset)
 						{
-
-							LOG(DEBUG) << LABELS{"proto"} << "playtime=" << playbackStartedAt.get(util::milliseconds);
-							LOG(DEBUG) << LABELS{"proto"} << "offset=" << timeOffset.count();
-							LOG(DEBUG) << LABELS{"proto"} << "result=" << (playbackStartedAt - timeOffset).get(util::milliseconds);
-
 							auto playbackTime{playbackStartedAt - timeOffset};
 							send(server::CommandSTRM{CommandSelection::Unpause, playbackTime});
 						});
