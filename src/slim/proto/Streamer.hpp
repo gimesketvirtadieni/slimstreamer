@@ -242,6 +242,11 @@ namespace slim
 					return result.value_or(true);
 				}
 
+				virtual bool isRunning() override
+				{
+					return running;
+				}
+
 				void onHTTPClose(ConnectionType& connection)
 				{
 					LOG(DEBUG) << LABELS{"proto"} << "HTTP session close callback (connection=" << &connection << ")";
@@ -371,8 +376,16 @@ namespace slim
 					addSession(commandSessions, connection, std::move(commandSessionPtr));
 				}
 
-				virtual void start() override {}
-				virtual void stop(bool gracefully = true) override {}
+				virtual void start() override
+				{
+					running = true;
+				}
+
+				virtual void stop(bool gracefully = true) override
+				{
+					// TODO: introduce Halt state
+					running = false;
+				}
 
 			protected:
 				template<typename SessionType>
@@ -580,6 +593,7 @@ namespace slim
 				EncoderBuilder                    encoderBuilder;
 				std::optional<unsigned int>       gain;
 				util::StateMachine<Event, State>  stateMachine;
+				bool                              running{false};
 				util::BigInteger                  nextID{0};
 				SessionsMap<CommandSessionType>   commandSessions;
 				SessionsMap<StreamingSessionType> streamingSessions;

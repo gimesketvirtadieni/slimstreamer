@@ -97,6 +97,18 @@ namespace slim
 				return sr;
 			}
 
+			virtual bool isRunning() override
+			{
+				auto result{false};
+
+				if (currentConsumerPtr)
+				{
+					result = currentConsumerPtr->isRunning();
+				}
+
+				return result;
+			}
+
 			virtual void setSamplingRate(ts::optional<unsigned int> s) override
 			{
 				throw Exception("Sampling rate cannot be set for demultiplexor");

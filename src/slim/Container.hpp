@@ -40,6 +40,11 @@ namespace slim
 			Container(Container&& rhs) = default;
 			Container& operator=(Container&& rhs) = default;
 
+			virtual bool isSchedulerRunning() override
+			{
+				return schedulerPtr->isRunning();
+			}
+
 			virtual void start() override
 			{
 				commandServerPtr->start();

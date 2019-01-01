@@ -44,6 +44,8 @@ namespace slim
 				return samplingRate;
 			}
 
+			virtual bool isRunning() = 0;
+
 			virtual void setSamplingRate(ts::optional<unsigned int> s)
 			{
 				samplingRate = s.map([&](auto& samplingRate)

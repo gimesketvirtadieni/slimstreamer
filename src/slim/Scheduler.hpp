@@ -57,6 +57,11 @@ namespace slim
 			Scheduler(Scheduler&& rhs) = delete;              // non-movable
 			Scheduler& operator=(Scheduler&& rhs) = delete;   // non-move-assignable
 
+			inline bool isRunning()
+			{
+				return producerPtr->isRunning() && consumerPtr->isRunning();
+			}
+
 			void start()
 			{
 				producerPtr->start();
@@ -72,8 +77,8 @@ namespace slim
 
 			void stop(bool gracefully = true)
 			{
-				producerPtr->stop();
-				consumerPtr->stop();
+				producerPtr->stop(gracefully);
+				consumerPtr->stop(gracefully);
 
 				LOG(DEBUG) << LABELS{"slim"} << "Streaming was stopped";
 			}
@@ -81,27 +86,29 @@ namespace slim
 		protected:
 			void processTask()
 			{
+				auto delayProcessing{std::chrono::milliseconds{0}};
+
+				// TODO: should it be with(taskTime){taskTime.cancel()}?
 				taskTimer.reset();
 
-				// TODO: calculate total chunks per processing quantum
-				// processing up to max(chunksToProcess) chunks within one event-loop quantum
-				auto delayProcessing{std::chrono::milliseconds{0}};
-				for (int chunksToProcess{5}; chunksToProcess > 0 && !delayProcessing.count(); chunksToProcess--) try
+				try
 				{
 					// this safe guard is meant for capturing consumer's errors
 					::util::scope_guard_failure onError = [&]
 					{
-						// skipping one chunk in case of an exception while producing / consuming
-						delayProcessing = producerPtr->skipChunk().value_or(std::chrono::milliseconds{0});
-
-						LOG(WARNING) << "A chunk was skipped due to an error";
+						stop(false);
 					};
 
-					// producing / consuming chunk
-					delayProcessing = producerPtr->produceChunk([&](auto& chunk)
+					// TODO: calculate total chunks per processing quantum
+					// processing up to max(chunksToProcess) chunks within one event-loop quantum
+					for (int chunksToProcess{5}; chunksToProcess > 0 && !delayProcessing.count(); chunksToProcess--)
 					{
-						return consumerPtr->consumeChunk(chunk);
-					}).value_or(std::chrono::milliseconds{0});
+						// producing / consuming chunk
+						delayProcessing = producerPtr->produceChunk([&](auto& chunk)
+						{
+							return consumerPtr->consumeChunk(chunk);
+						}).value_or(std::chrono::milliseconds{0});
+					}
 				}
 				catch (const Exception& error)
 				{
@@ -118,7 +125,7 @@ namespace slim
 
 				// TODO: refactor
 				// if there is more PCM data to be processed
-				if (producerPtr->isRunning())
+				if (isRunning())
 				{
 					if (delayProcessing.count() > 0)
 					{

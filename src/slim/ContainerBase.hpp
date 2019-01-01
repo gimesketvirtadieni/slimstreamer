@@ -23,7 +23,7 @@ namespace slim
 		public:
 			ContainerBase(conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>> p)
 			: processorProxy{p} {}
-			
+
 			// using Rule Of Zero
 			virtual ~ContainerBase() = default;
 			ContainerBase(const ContainerBase&) = delete;             // non-copyable
@@ -31,6 +31,7 @@ namespace slim
 			ContainerBase(ContainerBase&& rhs) = default;
 			ContainerBase& operator=(ContainerBase&& rhs) = default;
 
+			virtual bool isSchedulerRunning() = 0;
 			virtual void start() = 0;
 			virtual void stop() = 0;
 

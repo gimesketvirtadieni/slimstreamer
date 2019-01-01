@@ -82,8 +82,20 @@ namespace slim
 				return true;
 			}
 
-			virtual void start() override {}
-			virtual void stop(bool gracefully = true) override {}
+			virtual bool isRunning() override
+			{
+				return running;
+			}
+
+			virtual void start() override
+			{
+				running = true;
+			}
+
+			virtual void stop(bool gracefully = true) override
+			{
+				running = false;
+			}
 
 		protected:
 			void writeHeader(std::size_t s = 0)
@@ -134,6 +146,7 @@ namespace slim
 			std::unique_ptr<util::AsyncWriter> writerPtr;
 			std::unique_ptr<EncoderBase>       encoderPtr;
 			bool                               headerRequired;
+			bool                               running{false};
 			std::size_t                        bytesWritten{0};
 	};
 }
