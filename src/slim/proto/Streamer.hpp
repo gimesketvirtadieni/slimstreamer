@@ -157,11 +157,14 @@ namespace slim
 						// TODO: think of a better way to identify states
 						if (stateMachine.state == InitializingState)
 						{
-							result = stateMachine.processEvent(StreamEvent, [&](auto event, auto state)
+							if (!stateMachine.processEvent(StreamEvent, [&](auto event, auto state)
 							{
 								LOG(WARNING) << LABELS{"proto"} << "Invalid Streamer state while processing Stream event - skipping chunk";
 								result = true;
-							});
+							}))
+							{
+								result = false;
+							}
 						}
 
 						// if buffering is still ongoing then ckecking if it's completed
