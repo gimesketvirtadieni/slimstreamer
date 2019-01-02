@@ -15,7 +15,6 @@
 #include <algorithm>
 #include <memory>
 #include <vector>
-#include <type_safe/optional.hpp>
 
 #include "slim/ContainerBase.hpp"
 #include "slim/Exception.hpp"
@@ -24,8 +23,6 @@
 
 namespace slim
 {
-	namespace ts = type_safe;
-
 	template <class ConsumerType>
 	class Demultiplexor : public Consumer
 	{
@@ -85,16 +82,16 @@ namespace slim
 				return result;
 			}
 
-			virtual ts::optional<unsigned int> getSamplingRate() const override
+			virtual unsigned int getSamplingRate() const override
 			{
-				auto sr{ts::optional<unsigned int>{ts::nullopt}};
+				unsigned int result{0};
 
 				if (currentConsumerPtr)
 				{
-					sr = currentConsumerPtr->getSamplingRate();
+					result = currentConsumerPtr->getSamplingRate();
 				}
 
-				return sr;
+				return result;
 			}
 
 			virtual bool isRunning() override
@@ -109,7 +106,7 @@ namespace slim
 				return result;
 			}
 
-			virtual void setSamplingRate(ts::optional<unsigned int> s) override
+			virtual void setSamplingRate(unsigned int s) override
 			{
 				throw Exception("Sampling rate cannot be set for demultiplexor");
 			}

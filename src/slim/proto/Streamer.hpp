@@ -56,17 +56,19 @@ namespace slim
 
 			enum Event
 			{
-				StartEvent,
+				//StartEvent,
+				//StopEvent,
+				ReadyEvent,
+				PrepareEvent,
 				StreamEvent,
 				PlayEvent,
-				StopEvent,
-				FlushedEvent,
+				DrainEvent,
 			};
 
 			enum State
 			{
 				ReadyState,
-				InitializingState,
+				PreparingState,
 				BufferingState,
 				PlayingState,
 				DrainingState,
@@ -82,20 +84,20 @@ namespace slim
 				{
 					ReadyState,  // initial state
 					{   // transition table definition
-						{StartEvent,   ReadyState,        InitializingState, [&](auto event) {LOG(DEBUG) << "INIT";stateChangeToInitializing();}, [&] {return isReadyToInitialize();}},
-						{StartEvent,   ReadyState,        ReadyState,        [&](auto event) {},                                                  [&] {return true;}},
-						{StreamEvent,  InitializingState, BufferingState,    [&](auto event) {LOG(DEBUG) << "BUFFER";},                           [&] {return isReadyToStream();}},
-						{StreamEvent,  BufferingState,    BufferingState,    [&](auto event) {},                                                  [&] {return true;}},
-						{StreamEvent,  PlayingState,      PlayingState,      [&](auto event) {},                                                  [&] {return true;}},
-						{PlayEvent,    BufferingState,    PlayingState,      [&](auto event) {LOG(DEBUG) << "PLAY";stateChangeToPlaying();},      [&] {return isReadyToPlay();}},
-						{PlayEvent,    PlayingState,      PlayingState,      [&](auto event) {},                                                  [&] {return true;}},
-						{StopEvent,    InitializingState, DrainingState,     [&](auto event) {LOG(DEBUG) << "DRAIN";},                            [&] {return true;}},
-						{StopEvent,    BufferingState,    DrainingState,     [&](auto event) {LOG(DEBUG) << "DRAIN";},                            [&] {return true;}},
-						{StopEvent,    PlayingState,      DrainingState,     [&](auto event) {LOG(DEBUG) << "DRAIN";},                            [&] {return true;}},
-						{StopEvent,    ReadyState,        ReadyState,        [&](auto event) {},                                                  [&] {return true;}},
-						{StopEvent,    DrainingState,     DrainingState,     [&](auto event) {},                                                  [&] {return true;}},
-						{FlushedEvent, DrainingState,     ReadyState,        [&](auto event) {LOG(DEBUG) << "READY";stateChangeToReady();},       [&] {return canChangeToReady();}},
-						{FlushedEvent, ReadyState,        ReadyState,        [&](auto event) {},                                                  [&] {return true;}},
+						{PrepareEvent, ReadyState,     PreparingState, [&](auto event) {LOG(DEBUG) << "PREPARE";stateChangeToPreparing();}, [&] {return true;}},
+						{PrepareEvent, PreparingState, PreparingState, [&](auto event) {},                                                  [&] {return true;}},
+						{StreamEvent,  PreparingState, BufferingState, [&](auto event) {LOG(DEBUG) << "BUFFER";},                           [&] {return isReadyToStream();}},
+						{StreamEvent,  BufferingState, BufferingState, [&](auto event) {},                                                  [&] {return true;}},
+						{StreamEvent,  PlayingState,   PlayingState,   [&](auto event) {},                                                  [&] {return true;}},
+						{PlayEvent,    BufferingState, PlayingState,   [&](auto event) {LOG(DEBUG) << "PLAY";stateChangeToPlaying();},      [&] {return isReadyToPlay();}},
+						{PlayEvent,    PlayingState,   PlayingState,   [&](auto event) {},                                                  [&] {return true;}},
+						{DrainEvent,   PreparingState, DrainingState,  [&](auto event) {LOG(DEBUG) << "DRAIN";},                            [&] {return true;}},
+						{DrainEvent,   BufferingState, DrainingState,  [&](auto event) {LOG(DEBUG) << "DRAIN";},                            [&] {return true;}},
+						{DrainEvent,   PlayingState,   DrainingState,  [&](auto event) {LOG(DEBUG) << "DRAIN";},                            [&] {return true;}},
+						{DrainEvent,   DrainingState,  DrainingState,  [&](auto event) {},                                                  [&] {return true;}},
+						{DrainEvent,   ReadyState,     ReadyState,     [&](auto event) {},                                                  [&] {return true;}},
+						{ReadyEvent,   DrainingState,  ReadyState,     [&](auto event) {LOG(DEBUG) << "READY";stateChangeToReady();},       [&] {return isReady();}},
+						{ReadyEvent,   ReadyState,     ReadyState,     [&](auto event) {},                                                  [&] {return true;}},
 					}
 				}
 				{
@@ -115,61 +117,48 @@ namespace slim
 
 				virtual bool consumeChunk(Chunk& chunk) override
 				{
-					auto result{ts::optional<bool>{false}};
-					result.reset();
+					auto result{false};
 					auto chunkSamplingRate{chunk.getSamplingRate()};
 
-					// skipping chunks with sampling rate = 0
-					if (!chunkSamplingRate)
+					if (stateMachine.state == ReadyState)
 					{
-						LOG(WARNING) << LABELS{"proto"} << "Chunk was skipped due to invalid sampling rate (rate=0)";
-						result = true;
-					}
-
-					// if this is the beginning of a stream then changing state to InitializingState
-					if (!result.has_value() && !getSamplingRate().has_value())
-					{
-						// if processing was not done then setting sampling rate so it can be used by transition routine
-						if (!result.has_value())
+						if (chunkSamplingRate)
 						{
-							setSamplingRate(chunkSamplingRate);
 							LOG(DEBUG) << LABELS{"proto"} << "Started streaming (rate=" << chunkSamplingRate << ")";
-						}
+							setSamplingRate(chunkSamplingRate);
 
-						if (!stateMachine.processEvent(StartEvent, [&](auto event, auto state)
+							// trying to change state to Preparing
+							stateMachine.processEvent(PrepareEvent, [&](auto event, auto state)
+							{
+								LOG(WARNING) << LABELS{"proto"} << "Invalid Streamer state while processing Start event - skipping chunk";
+								result = true;
+							});
+
+							// chunk will be reprocessed after PreparingState is over
+							result = false;
+						}
+						else
 						{
-							LOG(WARNING) << LABELS{"proto"} << "Invalid Streamer state while processing Start event - skipping chunk";
+							LOG(WARNING) << LABELS{"proto"} << "Chunk was skipped due to invalid sampling rate (rate=0)";
 							result = true;
-						}))
-						{
-							// resetting sampling rate due to failed transition
-							setSamplingRate(ts::nullopt);
 						}
-
-						// chunk will be reprocessed after init is over
-						result = false;
 					}
 
-					// if streaming is ongoing (the most common case)
-					if (!result.has_value() && chunkSamplingRate == getSamplingRate().value_or(0))
+					if (stateMachine.state == PreparingState)
 					{
-						// if initialization is ongoing
-						// TODO: think of a better way to identify states
-						if (stateMachine.state == InitializingState)
+						// trying to change state to Buffering
+						result = stateMachine.processEvent(StreamEvent, [&](auto event, auto state)
 						{
-							if (!stateMachine.processEvent(StreamEvent, [&](auto event, auto state)
-							{
-								LOG(WARNING) << LABELS{"proto"} << "Invalid Streamer state while processing Stream event - skipping chunk";
-								result = true;
-							}))
-							{
-								result = false;
-							}
-						}
+							LOG(WARNING) << LABELS{"proto"} << "Invalid Streamer state while processing Stream event - skipping chunk";
+							result = true;
+						});
+					}
 
-						// if buffering is still ongoing then ckecking if it's completed
+					if (stateMachine.state == BufferingState || stateMachine.state == PlayingState)
+					{
 						if (stateMachine.state == BufferingState)
 						{
+							// buffering is still ongoing so trying to transition to Playing state
 							stateMachine.processEvent(PlayEvent, [&](auto event, auto state)
 							{
 								LOG(WARNING) << LABELS{"proto"} << "Invalid Streamer state while processing Play event - skipping chunk";
@@ -177,69 +166,38 @@ namespace slim
 							});
 						}
 
-						// do not distribute a chunk until initializtion is complete or draining is ongoing
-						if (stateMachine.state != InitializingState && stateMachine.state != DrainingState)
+						// if sampling rate does not change then just distributing a chunk
+						if (getSamplingRate() == chunkSamplingRate)
 						{
 							streamChunk(chunk);
 							result = true;
 						}
-					}
 
-					// if sampling rate changes in the middle of the stream then a new stream must be initialized
-					if (!result.has_value() && chunkSamplingRate != getSamplingRate().value_or(chunkSamplingRate))
-					{
-						LOG(WARNING) << LABELS{"proto"} << "Sampling rate has changed in the middle of a stream (current rate=" << getSamplingRate().value_or(0) << "; new rate=" << chunkSamplingRate << ")";
-						result = false;
-
-						// if draining is ongoing then trying to change state to Ready which will reset sampling rate
-						if (stateMachine.state == DrainingState)
-						{
-							// changing state to Ready will succeed only when Draining is done by all sessions
-							stateMachine.processEvent(FlushedEvent, [&](auto event, auto state)
-							{
-								LOG(WARNING) << LABELS{"proto"} << "Invalid Streamer state while processing Stop event - skipping chunk";
-								result = true;
-							});
-						}
-						else
+						if (getSamplingRate() != chunkSamplingRate || chunk.isEndOfStream())
 						{
 							// changing state to Draining
-							stateMachine.processEvent(StopEvent, [&](auto event, auto state)
+							stateMachine.processEvent(DrainEvent, [&](auto event, auto state)
 							{
 								LOG(WARNING) << LABELS{"proto"} << "Invalid Streamer state while processing Stop event - skipping chunk";
 								result = true;
 							});
-						}
-					}
 
-					// if chunk is not going to be reprocessed and it is the end of a stream then changing state to ReadyState
-					if (!(result.has_value() && !result.value()) && chunk.isEndOfStream())
-					{
-						// if draining is ongoing then trying to change state to Ready which will reset sampling rate
-						if (stateMachine.state == DrainingState)
-						{
-							// changing state to Ready will succeed only when Draining is done by all sessions
-							result = stateMachine.processEvent(FlushedEvent, [&](auto event, auto state)
-							{
-								LOG(WARNING) << LABELS{"proto"} << "Invalid Streamer state while processing Stop event - skipping chunk";
-								result = true;
-							});
-						}
-						else
-						{
-							// consume end-of-stream chunk only when changing state to Ready
+							// keep reprocessing until Ready state is reached
 							result = false;
-
-							// changing state to Draining
-							stateMachine.processEvent(StopEvent, [&](auto event, auto state)
-							{
-								LOG(WARNING) << LABELS{"proto"} << "Invalid Streamer state while processing Stop event - reprocessing chunk";
-								result = false;
-							});
 						}
 					}
 
-					return result.value_or(true);
+					if (stateMachine.state == DrainingState)
+					{
+						// trying to transition to Ready state which will succeed only when all SlimProto sessions are in Ready state
+						result = stateMachine.processEvent(ReadyEvent, [&](auto event, auto state)
+						{
+							LOG(WARNING) << LABELS{"proto"} << "Invalid Streamer state while processing Stop event - skipping chunk";
+							result = true;
+						});
+					}
+
+					return result;
 				}
 
 				virtual bool isRunning() override
@@ -292,29 +250,26 @@ namespace slim
 
 						LOG(INFO) << LABELS{"proto"} << "Client ID was parsed (clientID=" << clientID.value() << ")";
 
-						ts::with(getSamplingRate(), [&](auto samplingRate)
+						// setting encoder sampling rate
+						encoderBuilder.setSamplingRate(getSamplingRate());
+
+						// creating streaming session object
+						auto streamingSessionPtr{std::make_unique<StreamingSessionType>(std::ref<ConnectionType>(connection), clientID.value(), encoderBuilder)};
+
+						// saving HTTP session reference in the relevant SlimProto session
+						auto commandSession{findSessionByID(commandSessions, clientID.value())};
+						if (!commandSession.has_value())
 						{
-							// setting encoder sampling rate
-							encoderBuilder.setSamplingRate(samplingRate);
+							connection.stop();
+							throw slim::Exception("Could not correlate provided client ID with a valid SlimProto session");
+						}
+						commandSession.value()->setStreamingSession(ts::optional_ref<StreamingSessionType>{*streamingSessionPtr});
 
-							// creating streaming session object
-							auto streamingSessionPtr{std::make_unique<StreamingSessionType>(std::ref<ConnectionType>(connection), clientID.value(), encoderBuilder)};
+						// processing request by a proper Streaming session mapped to this connection
+						streamingSessionPtr->onRequest(buffer, receivedSize);
 
-							// saving HTTP session reference in the relevant SlimProto session
-							auto commandSession{findSessionByID(commandSessions, clientID.value())};
-							if (!commandSession.has_value())
-							{
-								connection.stop();
-								throw slim::Exception("Could not correlate provided client ID with a valid SlimProto session");
-							}
-							commandSession.value()->setStreamingSession(ts::optional_ref<StreamingSessionType>{*streamingSessionPtr});
-
-							// processing request by a proper Streaming session mapped to this connection
-							streamingSessionPtr->onRequest(buffer, receivedSize);
-
-							// saving Streaming session as a part of this Streamer
-							addSession(streamingSessions, connection, std::move(streamingSessionPtr));
-						});
+						// saving Streaming session as a part of this Streamer
+						addSession(streamingSessions, connection, std::move(streamingSessionPtr));
 					}
 				}
 
@@ -473,20 +428,15 @@ namespace slim
  				{
 					auto result{std::chrono::duration<long long, RatioType>{0}};
 
-					ts::with(getSamplingRate(), [&](auto samplingRate)
+					if (auto samplingRate{getSamplingRate()}; samplingRate)
 					{
 						result = std::chrono::duration<long long, RatioType>{streamingFrames * ratio.den / samplingRate};
-					});
+					}
 
 					return result;
  				}
 
-				inline auto isReadyToInitialize()
-				{
-					return getSamplingRate().has_value();
-				}
-
-				inline auto canChangeToReady()
+				inline auto isReady()
 				{
 					return 0 == (commandSessions.size() - std::count_if(commandSessions.begin(), commandSessions.end(), [&](auto& entry)
 					{
@@ -508,7 +458,7 @@ namespace slim
 					auto result{false};
 					auto now = util::Timestamp::now();
 					// TODO: deferring time-out should be configurable
-					auto waitThresholdReached{std::chrono::milliseconds{500} < (now - initializationStartedAt.value_or(now))};
+					auto waitThresholdReached{std::chrono::milliseconds{500} < (now - preparingStartedAt.value_or(now))};
 					auto notReadyToStreamTotal{std::count_if(commandSessions.begin(), commandSessions.end(), [&](auto& entry)
 					{
 						return !entry.second->isReadyToStream();
@@ -533,21 +483,6 @@ namespace slim
 					return result;
 				}
 
-				inline void stateChangeToInitializing()
-				{
-					// initialization start time is required for calculating defer time-out
-					initializationStartedAt = util::Timestamp::now();
-
-					ts::with(getSamplingRate(), [&](auto samplingRate)
-					{
-						LOG(DEBUG) << LABELS{"proto"} << "total sessions=" << commandSessions.size();
-						for (auto& entry : commandSessions)
-						{
-							entry.second->prepare(samplingRate);
-						}
-					});
-				}
-
 				inline void stateChangeToPlaying()
 				{
 					// capturing start playback time point
@@ -560,17 +495,25 @@ namespace slim
 					}
 				}
 
+				inline void stateChangeToPreparing()
+				{
+					// preparing start time is required for calculating defer time-out
+					preparingStartedAt = util::Timestamp::now();
+
+					for (auto& entry : commandSessions)
+					{
+						entry.second->prepare(getSamplingRate());
+					}
+				}
+
 				inline void stateChangeToReady()
 				{
-					if (getSamplingRate().has_value())
-					{
-						LOG(DEBUG) << LABELS{"proto"} << "Stopped streaming (duration=" << getStreamingDuration(util::milliseconds).count() << " millisec)";
-					}
+					LOG(DEBUG) << LABELS{"proto"} << "Stopped streaming (duration=" << getStreamingDuration(util::milliseconds).count() << " millisec)";
 
 					// resetting state
-					initializationStartedAt.reset();
+					preparingStartedAt.reset();
 					playbackStartedAt.reset();
-					setSamplingRate(ts::nullopt);
+					setSamplingRate(0);
 					streamingFrames = 0;
 				}
 
@@ -597,7 +540,7 @@ namespace slim
 				util::BigInteger                  nextID{0};
 				SessionsMap<CommandSessionType>   commandSessions;
 				SessionsMap<StreamingSessionType> streamingSessions;
-				ts::optional<util::Timestamp>     initializationStartedAt{ts::nullopt};
+				ts::optional<util::Timestamp>     preparingStartedAt{ts::nullopt};
 				ts::optional<util::Timestamp>     playbackStartedAt{ts::nullopt};
 				util::BigInteger                  streamingFrames{0};
 		};

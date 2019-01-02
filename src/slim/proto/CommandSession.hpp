@@ -71,7 +71,7 @@ namespace slim
 				CreatedState,
 				DrainingState,
 				ReadyState,
-				InitializingState,
+				PreparingState,
 				BufferingState,
 				PlayingState,
 			};
@@ -109,28 +109,28 @@ namespace slim
 				{
 					CreatedState,  // initial state
 					{   // transition table definition
-						{HandshakeEvent, CreatedState,      DrainingState,     [&](auto event) {LOG(DEBUG) << "DRAINING";},                         [&] {return true;}},
-						{FlushedEvent,   DrainingState,     ReadyState,        [&](auto event) {LOG(DEBUG) << "READY";stateChangeToReady();},       [&] {return true;}},
-						{FlushedEvent,   ReadyState,        ReadyState,        [&](auto event) {},                                                  [&] {return true;}},
-						{FlushedEvent,   InitializingState, InitializingState, [&](auto event) {},                                                  [&] {return true;}},
-						{FlushedEvent,   BufferingState,    BufferingState,    [&](auto event) {},                                                  [&] {return true;}},
-						{FlushedEvent,   PlayingState,      PlayingState,      [&](auto event) {},                                                  [&] {return true;}},
-						{StartEvent,     ReadyState,        InitializingState, [&](auto event) {LOG(DEBUG) << "INIT";stateChangeToInitializing();}, [&] {return isReadyToInitialize();}},
-						{StartEvent,     InitializingState, InitializingState, [&](auto event) {},                                                  [&] {return true;}},
-						{StartEvent,     BufferingState,    BufferingState,    [&](auto event) {},                                                  [&] {return true;}},
-						{StartEvent,     PlayingState,      PlayingState,      [&](auto event) {},                                                  [&] {return true;}},
-						{StreamEvent,    InitializingState, BufferingState,    [&](auto event) {LOG(DEBUG) << "BUFFER";},                           [&] {return isReadyToStream();}},
-						{StreamEvent,    BufferingState,    BufferingState,    [&](auto event) {},                                                  [&] {return true;}},
-						{StreamEvent,    PlayingState,      PlayingState,      [&](auto event) {},                                                  [&] {return true;}},
-						{PlayEvent,      BufferingState,    PlayingState,      [&](auto event) {LOG(DEBUG) << "PLAY";stateChangeToPlaying();},      [&] {return isReadyToPlay();}},
-						{PlayEvent,      ReadyState,        ReadyState,        [&](auto event) {},                                                  [&] {return true;}},
-						{PlayEvent,      PlayingState,      PlayingState,      [&](auto event) {},                                                  [&] {return true;}},
-						{StopEvent,      InitializingState, DrainingState,     [&](auto event) {LOG(DEBUG) << "DRAIN";},                            [&] {return true;}},
-						{StopEvent,      BufferingState,    DrainingState,     [&](auto event) {LOG(DEBUG) << "DRAIN";},                            [&] {return true;}},
-						{StopEvent,      PlayingState,      DrainingState,     [&](auto event) {LOG(DEBUG) << "DRAIN";},                            [&] {return true;}},
-						{StopEvent,      CreatedState,      CreatedState,      [&](auto event) {},                                                  [&] {return true;}},
-						{StopEvent,      DrainingState,     DrainingState,     [&](auto event) {},                                                  [&] {return true;}},
-						{StopEvent,      ReadyState,        ReadyState,        [&](auto event) {},                                                  [&] {return true;}},
+						{HandshakeEvent, CreatedState,   DrainingState,  [&](auto event) {LOG(DEBUG) << "DRAINING";},                         [&] {return true;}},
+						{FlushedEvent,   DrainingState,  ReadyState,     [&](auto event) {LOG(DEBUG) << "READY";stateChangeToReady();},       [&] {return true;}},
+						{FlushedEvent,   ReadyState,     ReadyState,     [&](auto event) {},                                                  [&] {return true;}},
+						{FlushedEvent,   PreparingState, PreparingState, [&](auto event) {},                                                  [&] {return true;}},
+						{FlushedEvent,   BufferingState, BufferingState, [&](auto event) {},                                                  [&] {return true;}},
+						{FlushedEvent,   PlayingState,   PlayingState,   [&](auto event) {},                                                  [&] {return true;}},
+						{StartEvent,     ReadyState,     PreparingState, [&](auto event) {LOG(DEBUG) << "PREPARE";stateChangeToPreparing();}, [&] {return isReadyToPrepare();}},
+						{StartEvent,     PreparingState, PreparingState, [&](auto event) {},                                                  [&] {return true;}},
+						{StartEvent,     BufferingState, BufferingState, [&](auto event) {},                                                  [&] {return true;}},
+						{StartEvent,     PlayingState,   PlayingState,   [&](auto event) {},                                                  [&] {return true;}},
+						{StreamEvent,    PreparingState, BufferingState, [&](auto event) {LOG(DEBUG) << "BUFFER";},                           [&] {return isReadyToStream();}},
+						{StreamEvent,    BufferingState, BufferingState, [&](auto event) {},                                                  [&] {return true;}},
+						{StreamEvent,    PlayingState,   PlayingState,   [&](auto event) {},                                                  [&] {return true;}},
+						{PlayEvent,      BufferingState, PlayingState,   [&](auto event) {LOG(DEBUG) << "PLAY";stateChangeToPlaying();},      [&] {return isReadyToPlay();}},
+						{PlayEvent,      ReadyState,     ReadyState,     [&](auto event) {},                                                  [&] {return true;}},
+						{PlayEvent,      PlayingState,   PlayingState,   [&](auto event) {},                                                  [&] {return true;}},
+						{StopEvent,      PreparingState, DrainingState,  [&](auto event) {LOG(DEBUG) << "DRAIN";},                            [&] {return true;}},
+						{StopEvent,      BufferingState, DrainingState,  [&](auto event) {LOG(DEBUG) << "DRAIN";},                            [&] {return true;}},
+						{StopEvent,      PlayingState,   DrainingState,  [&](auto event) {LOG(DEBUG) << "DRAIN";},                            [&] {return true;}},
+						{StopEvent,      CreatedState,   CreatedState,   [&](auto event) {},                                                  [&] {return true;}},
+						{StopEvent,      DrainingState,  DrainingState,  [&](auto event) {},                                                  [&] {return true;}},
+						{StopEvent,      ReadyState,     ReadyState,     [&](auto event) {},                                                  [&] {return true;}},
 					}
 				}
 				{
@@ -168,7 +168,7 @@ namespace slim
 					return stateMachine.state == ReadyState;
 				}
 
-				inline auto isReadyToInitialize()
+				inline auto isReadyToPrepare()
 				{
 					return timeOffset.has_value();
 				}
@@ -238,7 +238,7 @@ namespace slim
 				{
 					samplingRate = s;
 
-					// changing state to Initializing
+					// changing state to Preparing
 					stateMachine.processEvent(StartEvent, [&](auto event, auto state)
 					{
 						LOG(WARNING) << LABELS{"proto"} << "Invalid SlimProto session state while processing Start event - closing the connection";
@@ -324,7 +324,7 @@ namespace slim
 					return result;
 				}
 
-				inline void stateChangeToInitializing()
+				inline void stateChangeToPreparing()
 				{
 					ts::with(samplingRate, [&](auto& samplingRate)
 					{

@@ -39,26 +39,16 @@ namespace slim
 				return processorProxy;
 			}
 
-			virtual ts::optional<unsigned int> getSamplingRate() const
+			virtual unsigned int getSamplingRate() const
 			{
 				return samplingRate;
 			}
 
 			virtual bool isRunning() = 0;
 
-			virtual void setSamplingRate(ts::optional<unsigned int> s)
+			virtual void setSamplingRate(unsigned int s)
 			{
-				samplingRate = s.map([&](auto& samplingRate)
-				{
-					auto result{ts::optional<unsigned int>{ts::nullopt}};
-
-					if (samplingRate)
-					{
-						result = samplingRate;
-					}
-
-					return result;
-				});
+				samplingRate = s;
 			}
 
 			virtual void start() = 0;
@@ -66,6 +56,6 @@ namespace slim
 
 		private:
 			conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>> processorProxy;
-			ts::optional<unsigned int>                               samplingRate{ts::nullopt};
+			unsigned int                                             samplingRate{0};
 	};
 }
