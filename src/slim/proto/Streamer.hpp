@@ -56,17 +56,17 @@ namespace slim
 
 			enum Event
 			{
-				//StartEvent,
-				//StopEvent,
+				CreateEvent,
 				ReadyEvent,
 				PrepareEvent,
-				StreamEvent,
+				BufferEvent,
 				PlayEvent,
 				DrainEvent,
 			};
 
 			enum State
 			{
+				CreatedState,
 				ReadyState,
 				PreparingState,
 				BufferingState,
@@ -82,13 +82,16 @@ namespace slim
 				, gain{ga}
 				, stateMachine
 				{
-					ReadyState,  // initial state
+					CreatedState,  // initial state
 					{   // transition table definition
+						{ReadyEvent,   CreatedState,   ReadyState,     [&](auto event) {LOG(DEBUG) << "READY";stateChangeToReady();},       [&] {return true;}},
+						{ReadyEvent,   DrainingState,  ReadyState,     [&](auto event) {LOG(DEBUG) << "READY";stateChangeToReady();},       [&] {return isReady();}},
+						{ReadyEvent,   ReadyState,     ReadyState,     [&](auto event) {},                                                  [&] {return true;}},
 						{PrepareEvent, ReadyState,     PreparingState, [&](auto event) {LOG(DEBUG) << "PREPARE";stateChangeToPreparing();}, [&] {return true;}},
 						{PrepareEvent, PreparingState, PreparingState, [&](auto event) {},                                                  [&] {return true;}},
-						{StreamEvent,  PreparingState, BufferingState, [&](auto event) {LOG(DEBUG) << "BUFFER";},                           [&] {return isReadyToStream();}},
-						{StreamEvent,  BufferingState, BufferingState, [&](auto event) {},                                                  [&] {return true;}},
-						{StreamEvent,  PlayingState,   PlayingState,   [&](auto event) {},                                                  [&] {return true;}},
+						{BufferEvent,  PreparingState, BufferingState, [&](auto event) {LOG(DEBUG) << "BUFFER";},                           [&] {return isReadyToStream();}},
+						{BufferEvent,  BufferingState, BufferingState, [&](auto event) {},                                                  [&] {return true;}},
+						{BufferEvent,  PlayingState,   PlayingState,   [&](auto event) {},                                                  [&] {return true;}},
 						{PlayEvent,    BufferingState, PlayingState,   [&](auto event) {LOG(DEBUG) << "PLAY";stateChangeToPlaying();},      [&] {return isReadyToPlay();}},
 						{PlayEvent,    PlayingState,   PlayingState,   [&](auto event) {},                                                  [&] {return true;}},
 						{DrainEvent,   PreparingState, DrainingState,  [&](auto event) {LOG(DEBUG) << "DRAIN";},                            [&] {return true;}},
@@ -96,8 +99,12 @@ namespace slim
 						{DrainEvent,   PlayingState,   DrainingState,  [&](auto event) {LOG(DEBUG) << "DRAIN";},                            [&] {return true;}},
 						{DrainEvent,   DrainingState,  DrainingState,  [&](auto event) {},                                                  [&] {return true;}},
 						{DrainEvent,   ReadyState,     ReadyState,     [&](auto event) {},                                                  [&] {return true;}},
-						{ReadyEvent,   DrainingState,  ReadyState,     [&](auto event) {LOG(DEBUG) << "READY";stateChangeToReady();},       [&] {return isReady();}},
-						{ReadyEvent,   ReadyState,     ReadyState,     [&](auto event) {},                                                  [&] {return true;}},
+						{CreateEvent,  CreatedState,   CreatedState,   [&](auto event) {},                                                  [&] {return true;}},
+						{CreateEvent,  ReadyState,     CreatedState,   [&](auto event) {LOG(DEBUG) << "CREATE";stateChangeToCreated();},    [&] {return true;}},
+						{CreateEvent,  PreparingState, CreatedState,   [&](auto event) {LOG(DEBUG) << "CREATE";stateChangeToCreated();},    [&] {return true;}},
+						{CreateEvent,  BufferingState, CreatedState,   [&](auto event) {LOG(DEBUG) << "CREATE";stateChangeToCreated();},    [&] {return true;}},
+						{CreateEvent,  PlayingState,   CreatedState,   [&](auto event) {LOG(DEBUG) << "CREATE";stateChangeToCreated();},    [&] {return true;}},
+						{CreateEvent,  DrainingState,  CreatedState,   [&](auto event) {LOG(DEBUG) << "CREATE";stateChangeToCreated();},    [&] {return true;}},
 					}
 				}
 				{
@@ -147,7 +154,7 @@ namespace slim
 					if (stateMachine.state == PreparingState)
 					{
 						// trying to change state to Buffering
-						result = stateMachine.processEvent(StreamEvent, [&](auto event, auto state)
+						result = stateMachine.processEvent(BufferEvent, [&](auto event, auto state)
 						{
 							LOG(WARNING) << LABELS{"proto"} << "Invalid Streamer state while processing Stream event - skipping chunk";
 							result = true;
@@ -202,7 +209,7 @@ namespace slim
 
 				virtual bool isRunning() override
 				{
-					return running;
+					return stateMachine.state != CreatedState;
 				}
 
 				void onHTTPClose(ConnectionType& connection)
@@ -333,13 +340,20 @@ namespace slim
 
 				virtual void start() override
 				{
-					running = true;
+					// changing state to Ready
+					stateMachine.processEvent(ReadyEvent, [&](auto event, auto state)
+					{
+						LOG(WARNING) << LABELS{"proto"} << "Invalid Streamer state while processing Ready event";
+					});
 				}
 
 				virtual void stop(bool gracefully = true) override
 				{
-					// TODO: introduce Halt state
-					running = false;
+					// changing state to Created
+					stateMachine.processEvent(CreateEvent, [&](auto event, auto state)
+					{
+						LOG(WARNING) << LABELS{"proto"} << "Invalid Streamer state while processing Create event";
+					});
 				}
 
 			protected:
@@ -483,6 +497,10 @@ namespace slim
 					return result;
 				}
 
+				inline void stateChangeToCreated()
+				{
+				}
+
 				inline void stateChangeToPlaying()
 				{
 					// capturing start playback time point
@@ -510,7 +528,7 @@ namespace slim
 				{
 					LOG(DEBUG) << LABELS{"proto"} << "Stopped streaming (duration=" << getStreamingDuration(util::milliseconds).count() << " millisec)";
 
-					// resetting state
+					// resetting streamer's state
 					preparingStartedAt.reset();
 					playbackStartedAt.reset();
 					setSamplingRate(0);
@@ -536,7 +554,6 @@ namespace slim
 				EncoderBuilder                    encoderBuilder;
 				std::optional<unsigned int>       gain;
 				util::StateMachine<Event, State>  stateMachine;
-				bool                              running{false};
 				util::BigInteger                  nextID{0};
 				SessionsMap<CommandSessionType>   commandSessions;
 				SessionsMap<StreamingSessionType> streamingSessions;
