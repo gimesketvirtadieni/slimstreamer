@@ -14,7 +14,7 @@
 
 #include <cstdint>  // std::u..._t types
 #include <cstring>  // memset, memcpy
-#include <optional>
+#include <type_safe/optional.hpp>
 
 #include "slim/proto/Command.hpp"
 
@@ -25,6 +25,8 @@ namespace slim
 	{
 		namespace server
 		{
+			namespace ts = type_safe;
+
 			#pragma pack(push, 1)
 			struct AUDGData
 			{
@@ -52,7 +54,7 @@ namespace slim
 			class CommandAUDG : public Command<AUDG>
 			{
 				public:
-					CommandAUDG(std::optional<unsigned int> gain = std::nullopt)
+					CommandAUDG(ts::optional<unsigned int> gain = ts::nullopt)
 					{
 						memset(&audg, 0, sizeof(AUDG));
 						memcpy(&audg.data.opcode, "audg", sizeof(audg.data.opcode));

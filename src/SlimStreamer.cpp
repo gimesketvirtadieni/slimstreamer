@@ -24,6 +24,7 @@
 #include <memory>
 #include <string>
 #include <tuple>
+#include <type_safe/optional.hpp>
 #include <vector>
 
 #include "slim/alsa/Parameters.hpp"
@@ -56,6 +57,8 @@ using namespace slim::alsa;
 using namespace slim::conn;
 using namespace slim::proto;
 using namespace slim::util;
+
+namespace ts = type_safe;
 
 using TCPCallbacks  = tcp::Callbacks<ContainerBase>;
 using TCPConnection = tcp::Connection<ContainerBase>;
@@ -276,7 +279,8 @@ int main(int argc, char *argv[])
 			auto slimprotoPort = result["slimprotoport"].as<int>();
 
 			// setting optional parameters
-			std::optional<unsigned int> gain{std::nullopt};
+			auto gain{ts::optional<unsigned int>{0}};
+			gain.reset();
 			if (result.count("gain"))
 			{
 				gain = result["gain"].as<unsigned int>();

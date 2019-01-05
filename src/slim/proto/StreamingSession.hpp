@@ -14,9 +14,9 @@
 
 #include <functional>
 #include <memory>
-#include <optional>
 #include <sstream>  // std::stringstream
 #include <string>
+#include <type_safe/optional.hpp>
 
 #include "slim/Chunk.hpp"
 #include "slim/EncoderBase.hpp"
@@ -29,6 +29,8 @@ namespace slim
 {
 	namespace proto
 	{
+		namespace ts = type_safe;
+
 		template<typename ConnectionType>
 		class StreamingSession
 		{
@@ -110,7 +112,7 @@ namespace slim
 
 				static auto parseClientID(std::string header)
 				{
-					auto result{std::optional<std::string>{std::nullopt}};
+					auto result{ts::optional<std::string>{ts::nullopt}};
 					auto separator{std::string{"="}};
 					auto index{header.find(separator)};
 

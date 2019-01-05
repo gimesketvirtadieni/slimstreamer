@@ -79,7 +79,7 @@ namespace slim
 			};
 
 			public:
-				CommandSession(std::reference_wrapper<ConnectionType> co, std::reference_wrapper<StreamerType> st, std::string id, unsigned int po, FormatSelection fo, std::optional<unsigned int> ga)
+				CommandSession(std::reference_wrapper<ConnectionType> co, std::reference_wrapper<StreamerType> st, std::string id, unsigned int po, FormatSelection fo, ts::optional<unsigned int> ga)
 				: connection{co}
 				, streamer{st}
 				, clientID{id}
@@ -612,28 +612,28 @@ namespace slim
 				}
 
 			private:
-				std::reference_wrapper<ConnectionType>                   connection;
-				std::reference_wrapper<StreamerType>                     streamer;
-				std::string                                              clientID;
-				unsigned int                                             streamingPort;
-				FormatSelection                                          formatSelection;
-				std::optional<unsigned int>                              gain;
-				CommandHandlersMap                                       commandHandlers;
-				EventHandlersMap                                         eventHandlers;
-				util::StateMachine<Event, State>                         stateMachine;
-				ts::optional<unsigned int>                               samplingRate{ts::nullopt};
-				ts::optional_ref<StreamingSession<ConnectionType>>       streamingSession{ts::nullopt};
-				util::ExpandableBuffer                                   commandBuffer{std::size_t{0}, std::size_t{2048}};
-				ts::optional<client::CommandHELO>                        commandHELO{ts::nullopt};
-				ts::optional_ref<conwrap2::Timer>                        pingTimer{ts::nullopt};
-				util::ArrayCache<util::Timestamp, 10>                    timestampCache;
-				bool                                                     measuringLatency{false};
-				ts::optional<std::chrono::microseconds>                  latency{ts::nullopt};
-				std::vector<std::chrono::microseconds>                   latencySamples;
-				ts::optional<std::chrono::milliseconds>                  timeOffset{ts::nullopt};
-				std::vector<std::chrono::milliseconds>                   timeOffsetSamples;
-				ts::optional<util::Timestamp>                            playbackStartedAt{ts::nullopt};
-				bool                                                     readyToPlay{false};
+				std::reference_wrapper<ConnectionType>             connection;
+				std::reference_wrapper<StreamerType>               streamer;
+				std::string                                        clientID;
+				unsigned int                                       streamingPort;
+				FormatSelection                                    formatSelection;
+				ts::optional<unsigned int>                         gain;
+				CommandHandlersMap                                 commandHandlers;
+				EventHandlersMap                                   eventHandlers;
+				util::StateMachine<Event, State>                   stateMachine;
+				ts::optional<unsigned int>                         samplingRate{ts::nullopt};
+				ts::optional_ref<StreamingSession<ConnectionType>> streamingSession{ts::nullopt};
+				util::ExpandableBuffer                             commandBuffer{std::size_t{0}, std::size_t{2048}};
+				ts::optional<client::CommandHELO>                  commandHELO{ts::nullopt};
+				ts::optional_ref<conwrap2::Timer>                  pingTimer{ts::nullopt};
+				util::ArrayCache<util::Timestamp, 10>              timestampCache;
+				bool                                               measuringLatency{false};
+				ts::optional<std::chrono::microseconds>            latency{ts::nullopt};
+				std::vector<std::chrono::microseconds>             latencySamples;
+				ts::optional<std::chrono::milliseconds>            timeOffset{ts::nullopt};
+				std::vector<std::chrono::milliseconds>             timeOffsetSamples;
+				ts::optional<util::Timestamp>                      playbackStartedAt{ts::nullopt};
+				bool                                               readyToPlay{false};
 		};
 	}
 }

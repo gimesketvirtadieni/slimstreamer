@@ -15,8 +15,8 @@
 #include <cstddef>   // std::size_t
 #include <functional>
 #include <memory>
-#include <optional>
 #include <string>
+#include <type_safe/optional.hpp>
 
 #include "slim/EncoderBase.hpp"
 #include "slim/Exception.hpp"
@@ -178,15 +178,15 @@ namespace slim
 			}
 
 		private:
-			BuilderType                                                     builder{0};
-			std::optional<unsigned int>                                     channels{std::nullopt};
-			std::optional<unsigned int>                                     samplingRate{std::nullopt};
-			std::optional<unsigned int>                                     bitsPerSample{std::nullopt};
-			std::optional<unsigned int>                                     bitsPerValue{std::nullopt};
-			std::optional<std::string>                                      extention{std::nullopt};
-			std::optional<slim::proto::FormatSelection>                     format{std::nullopt};
-			std::optional<bool>                                             header{std::nullopt};
-			std::optional<std::string>                                      mime{std::nullopt};
-			std::optional<std::function<void(unsigned char*, std::size_t)>> encodedCallback{std::nullopt};
+			BuilderType                                                    builder{0};
+			ts::optional<unsigned int>                                     channels{ts::nullopt};
+			ts::optional<unsigned int>                                     samplingRate{ts::nullopt};
+			ts::optional<unsigned int>                                     bitsPerSample{ts::nullopt};
+			ts::optional<unsigned int>                                     bitsPerValue{ts::nullopt};
+			ts::optional<std::string>                                      extention{ts::nullopt};
+			ts::optional<slim::proto::FormatSelection>                     format{ts::nullopt};
+			ts::optional<bool>                                             header{ts::nullopt};
+			ts::optional<std::string>                                      mime{ts::nullopt};
+			ts::optional<std::function<void(unsigned char*, std::size_t)>> encodedCallback{ts::nullopt};
 	};
 }

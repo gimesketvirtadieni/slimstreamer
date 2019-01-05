@@ -84,10 +84,10 @@ namespace slim
 				}
 
 			protected:
-				inline std::optional<std::size_t> getFreeBufferIndex()
+				inline ts::optional<std::size_t> getFreeBufferIndex()
 				{
-					std::optional<std::size_t> result{std::nullopt};
-					auto                       size{buffers.size()};
+					auto result{ts::optional<std::size_t>{ts::nullopt}};
+					auto size{buffers.size()};
 
 					for (std::size_t i{0}; i < size; i++)
 					{

@@ -75,7 +75,7 @@ namespace slim
 			};
 
 			public:
-				Streamer(conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>> pp, unsigned int sp, EncoderBuilder eb, std::optional<unsigned int> ga)
+				Streamer(conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>> pp, unsigned int sp, EncoderBuilder eb, ts::optional<unsigned int> ga)
 				: Consumer{pp}
 				, streamingPort{sp}
 				, encoderBuilder{eb}
@@ -548,7 +548,7 @@ namespace slim
 			private:
 				unsigned int                      streamingPort;
 				EncoderBuilder                    encoderBuilder;
-				std::optional<unsigned int>       gain;
+				ts::optional<unsigned int>        gain;
 				util::StateMachine<Event, State>  stateMachine;
 				util::BigInteger                  nextID{0};
 				SessionsMap<CommandSessionType>   commandSessions;
