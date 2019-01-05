@@ -100,11 +100,11 @@ namespace slim
 						{DrainEvent,   DrainingState,  DrainingState,  [&](auto event) {},                                                  [&] {return true;}},
 						{DrainEvent,   ReadyState,     ReadyState,     [&](auto event) {},                                                  [&] {return true;}},
 						{CreateEvent,  CreatedState,   CreatedState,   [&](auto event) {},                                                  [&] {return true;}},
-						{CreateEvent,  ReadyState,     CreatedState,   [&](auto event) {LOG(DEBUG) << "CREATE";stateChangeToCreated();},    [&] {return true;}},
-						{CreateEvent,  PreparingState, CreatedState,   [&](auto event) {LOG(DEBUG) << "CREATE";stateChangeToCreated();},    [&] {return true;}},
-						{CreateEvent,  BufferingState, CreatedState,   [&](auto event) {LOG(DEBUG) << "CREATE";stateChangeToCreated();},    [&] {return true;}},
-						{CreateEvent,  PlayingState,   CreatedState,   [&](auto event) {LOG(DEBUG) << "CREATE";stateChangeToCreated();},    [&] {return true;}},
-						{CreateEvent,  DrainingState,  CreatedState,   [&](auto event) {LOG(DEBUG) << "CREATE";stateChangeToCreated();},    [&] {return true;}},
+						{CreateEvent,  ReadyState,     CreatedState,   [&](auto event) {LOG(DEBUG) << "CREATE";},                           [&] {return true;}},
+						{CreateEvent,  PreparingState, CreatedState,   [&](auto event) {LOG(DEBUG) << "CREATE";},                           [&] {return true;}},
+						{CreateEvent,  BufferingState, CreatedState,   [&](auto event) {LOG(DEBUG) << "CREATE";},                           [&] {return true;}},
+						{CreateEvent,  PlayingState,   CreatedState,   [&](auto event) {LOG(DEBUG) << "CREATE";},                           [&] {return true;}},
+						{CreateEvent,  DrainingState,  CreatedState,   [&](auto event) {LOG(DEBUG) << "CREATE";},                           [&] {return true;}},
 					}
 				}
 				{
@@ -495,10 +495,6 @@ namespace slim
 					}
 
 					return result;
-				}
-
-				inline void stateChangeToCreated()
-				{
 				}
 
 				inline void stateChangeToPlaying()
