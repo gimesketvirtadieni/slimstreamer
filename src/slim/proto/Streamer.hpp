@@ -522,7 +522,10 @@ namespace slim
 
 				inline void stateChangeToReady()
 				{
-					LOG(DEBUG) << LABELS{"proto"} << "Stopped streaming (duration=" << getStreamingDuration(util::milliseconds).count() << " millisec)";
+					if (auto duration{getStreamingDuration(util::milliseconds).count()}; duration)
+					{
+						LOG(DEBUG) << LABELS{"proto"} << "Stopped streaming (duration=" << getStreamingDuration(util::milliseconds).count() << " millisec)";
+					}
 
 					// resetting streamer's state
 					preparingStartedAt.reset();
@@ -536,11 +539,27 @@ namespace slim
 					// sending chunk to all SlimProto sessions
 					for (auto& entry : commandSessions)
 					{
-						entry.second->streamChunk(chunk);
-					}
+						// TODO: work in progress
+						// if session needs state elevation
+						/*
+						if (???)
+						{
+							if (entry.second->isReadyToPrepare())
+							{
+								entry.second->prepare(getSamplingRate());
+							}
+							if (entry.second->isReadyToPlay())
+							{
+								entry.second->startPlayback(playbackStartedAt + streamingFrames / samplingRate);
+							}
+						}
+						*/
 
-					// increasing played frames counter
-					streamingFrames += chunk.getFrames();
+						entry.second->streamChunk(chunk);
+
+						// increasing played frames counter
+						streamingFrames += chunk.getFrames();
+					}
 
 					LOG(DEBUG) << LABELS{"proto"} << "A chunk was distributed to the clients (total clients=" << streamingSessions.size() << ", frames=" << chunk.getFrames() << ")";
 				}
