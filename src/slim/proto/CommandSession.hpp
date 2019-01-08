@@ -251,16 +251,6 @@ namespace slim
 				inline void setStreamingSession(ts::optional_ref<StreamingSession<ConnectionType>> s)
 				{
 					streamingSession = s;
-
-					if (stateMachine.state == PreparingState)
-					{
-						// 'trying' to change state to Buffering
-						stateMachine.processEvent(BufferEvent, [&](auto event, auto state)
-						{
-							LOG(WARNING) << LABELS{"proto"} << "Invalid SlimProto session state while processing Buffer event - closing the connection";
-							connection.get().stop();
-						});
-					}
 				}
 
 				inline auto startPlayback(const util::Timestamp& t)
@@ -311,21 +301,6 @@ namespace slim
 							});
 						}
 					}
-
-					// if session needs state elevation
-					/*
-					if (???)
-					{
-						if (entry.second->isReadyToPrepare())
-						{
-							entry.second->prepare(getSamplingRate());
-						}
-						if (entry.second->isReadyToPlay())
-						{
-							entry.second->startPlayback(playbackStartedAt + streamingFrames / samplingRate);
-						}
-					}
-					*/
 				}
 
 			protected:
