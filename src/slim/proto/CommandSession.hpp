@@ -112,11 +112,13 @@ namespace slim
 					CreatedState,  // initial state
 					{   // transition table definition
 						{HandshakeEvent, CreatedState,   DrainingState,  [&](auto event) {LOG(DEBUG) << "DRAINING";},                         [&] {return true;}},
+						{ReadyEvent,     DrainingState,  ReadyState,     [&](auto event) {LOG(DEBUG) << "READY";stateChangeToReady();},       [&] {return true;}},
+						{ReadyEvent,     ReadyState,     ReadyState,     [&](auto event) {},                                                  [&] {return true;}},
 						{PrepareEvent,   ReadyState,     PreparingState, [&](auto event) {LOG(DEBUG) << "PREPARE";stateChangeToPreparing();}, [&] {return isReadyToPrepare();}},
 						{PrepareEvent,   PreparingState, PreparingState, [&](auto event) {},                                                  [&] {return true;}},
 						{PrepareEvent,   BufferingState, BufferingState, [&](auto event) {},                                                  [&] {return true;}},
 						{PrepareEvent,   PlayingState,   PlayingState,   [&](auto event) {},                                                  [&] {return true;}},
-						{BufferEvent,    PreparingState, BufferingState, [&](auto event) {LOG(DEBUG) << "BUFFER";},                           [&] {return isReadyToStream();}},
+						{BufferEvent,    PreparingState, BufferingState, [&](auto event) {LOG(DEBUG) << "BUFFER";},                           [&] {return isReadyToBuffer();}},
 						{BufferEvent,    BufferingState, BufferingState, [&](auto event) {},                                                  [&] {return true;}},
 						{BufferEvent,    PlayingState,   PlayingState,   [&](auto event) {},                                                  [&] {return true;}},
 						{PlayEvent,      BufferingState, PlayingState,   [&](auto event) {LOG(DEBUG) << "PLAY";stateChangeToPlaying();},      [&] {return isReadyToPlay();}},
@@ -128,11 +130,6 @@ namespace slim
 						{DrainEvent,     DrainingState,  DrainingState,  [&](auto event) {},                                                  [&] {return true;}},
 						{DrainEvent,     CreatedState,   CreatedState,   [&](auto event) {},                                                  [&] {return true;}},
 						{DrainEvent,     ReadyState,     ReadyState,     [&](auto event) {},                                                  [&] {return true;}},
-						{ReadyEvent,     DrainingState,  ReadyState,     [&](auto event) {LOG(DEBUG) << "READY";stateChangeToReady();},       [&] {return true;}},
-						{ReadyEvent,     ReadyState,     ReadyState,     [&](auto event) {},                                                  [&] {return true;}},
-						{ReadyEvent,     PreparingState, PreparingState, [&](auto event) {},                                                  [&] {return true;}},
-						{ReadyEvent,     BufferingState, BufferingState, [&](auto event) {},                                                  [&] {return true;}},
-						{ReadyEvent,     PlayingState,   PlayingState,   [&](auto event) {},                                                  [&] {return true;}},
 					}
 				}
 				{
@@ -165,9 +162,14 @@ namespace slim
 					return latency;
 				}
 
-				inline auto isReady()
+				inline auto isDraining()
 				{
-					return stateMachine.state == ReadyState;
+					return stateMachine.state == DrainingState;
+				}
+
+				inline auto isReadyToBuffer()
+				{
+					return streamingSession.has_value();
 				}
 
 				inline auto isReadyToPrepare()
@@ -177,12 +179,7 @@ namespace slim
 
 				inline auto isReadyToPlay()
 				{
-					return readyToPlay;
-				}
-
-				inline auto isReadyToStream()
-				{
-					return streamingSession.has_value();
+					return clientBufferReady;
 				}
 
 				inline void onRequest(unsigned char* buffer, std::size_t size, util::Timestamp timestamp)
@@ -238,28 +235,29 @@ namespace slim
 
 				inline auto prepare(const unsigned int& s)
 				{
-					samplingRate = s;
-
-					// changing state to Preparing
-					stateMachine.processEvent(PrepareEvent, [&](auto event, auto state)
+					if (s)
 					{
-						LOG(WARNING) << LABELS{"proto"} << "Invalid SlimProto session state while processing Prepare event - closing the connection";
-						connection.get().stop();
-					});
+						samplingRate = s;
+
+						// changing state to Preparing
+						stateMachine.processEvent(PrepareEvent, [&](auto event, auto state)
+						{
+							LOG(WARNING) << LABELS{"proto"} << "Invalid SlimProto session state while processing Prepare event - closing the connection";
+							connection.get().stop();
+						});
+					}
 				}
 
 				inline void setStreamingSession(ts::optional_ref<StreamingSession<ConnectionType>> s)
 				{
-					auto hadValue{streamingSession.has_value()};
-
 					streamingSession = s;
 
-					if (!hadValue && streamingSession.has_value())
+					if (stateMachine.state == PreparingState)
 					{
-						// changing state to Buffering
+						// 'trying' to change state to Buffering
 						stateMachine.processEvent(BufferEvent, [&](auto event, auto state)
 						{
-							LOG(WARNING) << LABELS{"proto"} << "Invalid SlimProto session state while processing Send event - closing the connection";
+							LOG(WARNING) << LABELS{"proto"} << "Invalid SlimProto session state while processing Buffer event - closing the connection";
 							connection.get().stop();
 						});
 					}
@@ -279,21 +277,55 @@ namespace slim
 
 				inline void streamChunk(const Chunk& chunk)
 				{
-					// TODO: implement accounting for amount of frames which were not sent out
-					ts::with(streamingSession, [&](auto& streamingSession)
+					if (stateMachine.state == ReadyState)
 					{
-						streamingSession.streamChunk(chunk);
-					});
+						// TODO: sampling rate should be obtained from streamer
+						prepare(chunk.getSamplingRate());
+					}
 
-					if (chunk.isEndOfStream())
+					if (stateMachine.state == PreparingState)
 					{
-						// changing state to Draining
-						stateMachine.processEvent(DrainEvent, [&](auto event, auto state)
+						// 'trying' to change state to Buffering
+						stateMachine.processEvent(BufferEvent, [&](auto event, auto state)
 						{
-							LOG(WARNING) << LABELS{"proto"} << "Invalid SlimProto session state while processing Drain event - closing the connection";
+							LOG(WARNING) << LABELS{"proto"} << "Invalid SlimProto session state while processing Buffer event - closing the connection";
 							connection.get().stop();
 						});
 					}
+
+					if (stateMachine.state == BufferingState || stateMachine.state == PlayingState)
+					{
+						// TODO: implement accounting for amount of frames which were not sent out
+						ts::with(streamingSession, [&](auto& streamingSession)
+						{
+							streamingSession.streamChunk(chunk);
+						});
+
+						if (chunk.isEndOfStream())
+						{
+							// changing state to Draining
+							stateMachine.processEvent(DrainEvent, [&](auto event, auto state)
+							{
+								LOG(WARNING) << LABELS{"proto"} << "Invalid SlimProto session state while processing Drain event - closing the connection";
+								connection.get().stop();
+							});
+						}
+					}
+
+					// if session needs state elevation
+					/*
+					if (???)
+					{
+						if (entry.second->isReadyToPrepare())
+						{
+							entry.second->prepare(getSamplingRate());
+						}
+						if (entry.second->isReadyToPlay())
+						{
+							entry.second->startPlayback(playbackStartedAt + streamingFrames / samplingRate);
+						}
+					}
+					*/
 				}
 
 			protected:
@@ -328,10 +360,7 @@ namespace slim
 
 				inline void stateChangeToPreparing()
 				{
-					ts::with(samplingRate, [&](auto& samplingRate)
-					{
-						send(server::CommandSTRM{CommandSelection::Start, formatSelection, streamingPort, samplingRate, clientID});
-					});
+					send(server::CommandSTRM{CommandSelection::Start, formatSelection, streamingPort, samplingRate, clientID});
 				}
 
 				inline void stateChangeToPlaying()
@@ -348,9 +377,8 @@ namespace slim
 
 				inline void stateChangeToReady()
 				{
-					readyToPlay = false;
+					clientBufferReady = false;
 
-					samplingRate.reset();
 					streamingSession.reset();
 					playbackStartedAt.reset();
 				}
@@ -454,17 +482,20 @@ namespace slim
 
 				inline void onSTMf(client::CommandSTAT& commandSTAT)
 				{
-					// changing state to Ready
-					stateMachine.processEvent(ReadyEvent, [&](auto event, auto state)
+					if (stateMachine.state == DrainingState)
 					{
-						LOG(WARNING) << LABELS{"proto"} << "Invalid SlimProto session state while processing Ready event - closing the connection";
-						connection.get().stop();
-					});
+						// changing state to Ready
+						stateMachine.processEvent(ReadyEvent, [&](auto event, auto state)
+						{
+							LOG(WARNING) << LABELS{"proto"} << "Invalid SlimProto session state while processing Ready event - closing the connection";
+							connection.get().stop();
+						});
+					}
 				}
 
 				inline void onSTMl(client::CommandSTAT& commandSTAT)
 				{
-					readyToPlay = true;
+					clientBufferReady = true;
 
 					auto bufferSize{commandSTAT.getBuffer()->streamBufferSize};
 					auto fullness{commandSTAT.getBuffer()->streamBufferFullness};
@@ -475,7 +506,6 @@ namespace slim
 
 				inline void onSTMs(client::CommandSTAT& commandSTAT)
 				{
-					// TODO: work in progress
 					auto bufferSize{commandSTAT.getBuffer()->streamBufferSize};
 					auto fullness{commandSTAT.getBuffer()->streamBufferFullness};
 					LOG(DEBUG) << LABELS{"proto"}
@@ -486,10 +516,10 @@ namespace slim
 
 					ts::with(streamingSession, [&](auto& streamingSession)
 					{
-						ts::with(samplingRate, [&](auto& samplingRate)
+						if (samplingRate)
 						{
 							LOG(DEBUG) << LABELS{"proto"} << "server played=" << ((streamingSession.getFramesProvided() / samplingRate) * 1000);
-						});
+						}
 					});
 				}
 
@@ -621,7 +651,7 @@ namespace slim
 				CommandHandlersMap                                 commandHandlers;
 				EventHandlersMap                                   eventHandlers;
 				util::StateMachine<Event, State>                   stateMachine;
-				ts::optional<unsigned int>                         samplingRate{ts::nullopt};
+				unsigned int                                       samplingRate{0};
 				ts::optional_ref<StreamingSession<ConnectionType>> streamingSession{ts::nullopt};
 				util::ExpandableBuffer                             commandBuffer{std::size_t{0}, std::size_t{2048}};
 				ts::optional<client::CommandHELO>                  commandHELO{ts::nullopt};
@@ -633,7 +663,7 @@ namespace slim
 				ts::optional<std::chrono::milliseconds>            timeOffset{ts::nullopt};
 				std::vector<std::chrono::milliseconds>             timeOffsetSamples;
 				ts::optional<util::Timestamp>                      playbackStartedAt{ts::nullopt};
-				bool                                               readyToPlay{false};
+				bool                                               clientBufferReady{false};
 		};
 	}
 }

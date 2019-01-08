@@ -85,7 +85,7 @@ namespace slim
 					CreatedState,  // initial state
 					{   // transition table definition
 						{ReadyEvent,   CreatedState,   ReadyState,     [&](auto event) {LOG(DEBUG) << "READY";stateChangeToReady();},       [&] {return true;}},
-						{ReadyEvent,   DrainingState,  ReadyState,     [&](auto event) {LOG(DEBUG) << "READY";stateChangeToReady();},       [&] {return isReady();}},
+						{ReadyEvent,   DrainingState,  ReadyState,     [&](auto event) {LOG(DEBUG) << "READY";stateChangeToReady();},       [&] {return !isDraining();}},
 						{ReadyEvent,   ReadyState,     ReadyState,     [&](auto event) {},                                                  [&] {return true;}},
 						{PrepareEvent, ReadyState,     PreparingState, [&](auto event) {LOG(DEBUG) << "PREPARE";stateChangeToPreparing();}, [&] {return true;}},
 						{PrepareEvent, PreparingState, PreparingState, [&](auto event) {},                                                  [&] {return true;}},
@@ -450,12 +450,12 @@ namespace slim
 					return result;
  				}
 
-				inline auto isReady()
+				inline auto isDraining()
 				{
-					return 0 == (commandSessions.size() - std::count_if(commandSessions.begin(), commandSessions.end(), [&](auto& entry)
+					return 0 < std::count_if(commandSessions.begin(), commandSessions.end(), [&](auto& entry)
 					{
-						return entry.second->isReady();
-					}));
+						return entry.second->isDraining();
+					});
 				}
 
 				inline auto isReadyToPlay()
@@ -475,7 +475,7 @@ namespace slim
 					auto waitThresholdReached{std::chrono::milliseconds{500} < (now - preparingStartedAt.value_or(now))};
 					auto notReadyToStreamTotal{std::count_if(commandSessions.begin(), commandSessions.end(), [&](auto& entry)
 					{
-						return !entry.second->isReadyToStream();
+						return !entry.second->isReadyToBuffer();
 					})};
 
 					// if deferring time-out has expired
@@ -539,29 +539,13 @@ namespace slim
 					// sending chunk to all SlimProto sessions
 					for (auto& entry : commandSessions)
 					{
-						// TODO: work in progress
-						// if session needs state elevation
-						/*
-						if (???)
-						{
-							if (entry.second->isReadyToPrepare())
-							{
-								entry.second->prepare(getSamplingRate());
-							}
-							if (entry.second->isReadyToPlay())
-							{
-								entry.second->startPlayback(playbackStartedAt + streamingFrames / samplingRate);
-							}
-						}
-						*/
-
 						entry.second->streamChunk(chunk);
 
 						// increasing played frames counter
 						streamingFrames += chunk.getFrames();
 					}
 
-					LOG(DEBUG) << LABELS{"proto"} << "A chunk was distributed to the clients (total clients=" << streamingSessions.size() << ", frames=" << chunk.getFrames() << ")";
+					LOG(DEBUG) << LABELS{"proto"} << "A chunk was distributed to the clients (total clients=" << commandSessions.size() << ", frames=" << chunk.getFrames() << ")";
 				}
 
 			private:
