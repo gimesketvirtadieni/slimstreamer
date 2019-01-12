@@ -253,18 +253,6 @@ namespace slim
 					streamingSession = s;
 				}
 
-				inline auto startPlayback(const util::Timestamp& t)
-				{
-					playbackStartedAt = t;
-
-					// changing state to Playing
-					stateMachine.processEvent(PlayEvent, [&](auto event, auto state)
-					{
-						LOG(WARNING) << LABELS{"proto"} << "Invalid SlimProto session state while processing Play event - closing the connection";
-						connection.get().stop();
-					});
-				}
-
 				inline void streamChunk(const Chunk& chunk)
 				{
 					if (stateMachine.state == ReadyState)
@@ -285,6 +273,16 @@ namespace slim
 
 					if (stateMachine.state == BufferingState || stateMachine.state == PlayingState)
 					{
+						if (stateMachine.state == BufferingState && streamer.get().isPlaying())
+						{
+							// changing state to Playing
+							stateMachine.processEvent(PlayEvent, [&](auto event, auto state)
+							{
+								LOG(WARNING) << LABELS{"proto"} << "Invalid SlimProto session state while processing Play event - closing the connection";
+								connection.get().stop();
+							});
+						}
+
 						// TODO: implement accounting for amount of frames which were not sent out
 						ts::with(streamingSession, [&](auto& streamingSession)
 						{
@@ -333,21 +331,19 @@ namespace slim
 					return result;
 				}
 
+				inline void stateChangeToPlaying()
+				{
+					playbackStartedAt = streamer.get().getPlaybackTime(util::milliseconds);
+
+					ts::with(timeOffset, [&](auto& timeOffset)
+					{
+						send(server::CommandSTRM{CommandSelection::Unpause, playbackStartedAt - timeOffset});
+					});
+				}
+
 				inline void stateChangeToPreparing()
 				{
 					send(server::CommandSTRM{CommandSelection::Start, formatSelection, streamingPort, samplingRate, clientID});
-				}
-
-				inline void stateChangeToPlaying()
-				{
-					ts::with(playbackStartedAt, [&](auto& playbackStartedAt)
-					{
-						ts::with(timeOffset, [&](auto& timeOffset)
-						{
-							auto playbackTime{playbackStartedAt - timeOffset};
-							send(server::CommandSTRM{CommandSelection::Unpause, playbackTime});
-						});
-					});
 				}
 
 				inline void stateChangeToReady()
@@ -355,7 +351,6 @@ namespace slim
 					clientBufferReady = false;
 
 					streamingSession.reset();
-					playbackStartedAt.reset();
 				}
 
 				inline auto onHELO(unsigned char* buffer, std::size_t size)
@@ -637,7 +632,7 @@ namespace slim
 				std::vector<std::chrono::microseconds>             latencySamples;
 				ts::optional<std::chrono::milliseconds>            timeOffset{ts::nullopt};
 				std::vector<std::chrono::milliseconds>             timeOffsetSamples;
-				ts::optional<util::Timestamp>                      playbackStartedAt{ts::nullopt};
+				util::Timestamp                                    playbackStartedAt{util::Timestamp::now()};
 				bool                                               clientBufferReady{false};
 		};
 	}

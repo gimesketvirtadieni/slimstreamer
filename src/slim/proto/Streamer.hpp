@@ -89,7 +89,7 @@ namespace slim
 						{ReadyEvent,   ReadyState,     ReadyState,     [&](auto event) {},                                                  [&] {return true;}},
 						{PrepareEvent, ReadyState,     PreparingState, [&](auto event) {LOG(DEBUG) << "PREPARE";stateChangeToPreparing();}, [&] {return true;}},
 						{PrepareEvent, PreparingState, PreparingState, [&](auto event) {},                                                  [&] {return true;}},
-						{BufferEvent,  PreparingState, BufferingState, [&](auto event) {LOG(DEBUG) << "BUFFER";},                           [&] {return isReadyToStream();}},
+						{BufferEvent,  PreparingState, BufferingState, [&](auto event) {LOG(DEBUG) << "BUFFER";stateChangeToBuffering();},  [&] {return isReadyToBuffer();}},
 						{BufferEvent,  BufferingState, BufferingState, [&](auto event) {},                                                  [&] {return true;}},
 						{BufferEvent,  PlayingState,   PlayingState,   [&](auto event) {},                                                  [&] {return true;}},
 						{PlayEvent,    BufferingState, PlayingState,   [&](auto event) {LOG(DEBUG) << "PLAY";stateChangeToPlaying();},      [&] {return isReadyToPlay();}},
@@ -205,6 +205,34 @@ namespace slim
 					}
 
 					return result;
+				}
+
+				template<typename RatioType>
+				inline auto getPlaybackTime(const RatioType& ratio) const
+				{
+					LOG(DEBUG) << LABELS{"proto"} << "streamingFrames=" << streamingFrames;
+					LOG(DEBUG) << LABELS{"proto"} << "bufferedFrames=" << bufferedFrames;
+
+					return playbackStartedAt + calculateDuration(streamingFrames - bufferedFrames, ratio);
+				}
+
+				template<typename RatioType>
+				inline auto getStreamingDuration(const RatioType& ratio) const
+				{
+					return calculateDuration(streamingFrames, ratio);
+				}
+
+				inline auto isDraining()
+				{
+					return 0 < std::count_if(commandSessions.begin(), commandSessions.end(), [&](auto& entry)
+					{
+						return entry.second->isDraining();
+					});
+				}
+
+				inline auto isPlaying()
+				{
+					return stateMachine.state == PlayingState;
 				}
 
 				virtual bool isRunning() override
@@ -393,14 +421,26 @@ namespace slim
 					return (found != sessions.end());
 				}
 
+				template<typename RatioType>
+				inline auto calculateDuration(const util::BigInteger& frames, const RatioType& ratio) const
+ 				{
+					auto result{std::chrono::duration<long long, RatioType>{0}};
+
+					if (auto samplingRate{getSamplingRate()}; samplingRate)
+					{
+						result = std::chrono::duration<long long, RatioType>{frames * ratio.den / samplingRate};
+					}
+
+					return result;
+ 				}
+
 				inline auto calculatePlaybackTime()
 				{
 					auto maxLatency{std::chrono::microseconds{0}};
 
 					for (auto& entry : commandSessions)
 					{
-						auto latency{entry.second->getLatency()};
-						ts::with(latency, [&](auto& latency)
+						ts::with(entry.second->getLatency(), [&](const auto& latency)
 						{
 							if (maxLatency < latency)
 							{
@@ -437,42 +477,13 @@ namespace slim
 					return result;
 				}
 
-				template<typename RatioType>
-				inline auto getStreamingDuration(RatioType ratio) const
- 				{
-					auto result{std::chrono::duration<long long, RatioType>{0}};
-
-					if (auto samplingRate{getSamplingRate()}; samplingRate)
-					{
-						result = std::chrono::duration<long long, RatioType>{streamingFrames * ratio.den / samplingRate};
-					}
-
-					return result;
- 				}
-
-				inline auto isDraining()
-				{
-					return 0 < std::count_if(commandSessions.begin(), commandSessions.end(), [&](auto& entry)
-					{
-						return entry.second->isDraining();
-					});
-				}
-
-				inline auto isReadyToPlay()
-				{
-					// TODO: introduce timeout threshold
-					return 0 == std::count_if(commandSessions.begin(), commandSessions.end(), [&](auto& entry)
-					{
-						return !entry.second->isReadyToPlay();
-					});
-				}
-
-				inline auto isReadyToStream()
+				inline auto isReadyToBuffer()
 				{
 					auto result{false};
-					auto now = util::Timestamp::now();
+					auto timePassed = util::Timestamp::now() - preparingStartedAt;
+
 					// TODO: deferring time-out should be configurable
-					auto waitThresholdReached{std::chrono::milliseconds{500} < (now - preparingStartedAt.value_or(now))};
+					auto waitThresholdReached{std::chrono::milliseconds{2000} < timePassed};
 					auto notReadyToStreamTotal{std::count_if(commandSessions.begin(), commandSessions.end(), [&](auto& entry)
 					{
 						return !entry.second->isReadyToBuffer();
@@ -497,16 +508,35 @@ namespace slim
 					return result;
 				}
 
+				inline auto isReadyToPlay()
+				{
+					auto result{false};
+					auto timePassed = util::Timestamp::now() - bufferingStartedAt;
+
+					// TODO: min buffering period should be configurable
+					if (auto minThresholdReached{std::chrono::milliseconds{2000} < timePassed}; minThresholdReached)
+					{
+						// TODO: introduce max timeout threshold
+						result = (0 == std::count_if(commandSessions.begin(), commandSessions.end(), [&](auto& entry)
+						{
+							return !entry.second->isReadyToPlay();
+						}));
+					}
+
+					return result;
+				}
+
+				inline void stateChangeToBuffering()
+				{
+					// buffering start time is required for calculating min buffering time
+					bufferingStartedAt = util::Timestamp::now();
+				}
+
 				inline void stateChangeToPlaying()
 				{
-					// capturing start playback time point
-					auto timestamp{calculatePlaybackTime()};
-					playbackStartedAt = timestamp;
-
-					for (auto& entry : commandSessions)
-					{
-						entry.second->startPlayback(timestamp);
-					}
+					// capturing start playback time point and how many frames were buffered
+					playbackStartedAt = calculatePlaybackTime();
+                    bufferedFrames    = streamingFrames;
 				}
 
 				inline void stateChangeToPreparing()
@@ -524,14 +554,13 @@ namespace slim
 				{
 					if (auto duration{getStreamingDuration(util::milliseconds).count()}; duration)
 					{
-						LOG(DEBUG) << LABELS{"proto"} << "Stopped streaming (duration=" << getStreamingDuration(util::milliseconds).count() << " millisec)";
+						LOG(DEBUG) << LABELS{"proto"} << "Stopped streaming (duration=" << duration << " millisec)";
 					}
 
 					// resetting streamer's state
-					preparingStartedAt.reset();
-					playbackStartedAt.reset();
 					setSamplingRate(0);
 					streamingFrames = 0;
+                    bufferedFrames  = 0;
 				}
 
 				inline void streamChunk(Chunk& chunk)
@@ -540,10 +569,10 @@ namespace slim
 					for (auto& entry : commandSessions)
 					{
 						entry.second->streamChunk(chunk);
-
-						// increasing played frames counter
-						streamingFrames += chunk.getFrames();
 					}
+
+					// increasing played frames counter
+					streamingFrames += chunk.getFrames();
 
 					LOG(DEBUG) << LABELS{"proto"} << "A chunk was distributed to the clients (total clients=" << commandSessions.size() << ", frames=" << chunk.getFrames() << ")";
 				}
@@ -556,9 +585,11 @@ namespace slim
 				util::BigInteger                  nextID{0};
 				SessionsMap<CommandSessionType>   commandSessions;
 				SessionsMap<StreamingSessionType> streamingSessions;
-				ts::optional<util::Timestamp>     preparingStartedAt{ts::nullopt};
-				ts::optional<util::Timestamp>     playbackStartedAt{ts::nullopt};
+				util::Timestamp                   preparingStartedAt{util::Timestamp::now()};
+				util::Timestamp                   bufferingStartedAt{util::Timestamp::now()};
+				util::Timestamp                   playbackStartedAt{util::Timestamp::now()};
 				util::BigInteger                  streamingFrames{0};
+				util::BigInteger                  bufferedFrames{0};
 		};
 	}
 }
