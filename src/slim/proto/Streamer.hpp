@@ -132,7 +132,7 @@ namespace slim
 						if (chunkSamplingRate)
 						{
 							LOG(DEBUG) << LABELS{"proto"} << "Started streaming (rate=" << chunkSamplingRate << ")";
-							setSamplingRate(chunkSamplingRate);
+							samplingRate = chunkSamplingRate;
 
 							// trying to change state to Preparing
 							stateMachine.processEvent(PrepareEvent, [&](auto event, auto state)
@@ -210,10 +210,12 @@ namespace slim
 				template<typename RatioType>
 				inline auto getPlaybackTime(const RatioType& ratio) const
 				{
-					LOG(DEBUG) << LABELS{"proto"} << "streamingFrames=" << streamingFrames;
-					LOG(DEBUG) << LABELS{"proto"} << "bufferedFrames=" << bufferedFrames;
-
 					return playbackStartedAt + calculateDuration(streamingFrames - bufferedFrames, ratio);
+				}
+
+				inline auto getSamplingRate() const
+				{
+					return samplingRate;
 				}
 
 				template<typename RatioType>
@@ -286,7 +288,7 @@ namespace slim
 						LOG(INFO) << LABELS{"proto"} << "Client ID was parsed (clientID=" << clientID.value() << ")";
 
 						// setting encoder sampling rate
-						encoderBuilder.setSamplingRate(getSamplingRate());
+						encoderBuilder.setSamplingRate(samplingRate);
 
 						// creating streaming session object
 						auto streamingSessionPtr{std::make_unique<StreamingSessionType>(std::ref<ConnectionType>(connection), clientID.value(), encoderBuilder)};
@@ -426,7 +428,7 @@ namespace slim
  				{
 					auto result{std::chrono::duration<long long, RatioType>{0}};
 
-					if (auto samplingRate{getSamplingRate()}; samplingRate)
+					if (samplingRate)
 					{
 						result = std::chrono::duration<long long, RatioType>{frames * ratio.den / samplingRate};
 					}
@@ -558,7 +560,7 @@ namespace slim
 					}
 
 					// resetting streamer's state
-					setSamplingRate(0);
+					samplingRate    = 0;
 					streamingFrames = 0;
                     bufferedFrames  = 0;
 				}
@@ -585,6 +587,7 @@ namespace slim
 				util::BigInteger                  nextID{0};
 				SessionsMap<CommandSessionType>   commandSessions;
 				SessionsMap<StreamingSessionType> streamingSessions;
+				unsigned int                      samplingRate{0};
 				util::Timestamp                   preparingStartedAt{util::Timestamp::now()};
 				util::Timestamp                   bufferingStartedAt{util::Timestamp::now()};
 				util::Timestamp                   playbackStartedAt{util::Timestamp::now()};

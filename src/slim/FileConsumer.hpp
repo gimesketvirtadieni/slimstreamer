@@ -34,9 +34,8 @@ namespace slim
 			: Consumer{p}
  			, writerPtr{std::move(w)}
  			, headerRequired{eb.getHeader()}
+			, samplingRate{eb.getSamplingRate()}
  			{
-				setSamplingRate(eb.getSamplingRate());
-
 				eb.setEncodedCallback([&](auto* data, auto size)
 				{
 					writerPtr->writeAsync(data, size, [](auto error, auto written)
@@ -82,6 +81,11 @@ namespace slim
 				return true;
 			}
 
+			inline auto getSamplingRate() const
+			{
+				return samplingRate;
+			}
+
 			virtual bool isRunning() override
 			{
 				return running;
@@ -103,7 +107,6 @@ namespace slim
 				auto               size{static_cast<std::uint32_t>(s)};
 				const unsigned int channels{encoderPtr->getChannels()};
 				const unsigned int bitsPerSample{encoderPtr->getBitsPerSample()};
-				const unsigned int samplingRate{encoderPtr->getSamplingRate()};
 				const unsigned int bytesPerFrame{channels * (bitsPerSample >> 3)};
 				const unsigned int byteRate{samplingRate * bytesPerFrame};
 				const char         chunkID[]     = {0x52, 0x49, 0x46, 0x46};
@@ -146,6 +149,7 @@ namespace slim
 			std::unique_ptr<util::AsyncWriter> writerPtr;
 			std::unique_ptr<EncoderBase>       encoderPtr;
 			bool                               headerRequired;
+			unsigned int                       samplingRate;
 			bool                               running{false};
 			std::size_t                        bytesWritten{0};
 	};

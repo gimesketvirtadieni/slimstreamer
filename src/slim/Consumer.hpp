@@ -39,23 +39,11 @@ namespace slim
 				return processorProxy;
 			}
 
-			virtual unsigned int getSamplingRate() const
-			{
-				return samplingRate;
-			}
-
 			virtual bool isRunning() = 0;
-
-			virtual void setSamplingRate(unsigned int s)
-			{
-				samplingRate = s;
-			}
-
 			virtual void start() = 0;
 			virtual void stop(bool gracefully = true) = 0;
 
 		private:
 			conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>> processorProxy;
-			unsigned int                                             samplingRate{0};
 	};
 }

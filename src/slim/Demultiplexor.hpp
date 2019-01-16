@@ -17,7 +17,6 @@
 #include <vector>
 
 #include "slim/ContainerBase.hpp"
-#include "slim/Exception.hpp"
 #include "slim/log/log.hpp"
 
 
@@ -82,18 +81,6 @@ namespace slim
 				return result;
 			}
 
-			virtual unsigned int getSamplingRate() const override
-			{
-				unsigned int result{0};
-
-				if (currentConsumerPtr)
-				{
-					result = currentConsumerPtr->getSamplingRate();
-				}
-
-				return result;
-			}
-
 			virtual bool isRunning() override
 			{
 				auto result{false};
@@ -104,11 +91,6 @@ namespace slim
 				}
 
 				return result;
-			}
-
-			virtual void setSamplingRate(unsigned int s) override
-			{
-				throw Exception("Sampling rate cannot be set for demultiplexor");
 			}
 
 			virtual void start() override

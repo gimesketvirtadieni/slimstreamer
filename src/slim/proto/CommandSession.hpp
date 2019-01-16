@@ -174,7 +174,7 @@ namespace slim
 
 				inline auto isReadyToPrepare()
 				{
-					return timeOffset.has_value();
+					return timeOffset.has_value() && samplingRate;
 				}
 
 				inline auto isReadyToPlay()
@@ -235,16 +235,18 @@ namespace slim
 
 				inline auto prepare(const unsigned int& s)
 				{
-					if (s)
-					{
-						samplingRate = s;
+					auto temp{samplingRate};
+					samplingRate = s;
 
-						// changing state to Preparing
-						stateMachine.processEvent(PrepareEvent, [&](auto event, auto state)
-						{
-							LOG(WARNING) << LABELS{"proto"} << "Invalid SlimProto session state while processing Prepare event - closing the connection";
-							connection.get().stop();
-						});
+					// 'trying' to change state to Preparing
+					if (!stateMachine.processEvent(PrepareEvent, [&](auto event, auto state)
+					{
+						LOG(WARNING) << LABELS{"proto"} << "Invalid SlimProto session state while processing Prepare event - closing the connection";
+						connection.get().stop();
+					}))
+					{
+						// restoring sampling rate if transition failed
+						samplingRate = temp;
 					}
 				}
 
@@ -257,8 +259,7 @@ namespace slim
 				{
 					if (stateMachine.state == ReadyState)
 					{
-						// TODO: sampling rate should be obtained from streamer
-						prepare(chunk.getSamplingRate());
+						prepare(streamer.get().getSamplingRate());
 					}
 
 					if (stateMachine.state == PreparingState)
