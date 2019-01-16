@@ -174,12 +174,12 @@ namespace slim
 
 				inline auto isReadyToPrepare()
 				{
-					return timeOffset.has_value() && samplingRate;
+					return samplingRate;
 				}
 
 				inline auto isReadyToPlay()
 				{
-					return clientBufferReady;
+					return timeOffset.has_value() && clientBufferReady;
 				}
 
 				inline void onRequest(unsigned char* buffer, std::size_t size, util::Timestamp timestamp)
