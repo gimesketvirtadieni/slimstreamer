@@ -53,10 +53,6 @@
                                 								
                                 <option id="gnu.cpp.compiler.option.include.paths.1353764138" name="Include paths (-I)" superClass="gnu.cpp.compiler.option.include.paths" useByScannerDiscovery="false" valueType="includePath">
                                     									
-                                    <listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/dependencies/asio/asio/include}&quot;"/>
-                                    									
-                                    <listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/dependencies/conwrap/src/include}&quot;"/>
-                                    									
                                     <listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/dependencies/conwrap2/include}&quot;"/>
                                     									
                                     <listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/dependencies/cxxopts/include}&quot;"/>
@@ -78,8 +74,6 @@
                                 </option>
                                 								
                                 <option id="gnu.cpp.compiler.option.preprocessor.def.192776670" name="Defined symbols (-D)" superClass="gnu.cpp.compiler.option.preprocessor.def" useByScannerDiscovery="false" valueType="definedSymbols">
-                                    									
-                                    <listOptionValue builtIn="false" value="ASIO_STANDALONE"/>
                                     									
                                     <listOptionValue builtIn="false" value="VERSION='$(VERSION)'"/>
                                     									
@@ -159,11 +153,7 @@
                             							
                             <tool id="cdt.managedbuild.tool.gnu.assembler.exe.debug.905636712" name="GCC Assembler" superClass="cdt.managedbuild.tool.gnu.assembler.exe.debug">
                                 								
-                                <option id="gnu.both.asm.option.include.paths.364595905" name="Include paths (-I)" superClass="gnu.both.asm.option.include.paths" valueType="includePath">
-                                    									
-                                    <listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/dependencies/type_safe/include}&quot;"/>
-                                    								
-                                </option>
+                                <option id="gnu.both.asm.option.include.paths.364595905" name="Include paths (-I)" superClass="gnu.both.asm.option.include.paths" valueType="includePath"/>
                                 								
                                 <inputType id="cdt.managedbuild.tool.gnu.assembler.input.491051301" superClass="cdt.managedbuild.tool.gnu.assembler.input"/>
                                 							
@@ -237,9 +227,7 @@
                                 								
                                 <option id="gnu.cpp.compiler.option.include.paths.1023711879" name="Include paths (-I)" superClass="gnu.cpp.compiler.option.include.paths" useByScannerDiscovery="false" valueType="includePath">
                                     									
-                                    <listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/dependencies/asio/asio/include}&quot;"/>
-                                    									
-                                    <listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/dependencies/conwrap/src/include}&quot;"/>
+                                    <listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/dependencies/conwrap2/include}&quot;"/>
                                     									
                                     <listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/dependencies/cxxopts/include}&quot;"/>
                                     									
@@ -250,6 +238,8 @@
                                     <listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/dependencies/googletest/googlemock/include}&quot;"/>
                                     									
                                     <listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/dependencies/googletest/googletest/include}&quot;"/>
+                                    									
+                                    <listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/dependencies/networking-ts-impl/include}&quot;"/>
                                     									
                                     <listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/dependencies/scope_guard/include/boost}&quot;"/>
                                     									
@@ -262,8 +252,6 @@
                                 </option>
                                 								
                                 <option id="gnu.cpp.compiler.option.preprocessor.def.2065758238" name="Defined symbols (-D)" superClass="gnu.cpp.compiler.option.preprocessor.def" useByScannerDiscovery="false" valueType="definedSymbols">
-                                    									
-                                    <listOptionValue builtIn="false" value="ASIO_STANDALONE"/>
                                     									
                                     <listOptionValue builtIn="false" value="VERSION='$(VERSION)'"/>
                                     									
@@ -415,15 +403,15 @@
                                 								
                                 <option id="gnu.cpp.compiler.option.include.paths.986547206" name="Include paths (-I)" superClass="gnu.cpp.compiler.option.include.paths" useByScannerDiscovery="false" valueType="includePath">
                                     									
-                                    <listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/dependencies/asio/asio/include}&quot;"/>
-                                    									
-                                    <listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/dependencies/conwrap/src/include}&quot;"/>
+                                    <listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/dependencies/conwrap2/include}&quot;"/>
                                     									
                                     <listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/dependencies/cxxopts/include}&quot;"/>
                                     									
                                     <listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/dependencies/g3log/build/include}&quot;"/>
                                     									
                                     <listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/dependencies/g3log/src}&quot;"/>
+                                    									
+                                    <listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/dependencies/networking-ts-impl/include}&quot;"/>
                                     									
                                     <listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/dependencies/scope_guard/include/boost}&quot;"/>
                                     									
@@ -436,8 +424,6 @@
                                 </option>
                                 								
                                 <option id="gnu.cpp.compiler.option.preprocessor.def.1107656414" name="Defined symbols (-D)" superClass="gnu.cpp.compiler.option.preprocessor.def" useByScannerDiscovery="false" valueType="definedSymbols">
-                                    									
-                                    <listOptionValue builtIn="false" value="ASIO_STANDALONE"/>
                                     									
                                     <listOptionValue builtIn="false" value="VERSION='$(VERSION)'"/>
                                     									
