@@ -58,8 +58,6 @@ namespace slim
 
 			enum Event
 			{
-				//StartEvent,
-				//StopEvent,
 				HandshakeEvent,
 				ReadyEvent,
 				PrepareEvent,
@@ -111,25 +109,25 @@ namespace slim
 				{
 					CreatedState,  // initial state
 					{   // transition table definition
-						{HandshakeEvent, CreatedState,   DrainingState,  [&](auto event) {LOG(DEBUG) << "DRAINING";},                         [&] {return true;}},
-						{ReadyEvent,     DrainingState,  ReadyState,     [&](auto event) {LOG(DEBUG) << "READY";stateChangeToReady();},       [&] {return true;}},
-						{ReadyEvent,     ReadyState,     ReadyState,     [&](auto event) {},                                                  [&] {return true;}},
-						{PrepareEvent,   ReadyState,     PreparingState, [&](auto event) {LOG(DEBUG) << "PREPARE";stateChangeToPreparing();}, [&] {return isReadyToPrepare();}},
-						{PrepareEvent,   PreparingState, PreparingState, [&](auto event) {},                                                  [&] {return true;}},
-						{PrepareEvent,   BufferingState, BufferingState, [&](auto event) {},                                                  [&] {return true;}},
-						{PrepareEvent,   PlayingState,   PlayingState,   [&](auto event) {},                                                  [&] {return true;}},
-						{BufferEvent,    PreparingState, BufferingState, [&](auto event) {LOG(DEBUG) << "BUFFER";},                           [&] {return isReadyToBuffer();}},
-						{BufferEvent,    BufferingState, BufferingState, [&](auto event) {},                                                  [&] {return true;}},
-						{BufferEvent,    PlayingState,   PlayingState,   [&](auto event) {},                                                  [&] {return true;}},
-						{PlayEvent,      BufferingState, PlayingState,   [&](auto event) {LOG(DEBUG) << "PLAY";stateChangeToPlaying();},      [&] {return isReadyToPlay();}},
-						{PlayEvent,      ReadyState,     ReadyState,     [&](auto event) {},                                                  [&] {return true;}},
-						{PlayEvent,      PlayingState,   PlayingState,   [&](auto event) {},                                                  [&] {return true;}},
-						{DrainEvent,     PreparingState, DrainingState,  [&](auto event) {LOG(DEBUG) << "DRAIN";},                            [&] {return true;}},
-						{DrainEvent,     BufferingState, DrainingState,  [&](auto event) {LOG(DEBUG) << "DRAIN";},                            [&] {return true;}},
-						{DrainEvent,     PlayingState,   DrainingState,  [&](auto event) {LOG(DEBUG) << "DRAIN";},                            [&] {return true;}},
-						{DrainEvent,     DrainingState,  DrainingState,  [&](auto event) {},                                                  [&] {return true;}},
-						{DrainEvent,     CreatedState,   CreatedState,   [&](auto event) {},                                                  [&] {return true;}},
-						{DrainEvent,     ReadyState,     ReadyState,     [&](auto event) {},                                                  [&] {return true;}},
+						{HandshakeEvent, CreatedState,   DrainingState,  [&](auto event) {},                          [&] {return true;}},
+						{ReadyEvent,     DrainingState,  ReadyState,     [&](auto event) {stateChangeToReady();},     [&] {return true;}},
+						{ReadyEvent,     ReadyState,     ReadyState,     [&](auto event) {},                          [&] {return true;}},
+						{PrepareEvent,   ReadyState,     PreparingState, [&](auto event) {stateChangeToPreparing();}, [&] {return isReadyToPrepare();}},
+						{PrepareEvent,   PreparingState, PreparingState, [&](auto event) {},                          [&] {return true;}},
+						{PrepareEvent,   BufferingState, BufferingState, [&](auto event) {},                          [&] {return true;}},
+						{PrepareEvent,   PlayingState,   PlayingState,   [&](auto event) {},                          [&] {return true;}},
+						{BufferEvent,    PreparingState, BufferingState, [&](auto event) {},                          [&] {return isReadyToBuffer();}},
+						{BufferEvent,    BufferingState, BufferingState, [&](auto event) {},                          [&] {return true;}},
+						{BufferEvent,    PlayingState,   PlayingState,   [&](auto event) {},                          [&] {return true;}},
+						{PlayEvent,      BufferingState, PlayingState,   [&](auto event) {stateChangeToPlaying();},   [&] {return isReadyToPlay();}},
+						{PlayEvent,      ReadyState,     ReadyState,     [&](auto event) {},                          [&] {return true;}},
+						{PlayEvent,      PlayingState,   PlayingState,   [&](auto event) {},                          [&] {return true;}},
+						{DrainEvent,     PreparingState, DrainingState,  [&](auto event) {},                          [&] {return true;}},
+						{DrainEvent,     BufferingState, DrainingState,  [&](auto event) {},                          [&] {return true;}},
+						{DrainEvent,     PlayingState,   DrainingState,  [&](auto event) {},                          [&] {return true;}},
+						{DrainEvent,     DrainingState,  DrainingState,  [&](auto event) {},                          [&] {return true;}},
+						{DrainEvent,     CreatedState,   CreatedState,   [&](auto event) {},                          [&] {return true;}},
+						{DrainEvent,     ReadyState,     ReadyState,     [&](auto event) {},                          [&] {return true;}},
 					}
 				}
 				{
@@ -239,11 +237,7 @@ namespace slim
 					samplingRate = s;
 
 					// 'trying' to change state to Preparing
-					if (!stateMachine.processEvent(PrepareEvent, [&](auto event, auto state)
-					{
-						LOG(WARNING) << LABELS{"proto"} << "Invalid SlimProto session state while processing Prepare event - closing the connection";
-						connection.get().stop();
-					}))
+					if (!stateMachine.processEvent(PrepareEvent, [&](auto event, auto state) {}))
 					{
 						// restoring sampling rate if transition failed
 						samplingRate = temp;
@@ -259,6 +253,7 @@ namespace slim
 				{
 					if (stateMachine.state == ReadyState)
 					{
+						// calling prepare() here is required for cases when SlimProto session is created while streaming
 						prepare(streamer.get().getSamplingRate());
 					}
 
@@ -349,8 +344,8 @@ namespace slim
 
 				inline void stateChangeToReady()
 				{
+					// resetting session state
 					clientBufferReady = false;
-
 					streamingSession.reset();
 				}
 
@@ -380,7 +375,6 @@ namespace slim
 							ping(timestampCache.store(util::Timestamp::now()));
 						}, std::chrono::seconds{1}));
 
-						// TODO: work in progress
 						// sending SlimProto Stop command will flush client's buffer which will initiate STAT/STMf message
 						send(server::CommandSTRM{CommandSelection::Stop});
 
@@ -576,12 +570,8 @@ namespace slim
 
 				inline void onSTMu(client::CommandSTAT& commandSTAT)
 				{
-					// changing state to Ready
-					stateMachine.processEvent(ReadyEvent, [&](auto event, auto state)
-					{
-						LOG(WARNING) << LABELS{"proto"} << "Invalid SlimProto session state while processing Ready event - closing the connection";
-						connection.get().stop();
-					});
+					// sending SlimProto Stop command will flush client's buffer which will initiate STAT/STMf message
+					send(server::CommandSTRM{CommandSelection::Stop});
 				}
 
 				inline void ping(std::uint32_t timestampKey)
