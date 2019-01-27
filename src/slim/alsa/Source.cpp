@@ -231,7 +231,7 @@ namespace slim
 				// this call will block until buffer is filled or PCM stream state is changed
 				result = snd_pcm_readi(handlePtr, srcBuffer, maxFrames);
 
-				// if PCM data is available if the buffer
+				// if PCM data is available in the buffer
 				if (result > 0)
 				{
 					auto offset = containsData(srcBuffer, static_cast<snd_pcm_uframes_t>(result));

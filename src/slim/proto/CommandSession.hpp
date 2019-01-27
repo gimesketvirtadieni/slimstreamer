@@ -198,8 +198,8 @@ namespace slim
 						processedSize = 0;
 
 						// searching for a SlimProto Command based on a label in the buffer
-						std::string label{(char*)commandBuffer.data(), commandBuffer.size() > keySize ? keySize : 0};
-						auto        found{commandHandlers.find(label)};
+						auto label{std::string{(char*)commandBuffer.data(), commandBuffer.size() > keySize ? keySize : 0}};
+						auto found{commandHandlers.find(label)};
 						if (found != commandHandlers.end())
 						{
 							// if there is enough data to process this message
@@ -217,7 +217,7 @@ namespace slim
 								processedSize = (*found).second(data, size, timestamp);
 
 								// removing processed data from the buffer
-								// TODO: shrinking memory means moving data towards the beginning of the buffer; thing a better way
+								// TODO: shrinking memory means moving data towards the beginning of the buffer; think of a better way
 								commandBuffer.shrinkLeft(processedSize);
 							}
 						}
@@ -325,28 +325,6 @@ namespace slim
 					result = client::CommandDSCO{buffer, size}.getSize();
 
 					return result;
-				}
-
-				inline void stateChangeToPlaying()
-				{
-					playbackStartedAt = streamer.get().getPlaybackTime(util::milliseconds);
-
-					ts::with(timeOffset, [&](auto& timeOffset)
-					{
-						send(server::CommandSTRM{CommandSelection::Unpause, playbackStartedAt - timeOffset});
-					});
-				}
-
-				inline void stateChangeToPreparing()
-				{
-					send(server::CommandSTRM{CommandSelection::Start, formatSelection, streamingPort, samplingRate, clientID});
-				}
-
-				inline void stateChangeToReady()
-				{
-					// resetting session state
-					clientBufferReady = false;
-					streamingSession.reset();
 				}
 
 				inline auto onHELO(unsigned char* buffer, std::size_t size)
@@ -600,6 +578,28 @@ namespace slim
 
 					// TODO: use local buffer and async API to prevent from interfering while measuring latency
 					connection.get().write(command.getBuffer(), command.getSize());
+				}
+
+				inline void stateChangeToPlaying()
+				{
+					playbackStartedAt = streamer.get().getPlaybackTime(util::milliseconds);
+
+					ts::with(timeOffset, [&](auto& timeOffset)
+					{
+						send(server::CommandSTRM{CommandSelection::Unpause, playbackStartedAt - timeOffset});
+					});
+				}
+
+				inline void stateChangeToPreparing()
+				{
+					send(server::CommandSTRM{CommandSelection::Start, formatSelection, streamingPort, samplingRate, clientID});
+				}
+
+				inline void stateChangeToReady()
+				{
+					// resetting session state
+					clientBufferReady = false;
+					streamingSession.reset();
 				}
 
 			private:

@@ -110,28 +110,25 @@ namespace slim
 				for (auto& producerPtr : producers)
 				{
 					// starting PCM data producer thread for Real-Time processing
-					std::thread producerThread
+					std::thread producerThread{[&producer = *producerPtr]
 					{
-						[&producer = *producerPtr]
+						LOG(DEBUG) << LABELS{"slim"} << "PCM data capture thread was started (id=" << std::this_thread::get_id() << ")";
+
+						try
 						{
-							LOG(DEBUG) << LABELS{"slim"} << "PCM data capture thread was started (id=" << std::this_thread::get_id() << ")";
-
-							try
-							{
-								producer.start();
-							}
-							catch (const Exception& error)
-							{
-								LOG(ERROR) << LABELS{"slim"} << "Error in producer thread: " << error;
-							}
-							catch (const std::exception& error)
-							{
-								LOG(ERROR) << LABELS{"slim"} << "Error in producer thread: " << error.what();
-							}
-
-							LOG(DEBUG) << LABELS{"slim"} << "PCM data capture thread was stopped (id=" << std::this_thread::get_id() << ")";
+							producer.start();
 						}
-					};
+						catch (const Exception& error)
+						{
+							LOG(ERROR) << LABELS{"slim"} << "Error in producer thread: " << error;
+						}
+						catch (const std::exception& error)
+						{
+							LOG(ERROR) << LABELS{"slim"} << "Error in producer thread: " << error.what();
+						}
+
+						LOG(DEBUG) << LABELS{"slim"} << "PCM data capture thread was stopped (id=" << std::this_thread::get_id() << ")";
+					}};
 
 					// making sure it is up and running
 					while (producerThread.joinable() && !producerPtr->isRunning())

@@ -127,16 +127,9 @@ namespace slim
 					{
 						std::size_t result{0};
 
-						try
+						if (nativeSocket.is_open()) try
 						{
-							if (nativeSocket.is_open())
-							{
-								result = std::experimental::net::write(nativeSocket, std::experimental::net::const_buffer(data, size));
-							}
-							else
-							{
-								LOG(WARNING) << LABELS{"conn"} << "Could not send data as socket is not opened (id=" << this << ")";
-							}
+							result = std::experimental::net::write(nativeSocket, std::experimental::net::const_buffer(data, size));
 						}
 						catch(const std::system_error& e)
 						{
@@ -151,13 +144,16 @@ namespace slim
 
 					virtual void writeAsync(const void* data, const std::size_t size, util::WriteCallback callback = [](auto, auto) {}) override
 					{
-						std::experimental::net::async_write(
-							nativeSocket,
-							std::experimental::net::const_buffer(data, size),
-							[=](const std::error_code error, const std::size_t bytes_transferred)
-							{
-								callback(error, bytes_transferred);
-							});
+						if (nativeSocket.is_open())
+						{
+							std::experimental::net::async_write(
+								nativeSocket,
+								std::experimental::net::const_buffer(data, size),
+								[=](const std::error_code error, const std::size_t bytes_transferred)
+								{
+									callback(error, bytes_transferred);
+								});
+						}
 					}
 
 				protected:

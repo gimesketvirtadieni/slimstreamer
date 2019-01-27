@@ -161,14 +161,14 @@ namespace slim
 				bool restore(snd_pcm_sframes_t error);
 
 			private:
-				Parameters                    parameters;
-				std::function<void()>         overflowCallback;
-				QueueType                     queue;
-				snd_pcm_t*                    handlePtr{nullptr};
-				std::atomic<bool>             running{false};
-				bool                          producing{false};
-				bool                          consuming{false};
-				std::mutex                    lock;
+				Parameters            parameters;
+				std::function<void()> overflowCallback;
+				QueueType             queue;
+				snd_pcm_t*            handlePtr{nullptr};
+				std::atomic<bool>     running{false};
+				bool                  producing{false};
+				bool                  consuming{false};
+				std::mutex            lock;
 		};
 	}
 }

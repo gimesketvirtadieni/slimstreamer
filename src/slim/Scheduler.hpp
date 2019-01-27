@@ -59,7 +59,7 @@ namespace slim
 
 			inline bool isRunning()
 			{
-				return producerPtr->isRunning() && consumerPtr->isRunning();
+				return producerPtr->isRunning() || consumerPtr->isRunning();
 			}
 
 			void start()

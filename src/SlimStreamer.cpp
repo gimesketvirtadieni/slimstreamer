@@ -405,16 +405,27 @@ int main(int argc, char *argv[])
 			// waiting for Control^C
 			while(running)
 			{
-				std::this_thread::sleep_for(std::chrono::milliseconds{200});
+				std::this_thread::sleep_for(std::chrono::milliseconds{500});
 			}
 
 			// stop streaming
+			LOG(INFO) << "Stopping SlimStreamer...";
 			processor.process([](auto& context)
 			{
-				LOG(INFO) << "Stopping SlimStreamer...";
 				context.getResource()->stop();
-				LOG(INFO) << "SlimStreamer was stopped";
 			});
+
+			// waiting for stop to complete
+			for (auto running{true}; running;)
+			{
+				std::this_thread::sleep_for(std::chrono::milliseconds{500});
+
+				processor.process([&](auto& context)
+				{
+					running = context.getResource()->isSchedulerRunning();
+				});
+			}
+			LOG(INFO) << "SlimStreamer was stopped";
 		}
 	}
 	catch (const cxxopts::OptionException& e)
