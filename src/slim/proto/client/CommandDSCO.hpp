@@ -89,7 +89,7 @@ namespace slim
 
 					virtual std::size_t getSize() override
 					{
-						return sizeof(dsco) + dsco.size;
+						return sizeof(DSCO);
 					}
 
 				private:
