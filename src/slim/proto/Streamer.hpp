@@ -84,8 +84,8 @@ namespace slim
 				{
 					CreatedState,  // initial state
 					{   // transition table definition
-						{ReadyEvent,   CreatedState,   ReadyState,     [&](auto event) {stateChangeToReady();},     [&] {return true;}},
-						{ReadyEvent,   DrainingState,  ReadyState,     [&](auto event) {stateChangeToReady();},     [&] {return !isDraining();}},
+						{ReadyEvent,   CreatedState,   ReadyState,     [&](auto event) {},                          [&] {return true;}},
+						{ReadyEvent,   DrainingState,  ReadyState,     [&](auto event) {},                          [&] {return !isDraining();}},
 						{ReadyEvent,   ReadyState,     ReadyState,     [&](auto event) {},                          [&] {return true;}},
 						{PrepareEvent, ReadyState,     PreparingState, [&](auto event) {stateChangeToPreparing();}, [&] {return true;}},
 						{PrepareEvent, PreparingState, PreparingState, [&](auto event) {},                          [&] {return true;}},
@@ -120,7 +120,7 @@ namespace slim
 				Streamer(const Streamer&) = delete;             // non-copyable
 				Streamer& operator=(const Streamer&) = delete;  // non-assignable
 				Streamer(Streamer&& rhs) = delete;              // non-movable
-				Streamer& operator=(Streamer&& rhs) = delete;   // non-movable-assinable
+				Streamer& operator=(Streamer&& rhs) = delete;   // non-movable-assignable
 
 				virtual bool consumeChunk(Chunk& chunk) override
 				{
@@ -174,13 +174,13 @@ namespace slim
 						}
 
 						// if sampling rate does not change then just distributing a chunk
-						if (getSamplingRate() == chunkSamplingRate)
+						if (samplingRate == chunkSamplingRate)
 						{
 							streamChunk(chunk);
 							result = true;
 						}
 
-						if (getSamplingRate() != chunkSamplingRate || chunk.isEndOfStream())
+						if (samplingRate != chunkSamplingRate || chunk.isEndOfStream())
 						{
 							// changing state to Draining
 							stateMachine.processEvent(DrainEvent, [&](auto event, auto state)
@@ -202,6 +202,10 @@ namespace slim
 							LOG(WARNING) << LABELS{"proto"} << "Invalid Streamer state while processing Stop event - skipping chunk";
 							result = true;
 						});
+						if (auto duration{getStreamingDuration(util::milliseconds).count()}; result && duration)
+						{
+							LOG(DEBUG) << LABELS{"proto"} << "Stopped streaming (duration=" << duration << " millisec)";
+						}
 					}
 
 					return result;
@@ -291,7 +295,7 @@ namespace slim
 						encoderBuilder.setSamplingRate(samplingRate);
 
 						// creating streaming session object
-						auto streamingSessionPtr{std::make_unique<StreamingSessionType>(std::ref<ConnectionType>(connection), clientID.value(), encoderBuilder)};
+						auto streamingSessionPtr{std::make_unique<StreamingSessionType>(getProcessorProxy(), std::ref<ConnectionType>(connection), clientID.value(), encoderBuilder)};
 
 						// saving HTTP session reference in the relevant SlimProto session
 						auto commandSession{findSessionByID(commandSessions, clientID.value())};
@@ -451,8 +455,9 @@ namespace slim
 						});
 					}
 
+					// TODO: parameterize
 					// adding extra 10 milliseconds required for sending out command to all the clients
-					return util::Timestamp::now() + std::chrono::milliseconds{10} + maxLatency;
+					return util::Timestamp::now() + maxLatency + std::chrono::milliseconds{10};
 				}
 
 				template<typename SessionType>
@@ -545,24 +550,13 @@ namespace slim
 				{
 					// preparing start time is required for calculating defer time-out
 					preparingStartedAt = util::Timestamp::now();
+					streamingFrames    = 0;
+                    bufferedFrames     = 0;
 
 					for (auto& entry : commandSessions)
 					{
-						entry.second->prepare(getSamplingRate());
+						entry.second->prepare(samplingRate);
 					}
-				}
-
-				inline void stateChangeToReady()
-				{
-					if (auto duration{getStreamingDuration(util::milliseconds).count()}; duration)
-					{
-						LOG(DEBUG) << LABELS{"proto"} << "Stopped streaming (duration=" << duration << " millisec)";
-					}
-
-					// resetting streamer's state
-					samplingRate    = 0;
-					streamingFrames = 0;
-                    bufferedFrames  = 0;
 				}
 
 				inline void streamChunk(Chunk& chunk)

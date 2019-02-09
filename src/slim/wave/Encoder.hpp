@@ -31,13 +31,34 @@ namespace slim
 				virtual ~Encoder() = default;
 				Encoder(const Encoder&) = delete;             // non-copyable
 				Encoder& operator=(const Encoder&) = delete;  // non-assignable
-				Encoder(Encoder&&) = delete;                  // non-movable
-				Encoder& operator=(Encoder&&) = delete;       // non-assign-movable
+				Encoder(Encoder&&) = default;
+				Encoder& operator=(Encoder&&) = default;
 
 				virtual void encode(unsigned char* data, const std::size_t size) override
 				{
-					getEncodedCallback()(data, size);
+					if (running)
+					{
+						getEncodedCallback()(data, size);
+					}
 				}
+
+				virtual bool isRunning() override
+				{
+					return running;
+				}
+
+				virtual void start() override
+				{
+					running = true;
+				}
+
+				virtual void stop() override
+				{
+					running = false;
+				}
+
+			private:
+				bool running{false};
 		};
 	}
 }

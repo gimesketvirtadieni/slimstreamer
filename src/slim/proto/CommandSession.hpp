@@ -110,7 +110,7 @@ namespace slim
 					CreatedState,  // initial state
 					{   // transition table definition
 						{HandshakeEvent, CreatedState,   DrainingState,  [&](auto event) {},                          [&] {return true;}},
-						{ReadyEvent,     DrainingState,  ReadyState,     [&](auto event) {stateChangeToReady();},     [&] {return true;}},
+						{ReadyEvent,     DrainingState,  ReadyState,     [&](auto event) {},                          [&] {return true;}},
 						{ReadyEvent,     ReadyState,     ReadyState,     [&](auto event) {},                          [&] {return true;}},
 						{PrepareEvent,   ReadyState,     PreparingState, [&](auto event) {stateChangeToPreparing();}, [&] {return isReadyToPrepare();}},
 						{PrepareEvent,   PreparingState, PreparingState, [&](auto event) {},                          [&] {return true;}},
@@ -136,7 +136,7 @@ namespace slim
 
 				~CommandSession()
 				{
-					// canceling deferred operations if any
+					// canceling deferred operation
 					ts::with(pingTimer, [&](auto& timer)
 					{
 						timer.cancel();
@@ -177,7 +177,7 @@ namespace slim
 
 				inline auto isReadyToPlay()
 				{
-					return timeOffset.has_value() && clientBufferReady;
+					return timeOffset.has_value() && clientBufferIsReady;
 				}
 
 				inline void onRequest(unsigned char* buffer, std::size_t size, util::Timestamp timestamp)
@@ -438,7 +438,7 @@ namespace slim
 
 				inline void onSTMl(client::CommandSTAT& commandSTAT)
 				{
-					clientBufferReady = true;
+					clientBufferIsReady = true;
 
 					auto bufferSize{commandSTAT.getBuffer()->streamBufferSize};
 					auto fullness{commandSTAT.getBuffer()->streamBufferFullness};
@@ -582,7 +582,7 @@ namespace slim
 
 				inline void stateChangeToPlaying()
 				{
-					playbackStartedAt = streamer.get().getPlaybackTime(util::milliseconds);
+					auto playbackStartedAt = streamer.get().getPlaybackTime(util::milliseconds);
 
 					ts::with(timeOffset, [&](auto& timeOffset)
 					{
@@ -592,14 +592,13 @@ namespace slim
 
 				inline void stateChangeToPreparing()
 				{
-					send(server::CommandSTRM{CommandSelection::Start, formatSelection, streamingPort, samplingRate, clientID});
-				}
+					// resetting flag indicating whether client has buffered enough to start playback
+					clientBufferIsReady = false;
 
-				inline void stateChangeToReady()
-				{
-					// resetting session state
-					clientBufferReady = false;
+					// resetting reference to an old HTTP session as a new session will be created
 					streamingSession.reset();
+
+					send(server::CommandSTRM{CommandSelection::Start, formatSelection, streamingPort, samplingRate, clientID});
 				}
 
 			private:
@@ -623,8 +622,7 @@ namespace slim
 				std::vector<std::chrono::microseconds>             latencySamples;
 				ts::optional<std::chrono::milliseconds>            timeOffset{ts::nullopt};
 				std::vector<std::chrono::milliseconds>             timeOffsetSamples;
-				util::Timestamp                                    playbackStartedAt{util::Timestamp::now()};
-				bool                                               clientBufferReady{false};
+				bool                                               clientBufferIsReady{false};
 		};
 	}
 }

@@ -12,6 +12,7 @@
 
 #pragma once
 
+#include <conwrap2/ProcessorProxy.hpp>
 #include <functional>
 #include <memory>
 #include <sstream>  // std::stringstream
@@ -22,6 +23,7 @@
 #include "slim/EncoderBase.hpp"
 #include "slim/EncoderBuilder.hpp"
 #include "slim/log/log.hpp"
+#include "slim/util/BigInteger.hpp"
 #include "slim/util/BufferedAsyncWriter.hpp"
 
 
@@ -35,8 +37,9 @@ namespace slim
 		class StreamingSession
 		{
 			public:
-				StreamingSession(std::reference_wrapper<ConnectionType> co, std::string id, EncoderBuilder eb)
-				: connection{co}
+				StreamingSession(conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>> pp, std::reference_wrapper<ConnectionType> co, std::string id, EncoderBuilder eb)
+				: processorProxy{pp}
+				, connection{co}
 				, clientID{id}
 				, bufferedWriter{co}
 				{
@@ -61,6 +64,7 @@ namespace slim
 						}
 					});
 					encoderPtr = std::move(eb.build());
+					encoderPtr->start();
 
 					// creating response string
 					std::stringstream ss;
@@ -79,6 +83,12 @@ namespace slim
 
 				~StreamingSession()
 				{
+					// canceling deferred operation
+					ts::with(timer, [&](auto& timer)
+					{
+						timer.cancel();
+					});
+
 					LOG(DEBUG) << LABELS{"proto"} << "HTTP session object was deleted (id=" << this << ")";
 				}
 
@@ -92,7 +102,7 @@ namespace slim
 					return clientID;
 				}
 
-				inline unsigned long getFramesProvided()
+				inline auto getFramesProvided()
 				{
 					return framesProvided;
 				}
@@ -128,14 +138,15 @@ namespace slim
 				{
 					if (chunk.getSamplingRate() == encoderPtr->getSamplingRate())
 					{
-						if (!chunk.isEndOfStream())
+						encoderPtr->encode(chunk.getData(), chunk.getSize());
+						framesProvided += chunk.getFrames();
+
+						if (chunk.isEndOfStream())
 						{
-							encoderPtr->encode(chunk.getData(), chunk.getSize());
-							framesProvided += chunk.getFrames();
-						}
-						else
-						{
-							connection.get().stop();
+							// flushing encoder's pending content to the async writer
+							encoderPtr->stop();
+
+							closeConnection();
 						}
 					}
 					else
@@ -145,13 +156,36 @@ namespace slim
 					}
 				}
 
+			protected:
+				void closeConnection()
+				{
+					if (bufferedWriter.isBufferAvailable())
+					{
+						// submitting an 'empty' chunk so that this callback gets invoked when all data has been transferred
+						bufferedWriter.writeAsync(nullptr, 0, [c = connection](auto error, auto written)
+						{
+							c.get().stop();
+						});
+					}
+					else
+					{
+						// waiting until data is transferred so a new 'empty' chunk can be submitted
+						timer = ts::ref(processorProxy.processWithDelay([&]
+						{
+							closeConnection();
+						}, std::chrono::milliseconds{1}));
+					}
+				}
+
 			private:
-				std::reference_wrapper<ConnectionType>         connection;
-				std::string                                    clientID;
-				// TODO: parametrize
-				util::BufferedAsyncWriter<ConnectionType, 128> bufferedWriter;
-				std::unique_ptr<EncoderBase>                   encoderPtr;
-				unsigned long                                  framesProvided{0};
+				conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>> processorProxy;
+				std::reference_wrapper<ConnectionType>                   connection;
+				std::string                                              clientID;
+				// TODO: parameterize
+				util::BufferedAsyncWriter<ConnectionType, 128>           bufferedWriter;
+				std::unique_ptr<EncoderBase>                             encoderPtr;
+				ts::optional_ref<conwrap2::Timer>                        timer{ts::nullopt};
+				util::BigInteger                                         framesProvided{0};
 		};
 	}
 }

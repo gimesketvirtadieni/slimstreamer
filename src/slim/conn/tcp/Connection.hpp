@@ -135,6 +135,10 @@ namespace slim
 						{
 							LOG(ERROR) << LABELS{"conn"} << "Could not send data due to an error (id=" << this << ", error=" << e.what() << ")";
 						}
+						else
+						{
+							LOG(DEBUG) << LABELS{"conn"} << "Could not send data as socket is not opened (id=" << this << ")";
+						}
 
 						return result;
 					}
@@ -153,6 +157,10 @@ namespace slim
 								{
 									callback(error, bytes_transferred);
 								});
+						}
+						else
+						{
+							LOG(DEBUG) << LABELS{"conn"} << "Could not send data as socket is not opened (id=" << this << ")";
 						}
 					}
 

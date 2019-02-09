@@ -38,8 +38,8 @@ namespace slim
 			virtual ~EncoderBase() = default;
 			EncoderBase(const EncoderBase&) = delete;             // non-copyable
 			EncoderBase& operator=(const EncoderBase&) = delete;  // non-assignable
-			EncoderBase(EncoderBase&&) = delete;                  // non-movable
-			EncoderBase& operator=(EncoderBase&&) = delete;       // non-assign-movable
+			EncoderBase(EncoderBase&&) = default;
+			EncoderBase& operator=(EncoderBase&&) = default;
 
 			virtual void encode(unsigned char* data, const std::size_t size) = 0;
 
@@ -77,6 +77,10 @@ namespace slim
 			{
 				return samplingRate;
 			}
+
+			virtual bool isRunning() = 0;
+			virtual void start() = 0;
+			virtual void stop() = 0;
 
 		private:
 			unsigned int        channels;

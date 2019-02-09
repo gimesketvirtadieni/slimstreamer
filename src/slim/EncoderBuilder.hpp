@@ -30,13 +30,6 @@ namespace slim
 		using BuilderType = std::function<std::unique_ptr<EncoderBase>(unsigned int, unsigned int, unsigned int, unsigned int, bool, std::string, std::string, std::function<void(unsigned char*, std::size_t)>)>;
 
 		public:
-			EncoderBuilder() = default;
-		   ~EncoderBuilder() = default;
-			EncoderBuilder(const EncoderBuilder&) = default;
-			EncoderBuilder& operator=(const EncoderBuilder&) = default;
-			EncoderBuilder(EncoderBuilder&&) = default;
-			EncoderBuilder& operator=(EncoderBuilder&&) = default;
-
 			auto getBitsPerSample()
 			{
 				if (!bitsPerSample.has_value())
