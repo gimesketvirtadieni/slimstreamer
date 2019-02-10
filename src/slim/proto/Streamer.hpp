@@ -366,7 +366,7 @@ namespace slim
 					ss << (++nextID);
 
 					// creating command session object
-					auto commandSessionPtr{std::make_unique<CommandSessionType>(std::ref<ConnectionType>(connection), std::ref<Streamer>(*this), ss.str(), streamingPort, encoderBuilder.getFormat(), gain)};
+					auto commandSessionPtr{std::make_unique<CommandSessionType>(getProcessorProxy(), std::ref<ConnectionType>(connection), std::ref<Streamer>(*this), ss.str(), streamingPort, encoderBuilder.getFormat(), gain)};
 
 					// saving command session in the map
 					addSession(commandSessions, connection, std::move(commandSessionPtr));

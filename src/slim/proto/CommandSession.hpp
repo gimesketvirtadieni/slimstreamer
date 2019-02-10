@@ -18,6 +18,7 @@
 #include <conwrap2/Timer.hpp>
 #include <cstddef>  // std::size_t
 #include <functional>
+#include <memory>
 #include <scope_guard.hpp>
 #include <string>
 #include <type_safe/optional.hpp>
@@ -77,8 +78,9 @@ namespace slim
 			};
 
 			public:
-				CommandSession(std::reference_wrapper<ConnectionType> co, std::reference_wrapper<StreamerType> st, std::string id, unsigned int po, FormatSelection fo, ts::optional<unsigned int> ga)
-				: connection{co}
+				CommandSession(conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>> pp, std::reference_wrapper<ConnectionType> co, std::reference_wrapper<StreamerType> st, std::string id, unsigned int po, FormatSelection fo, ts::optional<unsigned int> ga)
+				: processorProxy{pp}
+				, connection{co}
 				, streamer{st}
 				, clientID{id}
 				, streamingPort{po}
@@ -344,7 +346,7 @@ namespace slim
 						send(server::CommandAUDG{gain});
 
 						// start sending ping commands after the 'handshake' commands
-						pingTimer = ts::ref(streamer.get().getProcessorProxy().processWithDelay([&]
+						pingTimer = ts::ref(processorProxy.processWithDelay([&]
 						{
 							// releasing timer so a new 'delayed' request may be issued
 							pingTimer.reset();
@@ -480,8 +482,6 @@ namespace slim
 					// making sure it is a proper response from the client
 					ts::with(sendTimestamp, [&](auto& sendTimestamp)
 					{
-						auto processorProxy{streamer.get().getProcessorProxy()};
-
 						// if latency measurement was not interfered by other commands then repeat round trip once again
 						if (measuringLatency)
 						{
@@ -602,27 +602,28 @@ namespace slim
 				}
 
 			private:
-				std::reference_wrapper<ConnectionType>             connection;
-				std::reference_wrapper<StreamerType>               streamer;
-				std::string                                        clientID;
-				unsigned int                                       streamingPort;
-				FormatSelection                                    formatSelection;
-				ts::optional<unsigned int>                         gain;
-				CommandHandlersMap                                 commandHandlers;
-				EventHandlersMap                                   eventHandlers;
-				util::StateMachine<Event, State>                   stateMachine;
-				unsigned int                                       samplingRate{0};
-				ts::optional_ref<StreamingSession<ConnectionType>> streamingSession{ts::nullopt};
-				util::ExpandableBuffer                             commandBuffer{std::size_t{0}, std::size_t{2048}};
-				ts::optional<client::CommandHELO>                  commandHELO{ts::nullopt};
-				ts::optional_ref<conwrap2::Timer>                  pingTimer{ts::nullopt};
-				util::ArrayCache<util::Timestamp, 10>              timestampCache;
-				bool                                               measuringLatency{false};
-				ts::optional<std::chrono::microseconds>            latency{ts::nullopt};
-				std::vector<std::chrono::microseconds>             latencySamples;
-				ts::optional<std::chrono::milliseconds>            timeOffset{ts::nullopt};
-				std::vector<std::chrono::milliseconds>             timeOffsetSamples;
-				bool                                               clientBufferIsReady{false};
+				conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>> processorProxy;
+				std::reference_wrapper<ConnectionType>                   connection;
+				std::reference_wrapper<StreamerType>                     streamer;
+				std::string                                              clientID;
+				unsigned int                                             streamingPort;
+				FormatSelection                                          formatSelection;
+				ts::optional<unsigned int>                               gain;
+				CommandHandlersMap                                       commandHandlers;
+				EventHandlersMap                                         eventHandlers;
+				util::StateMachine<Event, State>                         stateMachine;
+				unsigned int                                             samplingRate{0};
+				ts::optional_ref<StreamingSession<ConnectionType>>       streamingSession{ts::nullopt};
+				util::ExpandableBuffer                                   commandBuffer{std::size_t{0}, std::size_t{2048}};
+				ts::optional<client::CommandHELO>                        commandHELO{ts::nullopt};
+				ts::optional_ref<conwrap2::Timer>                        pingTimer{ts::nullopt};
+				util::ArrayCache<util::Timestamp, 10>                    timestampCache;
+				bool                                                     measuringLatency{false};
+				ts::optional<std::chrono::microseconds>                  latency{ts::nullopt};
+				std::vector<std::chrono::microseconds>                   latencySamples;
+				ts::optional<std::chrono::milliseconds>                  timeOffset{ts::nullopt};
+				std::vector<std::chrono::milliseconds>                   timeOffsetSamples;
+				bool                                                     clientBufferIsReady{false};
 		};
 	}
 }
