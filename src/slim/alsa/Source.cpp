@@ -265,7 +265,7 @@ namespace slim
 					}
 					else if (!isBeginningOfStream)
 					{
-						// submitting an end-of-stream chunk to notifiy consumer thread about End-Of-Stream
+						// submitting an end-of-stream chunk to notify consumer thread about End-Of-Stream
 						queue.enqueue([&](Chunk& chunk)
 						{
 							// setting chunk 'meta' data

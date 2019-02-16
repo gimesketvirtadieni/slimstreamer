@@ -101,10 +101,10 @@ namespace slim
 						{DrainEvent,   ReadyState,     ReadyState,     [&](auto event) {},                          [&] {return true;}},
 						{CreateEvent,  CreatedState,   CreatedState,   [&](auto event) {},                          [&] {return true;}},
 						{CreateEvent,  ReadyState,     CreatedState,   [&](auto event) {},                          [&] {return true;}},
-						{CreateEvent,  PreparingState, CreatedState,   [&](auto event) {},                          [&] {return true;}},
-						{CreateEvent,  BufferingState, CreatedState,   [&](auto event) {},                          [&] {return true;}},
-						{CreateEvent,  PlayingState,   CreatedState,   [&](auto event) {},                          [&] {return true;}},
-						{CreateEvent,  DrainingState,  CreatedState,   [&](auto event) {},                          [&] {return true;}},
+						{CreateEvent,  PreparingState, CreatedState,   [&](auto event) {/*???*/},                   [&] {return true;}},
+						{CreateEvent,  BufferingState, CreatedState,   [&](auto event) {/*???*/},                   [&] {return true;}},
+						{CreateEvent,  PlayingState,   CreatedState,   [&](auto event) {/*???*/},                   [&] {return true;}},
+						{CreateEvent,  DrainingState,  CreatedState,   [&](auto event) {/*???*/},                   [&] {return true;}},
 					}
 				}
 				{
@@ -252,21 +252,37 @@ namespace slim
 
 					if (auto found{streamingSessions.find(&connection)}; found != streamingSessions.end())
 					{
-						auto sessionPtr = std::move((*found).second);
-						streamingSessions.erase(found);
-						LOG(DEBUG) << LABELS{"proto"} << "HTTP session was removed (id=" << sessionPtr.get()
-						                              << ", total sessions=" << streamingSessions.size() << ")";
-
 						// if there is a relevant SlimProto session then reset the reference
-						auto clientID{sessionPtr->getClientID()};
+						auto clientID{(*found).second->getClientID()};
 						if (auto commandSession{findSessionByID(commandSessions, clientID)}; commandSession.has_value())
 						{
 							commandSession.value()->setStreamingSession(ts::nullopt);
 						}
-						else
+
+						(*found).second->stop([&, sessionPtr = (*found).second.get()]
 						{
-							LOG(WARNING) << LABELS{"proto"} << "Could not find SlimProto session by client ID (clientID=" << clientID << ")";
-						}
+							// submitting a new handler is required as it deletes session object which runs this callback
+							getProcessorProxy().process([&, sessionPtr = sessionPtr]
+							{
+								// this loop will be replaced with std::erase_if once it is implemented by libstdc++
+								for (auto i = streamingSessions.begin(), last = streamingSessions.end(); i != last;)
+								{
+									if (sessionPtr == (*i).second.get())
+									{
+										i = streamingSessions.erase(i);
+
+										LOG(DEBUG) << LABELS{"proto"}
+											<< "HTTP session was removed (id=" << sessionPtr
+											<< ", total sessions=" << streamingSessions.size()
+											<< ")";
+									}
+									else
+									{
+										i++;
+									}
+								}
+							});
+						});
 					}
 					else
 					{
@@ -296,6 +312,7 @@ namespace slim
 
 						// creating streaming session object
 						auto streamingSessionPtr{std::make_unique<StreamingSessionType>(getProcessorProxy(), std::ref<ConnectionType>(connection), clientID.value(), encoderBuilder)};
+						streamingSessionPtr->start();
 
 						// saving HTTP session reference in the relevant SlimProto session
 						auto commandSession{findSessionByID(commandSessions, clientID.value())};

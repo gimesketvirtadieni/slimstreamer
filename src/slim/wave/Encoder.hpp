@@ -52,9 +52,12 @@ namespace slim
 					running = true;
 				}
 
-				virtual void stop() override
+				virtual void stop(std::function<void()> callback) override
 				{
 					running = false;
+
+					// notifying that object can be deleted
+					callback();
 				}
 
 			private:

@@ -152,7 +152,7 @@ namespace slim
 					}
 				}
 
-				virtual void stop() override
+				virtual void stop(std::function<void()> callback) override
 				{
 					if (running)
 					{
@@ -163,6 +163,9 @@ namespace slim
 
 						running = false;
 					}
+
+					// notifying that object can be deleted
+					callback();
 				}
 
 			protected:

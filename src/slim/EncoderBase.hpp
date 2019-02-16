@@ -80,7 +80,7 @@ namespace slim
 
 			virtual bool isRunning() = 0;
 			virtual void start() = 0;
-			virtual void stop() = 0;
+			virtual void stop(std::function<void()> callback) = 0;
 
 		private:
 			unsigned int        channels;

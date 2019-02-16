@@ -169,7 +169,7 @@ namespace slim
 
 				inline auto isReadyToBuffer()
 				{
-					return streamingSession.has_value();
+					return isReadyToPrepare() && streamingSession.has_value();
 				}
 
 				inline auto isReadyToPrepare()
@@ -179,7 +179,7 @@ namespace slim
 
 				inline auto isReadyToPlay()
 				{
-					return timeOffset.has_value() && clientBufferIsReady;
+					return isReadyToPrepare() && isReadyToBuffer() && timeOffset.has_value() && clientBufferIsReady;
 				}
 
 				inline void onRequest(unsigned char* buffer, std::size_t size, util::Timestamp timestamp)
@@ -548,8 +548,11 @@ namespace slim
 
 				inline void onSTMu(client::CommandSTAT& commandSTAT)
 				{
-					// sending SlimProto Stop command will flush client's buffer which will initiate STAT/STMf message
-					send(server::CommandSTRM{CommandSelection::Stop});
+					if (stateMachine.state == DrainingState)
+					{
+						// sending SlimProto Stop command which will flush client's buffer which will initiate STAT/STMf message
+						send(server::CommandSTRM{CommandSelection::Stop});
+					}
 				}
 
 				inline void ping(std::uint32_t timestampKey)
