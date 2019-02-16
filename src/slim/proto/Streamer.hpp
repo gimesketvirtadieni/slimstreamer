@@ -504,10 +504,9 @@ namespace slim
 				inline auto isReadyToBuffer()
 				{
 					auto result{false};
-					auto timePassed = util::Timestamp::now() - preparingStartedAt;
 
 					// TODO: deferring time-out should be configurable
-					auto waitThresholdReached{std::chrono::milliseconds{2000} < timePassed};
+					auto waitThresholdReached{std::chrono::milliseconds{2000} < (util::Timestamp::now() - preparingStartedAt)};
 					auto notReadyToStreamTotal{std::count_if(commandSessions.begin(), commandSessions.end(), [&](auto& entry)
 					{
 						return !entry.second->isReadyToBuffer();
@@ -535,10 +534,9 @@ namespace slim
 				inline auto isReadyToPlay()
 				{
 					auto result{false};
-					auto timePassed = util::Timestamp::now() - bufferingStartedAt;
 
 					// TODO: min buffering period should be configurable
-					if (auto minThresholdReached{std::chrono::milliseconds{2000} < timePassed}; minThresholdReached)
+					if (auto minThresholdReached{std::chrono::milliseconds{2000} < getStreamingDuration(util::milliseconds)}; minThresholdReached)
 					{
 						// TODO: introduce max timeout threshold
 						result = (0 == std::count_if(commandSessions.begin(), commandSessions.end(), [&](auto& entry)
