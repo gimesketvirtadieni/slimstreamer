@@ -62,7 +62,7 @@ namespace slim
 				return producerPtr->isRunning() || consumerPtr->isRunning();
 			}
 
-			void start()
+			inline void start()
 			{
 				producerPtr->start();
 				consumerPtr->start();
@@ -75,10 +75,13 @@ namespace slim
 				LOG(DEBUG) << LABELS{"slim"} << "Streaming was started";
 			}
 
-			void stop(bool gracefully = true)
+			inline void stop(std::function<void()> callback)
 			{
-				producerPtr->stop(gracefully);
-				consumerPtr->stop(gracefully);
+				LOG(DEBUG) << LABELS{"slim"} << "Streaming was stopped1";
+
+				producerPtr->stop(true);
+				LOG(DEBUG) << LABELS{"slim"} << "Streaming was stopped2";
+				consumerPtr->stop(std::move(callback));
 
 				LOG(DEBUG) << LABELS{"slim"} << "Streaming was stopped";
 			}
@@ -96,7 +99,7 @@ namespace slim
 					// this safe guard is meant for capturing consumer's errors
 					::util::scope_guard_failure onError = [&]
 					{
-						stop(false);
+						stop([] {});
 					};
 
 					// TODO: calculate total chunks per processing quantum

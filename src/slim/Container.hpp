@@ -55,7 +55,7 @@ namespace slim
 
 			virtual void stop() override
 			{
-				schedulerPtr->stop();
+				schedulerPtr->stop([] {});
 				discoveryServerPtr->stop();
 				streamingServerPtr->stop();
 				commandServerPtr->stop();

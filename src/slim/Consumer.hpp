@@ -13,6 +13,7 @@
 #pragma once
 
 #include <conwrap2/ProcessorProxy.hpp>
+#include <functional>
 #include <memory>
 #include <type_safe/optional.hpp>
 
@@ -41,7 +42,7 @@ namespace slim
 
 			virtual bool isRunning() = 0;
 			virtual void start() = 0;
-			virtual void stop(bool gracefully = true) = 0;
+			virtual void stop(std::function<void()> callback) = 0;
 
 		private:
 			conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>> processorProxy;

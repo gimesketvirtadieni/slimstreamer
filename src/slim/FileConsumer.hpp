@@ -14,6 +14,7 @@
 
 #include <cstddef>   // std::size_t
 #include <cstdint>   // std::int..._t
+#include <functional>
 #include <memory>
 
 #include "slim/Chunk.hpp"
@@ -96,7 +97,7 @@ namespace slim
 				running = true;
 			}
 
-			virtual void stop(bool gracefully = true) override
+			virtual void stop(std::function<void()> callback) override
 			{
 				running = false;
 			}

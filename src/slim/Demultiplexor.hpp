@@ -13,6 +13,7 @@
 #pragma once
 
 #include <algorithm>
+#include <functional>
 #include <memory>
 #include <vector>
 
@@ -101,11 +102,11 @@ namespace slim
 				});
 			}
 
-			virtual void stop(bool gracefully = true) override
+			virtual void stop(std::function<void()> callback) override
 			{
 				std::for_each(consumers.begin(), consumers.end(), [](auto& consumerPtr)
 				{
-					consumerPtr->stop();
+					consumerPtr->stop([] {});
 				});
 			}
 
