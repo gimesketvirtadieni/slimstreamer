@@ -141,12 +141,13 @@ namespace slim
 				}
 			}
 
-			inline void stop(bool gracefully = true)
+			template<typename CallbackType>
+			inline void stop(CallbackType callback)
 			{
 				// signalling all threads to stop processing
 				for (auto& producerPtr : producers)
 				{
-					producerPtr->stop(gracefully);
+					producerPtr->stop([] {});
 				}
 
 				// waiting for all threads to terminate
@@ -157,6 +158,8 @@ namespace slim
 						thread.join();
 					}
 				}
+
+				callback();
 			}
 
 		protected:

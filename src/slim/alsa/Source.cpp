@@ -309,38 +309,5 @@ namespace slim
 				close();
 			}
 		}
-
-
-		void Source::stop(bool gracefully)
-		{
-			// issuing a request to stop receiving PCM data
-			{
-				std::lock_guard<std::mutex> lockGuard{lock};
-				if (running)
-				{
-					int result;
-					if (gracefully)
-					{
-						if ((result = snd_pcm_drain(handlePtr)) < 0)
-						{
-							LOG(ERROR) << LABELS{"alsa"} << formatError("Error while stopping PCM stream gracefully", result);
-						}
-					}
-					else
-					{
-						if ((result = snd_pcm_drop(handlePtr)) < 0)
-						{
-							LOG(ERROR) << LABELS{"alsa"} << formatError("Error while stopping PCM stream unconditionally", result);
-						}
-					}
-				}
-			}
-
-			// waiting for this ALSA device to stop receiving PCM data
-			while (isRunning())
-			{
-				std::this_thread::sleep_for(std::chrono::milliseconds{10});
-			}
-		}
 	}
 }

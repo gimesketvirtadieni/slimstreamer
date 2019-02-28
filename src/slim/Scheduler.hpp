@@ -77,13 +77,12 @@ namespace slim
 
 			inline void stop(std::function<void()> callback)
 			{
-				LOG(DEBUG) << LABELS{"slim"} << "Streaming was stopped1";
-
-				producerPtr->stop(true);
-				LOG(DEBUG) << LABELS{"slim"} << "Streaming was stopped2";
-				consumerPtr->stop(std::move(callback));
-
-				LOG(DEBUG) << LABELS{"slim"} << "Streaming was stopped";
+				LOG(DEBUG) << LABELS{"slim"} << "stop1";
+				producerPtr->stop([&, callback = std::move(callback)]
+				{
+					LOG(DEBUG) << LABELS{"slim"} << "stop2";
+					consumerPtr->stop(std::move(callback));
+				});
 			}
 
 		protected:

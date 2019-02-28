@@ -59,23 +59,24 @@ namespace slim
 
 			enum Event
 			{
-				RunEvent,
+				StartEvent,
 				HandshakeEvent,
 				PrepareEvent,
 				BufferEvent,
 				PlayEvent,
 				DrainEvent,
-				FinishEvent,
+				FlushedEvent,
+				StopEvent,
 			};
 
 			enum State
 			{
-				CreatedState,
-				RunningState,
+				StartedState,
 				PreparingState,
 				BufferingState,
 				PlayingState,
 				DrainingState,
+				StoppedState,
 			};
 
 			public:
@@ -110,11 +111,11 @@ namespace slim
 				}
 				, stateMachine
 				{
-					CreatedState,  // initial state
+					StoppedState,  // initial state
 					{   // transition table definition
-						{RunEvent,       CreatedState,   RunningState,   [&](auto event) {LOG(DEBUG) << LABELS{"proto"} << "Running";},                          [&] {return true;}},
-						{HandshakeEvent, RunningState,   DrainingState,  [&](auto event) {LOG(DEBUG) << LABELS{"proto"} << "Drain";},                          [&] {return true;}},
-						{PrepareEvent,   RunningState,   PreparingState, [&](auto event) {LOG(DEBUG) << LABELS{"proto"} << "Prepare";stateChangeToPreparing();}, [&] {return isReadyToPrepare();}},
+						{StartEvent,     StoppedState,   StartedState,   [&](auto event) {LOG(DEBUG) << LABELS{"proto"} << "Running";},                          [&] {return true;}},
+						{HandshakeEvent, StartedState,   DrainingState,  [&](auto event) {LOG(DEBUG) << LABELS{"proto"} << "Drain";},                          [&] {return true;}},
+						{PrepareEvent,   StartedState,   PreparingState, [&](auto event) {LOG(DEBUG) << LABELS{"proto"} << "Prepare";stateChangeToPreparing();}, [&] {return isReadyToPrepare();}},
 						{PrepareEvent,   PreparingState, PreparingState, [&](auto event) {},                          [&] {return true;}},
 						{PrepareEvent,   BufferingState, BufferingState, [&](auto event) {},                          [&] {return true;}},
 						{PrepareEvent,   PlayingState,   PlayingState,   [&](auto event) {},                          [&] {return true;}},
@@ -122,19 +123,21 @@ namespace slim
 						{BufferEvent,    BufferingState, BufferingState, [&](auto event) {},                          [&] {return true;}},
 						{BufferEvent,    PlayingState,   PlayingState,   [&](auto event) {},                          [&] {return true;}},
 						{PlayEvent,      BufferingState, PlayingState,   [&](auto event) {LOG(DEBUG) << LABELS{"proto"} << "Play";stateChangeToPlaying();},   [&] {return isReadyToPlay();}},
-						{PlayEvent,      RunningState,   RunningState,   [&](auto event) {},                          [&] {return true;}},
 						{PlayEvent,      PlayingState,   PlayingState,   [&](auto event) {},                          [&] {return true;}},
 						{DrainEvent,     PreparingState, DrainingState,  [&](auto event) {},                          [&] {return true;}},
 						{DrainEvent,     BufferingState, DrainingState,  [&](auto event) {},                          [&] {return true;}},
 						{DrainEvent,     PlayingState,   DrainingState,  [&](auto event) {},                          [&] {return true;}},
 						{DrainEvent,     DrainingState,  DrainingState,  [&](auto event) {},                          [&] {return true;}},
-						{DrainEvent,     RunningState,   RunningState,   [&](auto event) {},                          [&] {return true;}},
-						{FinishEvent,    CreatedState,   CreatedState,   [&](auto event) {LOG(DEBUG) << LABELS{"proto"} << "Created";},                          [&] {return true;}},
-						{FinishEvent,    RunningState,   CreatedState,   [&](auto event) {LOG(DEBUG) << LABELS{"proto"} << "Created";},                          [&] {return true;}},
-						{FinishEvent,    PreparingState, CreatedState,   [&](auto event) {LOG(DEBUG) << LABELS{"proto"} << "Created";},                          [&] {return true;}},
-						{FinishEvent,    BufferingState, CreatedState,   [&](auto event) {LOG(DEBUG) << LABELS{"proto"} << "Created";},                          [&] {return true;}},
-						{FinishEvent,    PlayingState,   CreatedState,   [&](auto event) {LOG(DEBUG) << LABELS{"proto"} << "Created";},                          [&] {return true;}},
-						{FinishEvent,    DrainingState,  RunningState,   [&](auto event) {LOG(DEBUG) << LABELS{"proto"} << "Running";},                          [&] {return true;}},
+						{DrainEvent,     StartedState,   StartedState,   [&](auto event) {},                          [&] {return true;}},
+						{FlushedEvent,   StartedState,   StartedState,   [&](auto event) {},                          [&] {return true;}},
+						{FlushedEvent,   PlayingState,   PlayingState,   [&](auto event) {LOG(DEBUG) << LABELS{"proto"} << "Playing";},                          [&] {return true;}},
+						{FlushedEvent,   DrainingState,  StartedState,   [&](auto event) {LOG(DEBUG) << LABELS{"proto"} << "Running";},                          [&] {return true;}},
+						{StopEvent,      StoppedState,   StoppedState,   [&](auto event) {LOG(DEBUG) << LABELS{"proto"} << "Created";},                          [&] {return true;}},
+						{StopEvent,      StartedState,   StoppedState,   [&](auto event) {LOG(DEBUG) << LABELS{"proto"} << "Created";},                          [&] {return true;}},
+						{StopEvent,      PreparingState, StoppedState,   [&](auto event) {LOG(DEBUG) << LABELS{"proto"} << "Created";},                          [&] {return true;}},
+						{StopEvent,      BufferingState, StoppedState,   [&](auto event) {LOG(DEBUG) << LABELS{"proto"} << "Created";},                          [&] {return true;}},
+						{StopEvent,      PlayingState,   StoppedState,   [&](auto event) {LOG(DEBUG) << LABELS{"proto"} << "Created";},                          [&] {return true;}},
+						{StopEvent,      DrainingState,  StoppedState,   [&](auto event) {LOG(DEBUG) << LABELS{"proto"} << "Created";},                          [&] {return true;}},
 					}
 				}
 				{
@@ -191,7 +194,7 @@ namespace slim
 
 				inline bool isRunning()
 				{
-					return stateMachine.state != CreatedState;
+					return stateMachine.state != StoppedState;
 				}
 
 				inline void onRequest(unsigned char* buffer, std::size_t size, util::Timestamp timestamp)
@@ -268,9 +271,9 @@ namespace slim
 					// changing state to Running if needed
 					if (!isRunning())
 					{
-						stateMachine.processEvent(RunEvent, [&](auto event, auto state)
+						stateMachine.processEvent(StartEvent, [&](auto event, auto state)
 						{
-							LOG(WARNING) << LABELS{"proto"} << "Invalid SlimProto session state while processing RunEvent event - closing the connection";
+							LOG(WARNING) << LABELS{"proto"} << "Invalid SlimProto session state while processing Start event - closing the connection";
 							connection.get().stop();
 						});
 					}
@@ -282,24 +285,15 @@ namespace slim
 					if (isRunning())
 					{
 						// sending SlimProto Stop command if session is not idle
-						if (stateMachine.state != RunningState)
+						if (stateMachine.state != StartedState)
 						{
 							send(server::CommandSTRM{CommandSelection::Stop});
 						}
 
-						// transition to CreatedState by issuing FinishEvent twice in case draining is going on
-						if (stateMachine.state == DrainingState)
+						// transition to Stopped state
+						stateMachine.processEvent(StopEvent, [&](auto event, auto state)
 						{
-							stateMachine.processEvent(FinishEvent, [&](auto event, auto state)
-							{
-								LOG(WARNING) << LABELS{"proto"} << "Invalid SlimProto session state while processing FinishEvent event - closing the connection";
-								connection.get().stop();
-							});
-						}
-						stateMachine.processEvent(FinishEvent, [&](auto event, auto state)
-						{
-							LOG(WARNING) << LABELS{"proto"} << "Invalid SlimProto session state while processing FinishEvent event - closing the connection";
-							connection.get().stop();
+							LOG(WARNING) << LABELS{"proto"} << "Invalid SlimProto session state while processing Stop event";
 						});
 
 						// close connection and calling stop callback
@@ -310,7 +304,7 @@ namespace slim
 
 				inline void streamChunk(const Chunk& chunk)
 				{
-					if (stateMachine.state == RunningState)
+					if (stateMachine.state == StartedState)
 					{
 						// calling prepare() here is required for cases when SlimProto session is created while streaming
 						prepare(streamer.get().getSamplingRate());
@@ -488,14 +482,11 @@ namespace slim
 
 				inline void onSTMf(client::CommandSTAT& commandSTAT)
 				{
-					// change state to Running if Draining is going on
-					if (stateMachine.state == DrainingState)
+					// change state to Running
+					stateMachine.processEvent(FlushedEvent, [&](auto event, auto state)
 					{
-						stateMachine.processEvent(FinishEvent, [&](auto event, auto state)
-						{
-							LOG(WARNING) << LABELS{"proto"} << "Invalid SlimProto session state while processing Finish event";
-						});
-					}
+						LOG(WARNING) << LABELS{"proto"} << "Invalid SlimProto session state while processing Flushed event";
+					});
 				}
 
 				inline void onSTMl(client::CommandSTAT& commandSTAT)

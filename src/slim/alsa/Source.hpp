@@ -60,7 +60,7 @@ namespace slim
 				~Source()
 				{
 					// it is safe to call stop method multiple times
-					stop(false);
+					stop([] {});
 				}
 
 				Source(const Source&) = delete;             // non-copyable
@@ -98,7 +98,30 @@ namespace slim
 				}
 
 				void start();
-				void stop(bool gracefully = true);
+
+				template<typename CallbackType>
+				inline void stop(CallbackType callback)
+				{
+					// issuing a request to stop receiving PCM data
+					{
+						std::lock_guard<std::mutex> lockGuard{lock};
+						if (running)
+						{
+							if (int result; (result = snd_pcm_drop(handlePtr)) < 0)
+							{
+								LOG(ERROR) << LABELS{"alsa"} << formatError("Error while stopping PCM stream unconditionally", result);
+							}
+						}
+					}
+
+					// waiting for this ALSA device to stop receiving PCM data
+					while (isRunning())
+					{
+						std::this_thread::sleep_for(std::chrono::milliseconds{10});
+					}
+
+					callback();
+				}
 
 			protected:
 				void              close();

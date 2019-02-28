@@ -56,22 +56,23 @@ namespace slim
 
 			enum Event
 			{
-				RunEvent,
+				StartEvent,
 				PrepareEvent,
 				BufferEvent,
 				PlayEvent,
 				DrainEvent,
-				FinishEvent,
+				FlushedEvent,
+				StopEvent,
 			};
 
 			enum State
 			{
-				CreatedState,
-				RunningState,
+				StartedState,
 				PreparingState,
 				BufferingState,
 				PlayingState,
 				DrainingState,
+				StoppedState,
 			};
 
 			public:
@@ -82,10 +83,10 @@ namespace slim
 				, gain{ga}
 				, stateMachine
 				{
-					CreatedState,  // initial state
+					StoppedState,  // initial state
 					{   // transition table definition
-						{RunEvent,     CreatedState,   RunningState,   [&](auto event) {LOG(DEBUG) << LABELS{"proto"} << "Running";},                          [&] {return true;}},
-						{PrepareEvent, RunningState,   PreparingState, [&](auto event) {LOG(DEBUG) << LABELS{"proto"} << "Prepare";stateChangeToPreparing();}, [&] {return true;}},
+						{StartEvent,   StoppedState,   StartedState,   [&](auto event) {LOG(DEBUG) << LABELS{"proto"} << "Running";},                          [&] {return true;}},
+						{PrepareEvent, StartedState,   PreparingState, [&](auto event) {LOG(DEBUG) << LABELS{"proto"} << "Prepare";stateChangeToPreparing();}, [&] {return true;}},
 						{PrepareEvent, PreparingState, PreparingState, [&](auto event) {},                          [&] {return true;}},
 						{BufferEvent,  PreparingState, BufferingState, [&](auto event) {LOG(DEBUG) << LABELS{"proto"} << "Buffer";stateChangeToBuffering();}, [&] {return isReadyToBuffer();}},
 						{BufferEvent,  BufferingState, BufferingState, [&](auto event) {},                          [&] {return true;}},
@@ -96,13 +97,16 @@ namespace slim
 						{DrainEvent,   BufferingState, DrainingState,  [&](auto event) {},                          [&] {return true;}},
 						{DrainEvent,   PlayingState,   DrainingState,  [&](auto event) {},                          [&] {return true;}},
 						{DrainEvent,   DrainingState,  DrainingState,  [&](auto event) {},                          [&] {return true;}},
-						{DrainEvent,   RunningState,   RunningState,   [&](auto event) {},                          [&] {return true;}},
-						{FinishEvent,  CreatedState,   CreatedState,   [&](auto event) {},                          [&] {return true;}},
-						{FinishEvent,  RunningState,   CreatedState,   [&](auto event) {},                          [&] {return true;}},
-						{FinishEvent,  PreparingState, CreatedState,   [&](auto event) {},                          [&] {return true;}},
-						{FinishEvent,  BufferingState, CreatedState,   [&](auto event) {},                          [&] {return true;}},
-						{FinishEvent,  PlayingState,   CreatedState,   [&](auto event) {},                          [&] {return true;}},
-						{FinishEvent,  DrainingState,  RunningState,   [&](auto event) {},                          [&] {return !isDraining();}},
+						{DrainEvent,   StartedState,   StartedState,   [&](auto event) {},                          [&] {return true;}},
+						{FlushedEvent, StartedState,   StartedState,   [&](auto event) {},                          [&] {return true;}},
+						{FlushedEvent, PlayingState,   PlayingState,   [&](auto event) {},                          [&] {return true;}},
+						{FlushedEvent, DrainingState,  StartedState,   [&](auto event) {},                          [&] {return !isDraining();}},
+						{StopEvent,    StoppedState,   StoppedState,   [&](auto event) {},                          [&] {return true;}},
+						{StopEvent,    StartedState,   StoppedState,   [&](auto event) {},                          [&] {return true;}},
+						{StopEvent,    PreparingState, StoppedState,   [&](auto event) {},                          [&] {return true;}},
+						{StopEvent,    BufferingState, StoppedState,   [&](auto event) {},                          [&] {return true;}},
+						{StopEvent,    PlayingState,   StoppedState,   [&](auto event) {},                          [&] {return true;}},
+						{StopEvent,    DrainingState,  StoppedState,   [&](auto event) {},                          [&] {return true;}},
 					}
 				}
 				{
@@ -125,7 +129,7 @@ namespace slim
 					auto result{false};
 					auto chunkSamplingRate{chunk.getSamplingRate()};
 
-					if (stateMachine.state == RunningState)
+					if (stateMachine.state == StartedState)
 					{
 						if (chunkSamplingRate)
 						{
@@ -195,9 +199,9 @@ namespace slim
 					if (stateMachine.state == DrainingState)
 					{
 						// 'trying' to transition to Running state which will succeed only when all SlimProto sessions are in Running state
-						result = stateMachine.processEvent(FinishEvent, [&](auto event, auto state)
+						result = stateMachine.processEvent(FlushedEvent, [&](auto event, auto state)
 						{
-							LOG(WARNING) << LABELS{"proto"} << "Invalid Streamer state while processing Finish event - skipping chunk";
+							LOG(WARNING) << LABELS{"proto"} << "Invalid Streamer state while processing Flushed event - skipping chunk";
 							result = true;
 						});
 
@@ -242,7 +246,7 @@ namespace slim
 
 				virtual bool isRunning() override
 				{
-					return stateMachine.state != CreatedState;
+					return stateMachine.state != StoppedState;
 				}
 
 				inline void onHTTPClose(ConnectionType& connection)
@@ -258,8 +262,10 @@ namespace slim
 							commandSession.value()->setStreamingSession(ts::nullopt);
 						}
 
-						// TODO: consider startSession
-						stopSession(streamingSessions, *(*found).second, [] {});
+						removeSession(streamingSessions, found, std::move([&, sessionPtr = (*found).second.get()]
+						{
+							LOG(DEBUG) << LABELS{"proto"} << "HTTP session was removed (id=" << sessionPtr << ", total sessions=" << streamingSessions.size() << ")";
+						}));
 					}
 					else
 					{
@@ -317,14 +323,12 @@ namespace slim
 				{
 					LOG(DEBUG) << LABELS{"proto"} << "SlimProto close callback (connection=" << &connection << ")";
 
-					if (auto foundSession{commandSessions.find(&connection)}; foundSession != commandSessions.end())
+					if (auto found{commandSessions.find(&connection)}; found != commandSessions.end())
 					{
-						// removing session from the owning container
-						auto sessionPtr = std::move((*foundSession).second);
-						commandSessions.erase(foundSession);
-
-						LOG(DEBUG) << LABELS{"proto"} << "SlimProto session was removed (id=" << sessionPtr.get()
-						                              << ", total sessions=" << commandSessions.size() << ")";
+						removeSession(streamingSessions, found, [&, sessionPtr = (*found).second.get()]
+						{
+							LOG(DEBUG) << LABELS{"proto"} << "SlimProto session was removed (id=" << sessionPtr << ", total sessions=" << commandSessions.size() << ")";
+						});
 					}
 					else
 					{
@@ -370,7 +374,7 @@ namespace slim
 				virtual void start() override
 				{
 					// changing state to Running
-					stateMachine.processEvent(RunEvent, [&](auto event, auto state)
+					stateMachine.processEvent(StartEvent, [&](auto event, auto state)
 					{
 						LOG(WARNING) << LABELS{"proto"} << "Invalid Streamer state while processing Run event";
 					});
@@ -381,53 +385,18 @@ namespace slim
 					auto stopCommandSessionsCallback{[&, callback = std::move(callback)]
 					{
 						// changing state to Created
-						if (stateMachine.state == DrainingState)
+						stateMachine.processEvent(StopEvent, [&](auto event, auto state)
 						{
-							stateMachine.processEvent(FinishEvent, [&](auto event, auto state)
-							{
-								LOG(WARNING) << LABELS{"proto"} << "Invalid Streamer state while processing Finish event";
-							});
-						}
-						stateMachine.processEvent(FinishEvent, [&](auto event, auto state)
-						{
-							LOG(WARNING) << LABELS{"proto"} << "Invalid Streamer state while processing Finish event";
+							LOG(WARNING) << LABELS{"proto"} << "Invalid Streamer state while processing Stop event";
 						});
 					}};
 
 					auto stopStreamingSessionsCallback{[&, stopCommandSessionsCallback = std::move(stopCommandSessionsCallback)]
 					{
-						stopSessions(commandSessions, std::move(stopCommandSessionsCallback));
+						removeSessions(commandSessions, std::move(stopCommandSessionsCallback));
 					}};
 
-					stopSessions(streamingSessions, std::move(stopStreamingSessionsCallback));
-				}
-
-				template<typename SessionsType, typename CallbackType>
-				inline void stopSessions(SessionsType& sessions, CallbackType callback)
-				{
-					if (sessions.size())
-					{
-						for (auto i = sessions.begin(), previous = sessions.begin(), last = sessions.end(); i != last;)
-						{
-							previous = i;
-							if (++i != last)
-							{
-								(*previous).second->stop([] {});
-							}
-							else
-							{
-								// calling provided callback when stopping the last session
-								(*previous).second->stop([callback = std::move(callback)]
-								{
-									callback();
-								});
-							}
- 						}
-					}
-					else
-					{
-						callback();
-					}
+					removeSessions(streamingSessions, std::move(stopStreamingSessionsCallback));
 				}
 
 			protected:
@@ -571,6 +540,68 @@ namespace slim
 					return result;
 				}
 
+				template<typename SessionsType, typename IteratorType, typename CallbackType>
+				inline void removeSession(SessionsType& sessions, IteratorType& element, CallbackType callback)
+				{
+					(*element).second->stop([&, &connection = *(*element).first, &session = *(*element).second, callback = std::move(callback)]
+					{
+						// submitting a new handler is required as it deletes session object which runs this callback
+						getProcessorProxy().process([&, &connection = connection, &session = session, callback = std::move(callback)]
+						{
+							if (sessions.erase(&connection))
+							{
+								callback();
+							}
+							else
+							{
+								LOG(WARNING) << LABELS{"proto"} << "Did not find session by provided connection (" << &connection << ")";
+							}
+						});
+					});
+				}
+
+				template<typename SessionsType, typename CallbackType>
+				inline void removeSessions(SessionsType& sessions, CallbackType callback)
+				{
+					auto first{sessions.begin()};
+					if (first != sessions.end())
+					{
+						removeSession(sessions, first, [&, callback = std::move(callback)]
+						{
+							removeSessions(sessions, std::move(callback));
+						});
+					}
+					else
+					{
+						callback();
+					}
+/*
+					if (sessions.size())
+					{
+						for (auto i = sessions.begin(), previous = sessions.begin(), last = sessions.end(); i != last;)
+						{
+							previous = i;
+							if (++i != last)
+							{
+								(*previous).second->stop([] {});
+							}
+							else
+							{
+								// calling provided callback when stopping the last session
+								(*previous).second->stop([callback = std::move(callback)]
+								{
+									callback();
+								});
+							}
+ 						}
+					}
+					else
+					{
+						callback();
+					}
+*/
+				}
+
 				inline void stateChangeToBuffering()
 				{
 					// buffering start time is required for calculating min buffering time
@@ -595,43 +626,6 @@ namespace slim
 					{
 						entry.second->prepare(samplingRate);
 					}
-				}
-
-				template<typename SessionsType, typename SessionType, typename CallbackType>
-				inline void stopSession(SessionsType& sessions, SessionType& session, CallbackType callback)
-				{
-					LOG(DEBUG) << LABELS{"proto"} << "STOP04";
-					session.stop([&, &session = session, callback = std::move(callback)]
-					{
-						LOG(DEBUG) << LABELS{"proto"} << "STOP05";
-
-						// submitting a new handler is required as it deletes session object which runs this callback
-						getProcessorProxy().process([&, &session = session, callback = std::move(callback)]
-						{
-							LOG(DEBUG) << LABELS{"proto"} << "STOP06";
-							// this loop will be replaced with std::erase_if once it is implemented by libstdc++
-							for (auto i = sessions.begin(), last = sessions.end(); i != last;)
-							{
-								LOG(DEBUG) << LABELS{"proto"} << "STOP07";
-								if (&session == (*i).second.get())
-								{
-									LOG(DEBUG) << LABELS{"proto"} << "STOP08";
-									i = sessions.erase(i);
-
-									LOG(DEBUG) << LABELS{"proto"}
-										<< "Session was removed (id=" << &session
-										<< ", total sessions=" << sessions.size()
-										<< ")";
-
-									callback();
-								}
-								else
-								{
-									i++;
-								}
-							}
-						});
-					});
 				}
 
 				inline void streamChunk(Chunk& chunk)
