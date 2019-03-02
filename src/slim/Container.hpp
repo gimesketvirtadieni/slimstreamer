@@ -13,11 +13,9 @@
 #pragma once
 
 #include <conwrap2/ProcessorProxy.hpp>
-#include <functional>
 #include <memory>
 
 #include "slim/ContainerBase.hpp"
-#include "slim/log/log.hpp"
 
 
 namespace slim
@@ -26,8 +24,8 @@ namespace slim
 	class Container : public ContainerBase
 	{
 		public:
-			Container(conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>> processorProxy, std::unique_ptr<CommandServerType> cse, std::unique_ptr<StreamingServerType> sse, std::unique_ptr<DiscoveryServerType> dse, std::unique_ptr<SchedulerType> sc)
-			: ContainerBase{processorProxy}
+			Container(conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>> pp, std::unique_ptr<CommandServerType> cse, std::unique_ptr<StreamingServerType> sse, std::unique_ptr<DiscoveryServerType> dse, std::unique_ptr<SchedulerType> sc)
+			: processorProxy{pp}
 			, commandServerPtr{std::move(cse)}
 			, streamingServerPtr{std::move(sse)}
 			, discoveryServerPtr{std::move(dse)}
@@ -55,16 +53,26 @@ namespace slim
 
 			virtual void stop() override
 			{
-				schedulerPtr->stop([] {});
 				discoveryServerPtr->stop();
-				streamingServerPtr->stop();
-				commandServerPtr->stop();
+				processorProxy.process([&]
+				{
+					commandServerPtr->stop();
+					processorProxy.process([&]
+					{
+						streamingServerPtr->stop();
+						processorProxy.process([&]
+						{
+							schedulerPtr->stop([] {});
+						});
+					});
+				});
 			}
 
 		private:
-			std::unique_ptr<CommandServerType>   commandServerPtr;
-			std::unique_ptr<StreamingServerType> streamingServerPtr;
-			std::unique_ptr<DiscoveryServerType> discoveryServerPtr;
-			std::unique_ptr<SchedulerType>       schedulerPtr;
+			conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>> processorProxy;
+			std::unique_ptr<CommandServerType>                       commandServerPtr;
+			std::unique_ptr<StreamingServerType>                     streamingServerPtr;
+			std::unique_ptr<DiscoveryServerType>                     discoveryServerPtr;
+			std::unique_ptr<SchedulerType>                           schedulerPtr;
 	};
 }

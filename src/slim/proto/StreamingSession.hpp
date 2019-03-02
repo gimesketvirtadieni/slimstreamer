@@ -50,13 +50,7 @@ namespace slim
 						// do not feed writer with more data if there is no room in transfer buffer
 						if (bufferedWriter.isBufferAvailable())
 						{
-							bufferedWriter.writeAsync(data, size, [](auto error, auto written)
-							{
-								if (error)
-								{
-									LOG(ERROR) << LABELS{"proto"} << "Error while transferring encoded data: " << error.message();
-								}
-							});
+							bufferedWriter.writeAsync(data, size, [](auto error, auto written) {});
 						}
 						else
 						{
@@ -147,31 +141,21 @@ namespace slim
 				template <typename CallbackType>
 				inline void stop(CallbackType callback)
 				{
-					LOG(WARNING) << LABELS{"proto"} << "HTTP Session stop1";
-
-					encoderPtr->stop([&, callback = std::move(callback)]
+					if (running)
 					{
-						LOG(WARNING) << LABELS{"proto"} << "HTTP Session stop2";
-						if (running)
+						encoderPtr->stop([&, callback = std::move(callback)]
 						{
 							flush([&, callback = std::move(callback)]
 							{
-								LOG(WARNING) << LABELS{"proto"} << "HTTP Session stop3";
-								// close connection and calling stop callback
-								connection.get().stop();
 								running = false;
 								callback();
-								LOG(WARNING) << LABELS{"proto"} << "HTTP Session stop4";
 							});
-						}
-						else
-						{
-							LOG(WARNING) << LABELS{"proto"} << "HTTP Session stop5";
-							callback();
-							LOG(WARNING) << LABELS{"proto"} << "HTTP Session stop6";
-						}
-						
-					});
+						});
+					}
+					else
+					{
+						callback();
+					}
 				}
 
 				inline void streamChunk(const Chunk& chunk)

@@ -77,10 +77,8 @@ namespace slim
 
 			inline void stop(std::function<void()> callback)
 			{
-				LOG(DEBUG) << LABELS{"slim"} << "stop1";
 				producerPtr->stop([&, callback = std::move(callback)]
 				{
-					LOG(DEBUG) << LABELS{"slim"} << "stop2";
 					consumerPtr->stop(std::move(callback));
 				});
 			}

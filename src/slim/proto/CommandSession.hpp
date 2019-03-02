@@ -177,8 +177,6 @@ namespace slim
 
 				inline auto isReadyToBuffer()
 				{
-					LOG(DEBUG) << LABELS{"proto"} << "isReadyToPrepare()=" << isReadyToPrepare() << " streamingSession.has_value()=" << streamingSession.has_value();
-					
 					return isReadyToPrepare() && streamingSession.has_value();
 				}
 
@@ -295,11 +293,8 @@ namespace slim
 						{
 							LOG(WARNING) << LABELS{"proto"} << "Invalid SlimProto session state while processing Stop event";
 						});
-
-						// close connection and calling stop callback
-						connection.get().stop();
-						callback();
 					}
+					callback();
 				}
 
 				inline void streamChunk(const Chunk& chunk)

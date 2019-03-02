@@ -12,8 +12,6 @@
 
 #pragma once
 
-#include <conwrap2/ProcessorProxy.hpp>
-#include <memory>
 
 
 namespace slim
@@ -21,10 +19,9 @@ namespace slim
 	class ContainerBase
 	{
 		public:
-			ContainerBase(conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>> p)
-			: processorProxy{p} {}
 
 			// using Rule Of Zero
+			ContainerBase() = default;
 			virtual ~ContainerBase() = default;
 			ContainerBase(const ContainerBase&) = delete;             // non-copyable
 			ContainerBase& operator=(const ContainerBase&) = delete;  // non-assignable
@@ -34,8 +31,5 @@ namespace slim
 			virtual bool isSchedulerRunning() = 0;
 			virtual void start() = 0;
 			virtual void stop() = 0;
-
-		private:
-			conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>> processorProxy;
 	};
 }

@@ -262,14 +262,11 @@ namespace slim
 							commandSession.value()->setStreamingSession(ts::nullopt);
 						}
 
-						removeSession(streamingSessions, found, std::move([&, sessionPtr = (*found).second.get()]
-						{
-							LOG(DEBUG) << LABELS{"proto"} << "HTTP session was removed (id=" << sessionPtr << ", total sessions=" << streamingSessions.size() << ")";
-						}));
+						removeSession(streamingSessions, *(*found).first, *(*found).second);
 					}
 					else
 					{
-						LOG(WARNING) << LABELS{"proto"} << "Could not find HTTP session by provided connection";
+						LOG(WARNING) << LABELS{"proto"} << "Did not find HTTP session by provided connection (" << &connection << ")";
 					}
 				}
 
@@ -325,14 +322,11 @@ namespace slim
 
 					if (auto found{commandSessions.find(&connection)}; found != commandSessions.end())
 					{
-						removeSession(streamingSessions, found, [&, sessionPtr = (*found).second.get()]
-						{
-							LOG(DEBUG) << LABELS{"proto"} << "SlimProto session was removed (id=" << sessionPtr << ", total sessions=" << commandSessions.size() << ")";
-						});
+						removeSession(commandSessions, *(*found).first, *(*found).second);
 					}
 					else
 					{
-						LOG(WARNING) << LABELS{"proto"} << "Could not find SlimProto session by provided connection";
+						LOG(WARNING) << LABELS{"proto"} << "Did not find SlimProto ession by provided connection (" << &connection << ")";
 					}
 				}
 
@@ -382,21 +376,11 @@ namespace slim
 
 				virtual void stop(std::function<void()> callback) override
 				{
-					auto stopCommandSessionsCallback{[&, callback = std::move(callback)]
+					// no need to do anything with sessions as they will be stopped & deleted by onClose event handler, so changing state Stopped
+					stateMachine.processEvent(StopEvent, [&](auto event, auto state)
 					{
-						// changing state to Created
-						stateMachine.processEvent(StopEvent, [&](auto event, auto state)
-						{
-							LOG(WARNING) << LABELS{"proto"} << "Invalid Streamer state while processing Stop event";
-						});
-					}};
-
-					auto stopStreamingSessionsCallback{[&, stopCommandSessionsCallback = std::move(stopCommandSessionsCallback)]
-					{
-						removeSessions(commandSessions, std::move(stopCommandSessionsCallback));
-					}};
-
-					removeSessions(streamingSessions, std::move(stopStreamingSessionsCallback));
+						LOG(WARNING) << LABELS{"proto"} << "Invalid Streamer state while processing Stop event";
+					});
 				}
 
 			protected:
@@ -540,66 +524,20 @@ namespace slim
 					return result;
 				}
 
-				template<typename SessionsType, typename IteratorType, typename CallbackType>
-				inline void removeSession(SessionsType& sessions, IteratorType& element, CallbackType callback)
+				template<typename SessionsType, typename SessionType>
+				inline void removeSession(SessionsType& sessions, ConnectionType& connection, SessionType& session)
 				{
-					(*element).second->stop([&, &connection = *(*element).first, &session = *(*element).second, callback = std::move(callback)]
+					session.stop([&sessions = sessions, &connection = connection, &session = session]
 					{
-						// submitting a new handler is required as it deletes session object which runs this callback
-						getProcessorProxy().process([&, &connection = connection, &session = session, callback = std::move(callback)]
+						if (sessions.erase(&connection))
 						{
-							if (sessions.erase(&connection))
-							{
-								callback();
-							}
-							else
-							{
-								LOG(WARNING) << LABELS{"proto"} << "Did not find session by provided connection (" << &connection << ")";
-							}
-						});
+							LOG(DEBUG) << LABELS{"proto"} << "Session was removed (id=" << &session << ", total sessions=" << sessions.size() << ")";
+						}
+						else
+						{
+							LOG(WARNING) << LABELS{"proto"} << "Did not find session by provided connection (" << &connection << ")";
+						}
 					});
-				}
-
-				template<typename SessionsType, typename CallbackType>
-				inline void removeSessions(SessionsType& sessions, CallbackType callback)
-				{
-					auto first{sessions.begin()};
-					if (first != sessions.end())
-					{
-						removeSession(sessions, first, [&, callback = std::move(callback)]
-						{
-							removeSessions(sessions, std::move(callback));
-						});
-					}
-					else
-					{
-						callback();
-					}
-/*
-					if (sessions.size())
-					{
-						for (auto i = sessions.begin(), previous = sessions.begin(), last = sessions.end(); i != last;)
-						{
-							previous = i;
-							if (++i != last)
-							{
-								(*previous).second->stop([] {});
-							}
-							else
-							{
-								// calling provided callback when stopping the last session
-								(*previous).second->stop([callback = std::move(callback)]
-								{
-									callback();
-								});
-							}
- 						}
-					}
-					else
-					{
-						callback();
-					}
-*/
 				}
 
 				inline void stateChangeToBuffering()
