@@ -85,13 +85,13 @@ namespace slim
 				{
 					StoppedState,  // initial state
 					{   // transition table definition
-						{StartEvent,   StoppedState,   StartedState,   [&](auto event) {LOG(DEBUG) << LABELS{"proto"} << "Running";},                          [&] {return true;}},
-						{PrepareEvent, StartedState,   PreparingState, [&](auto event) {LOG(DEBUG) << LABELS{"proto"} << "Prepare";stateChangeToPreparing();}, [&] {return true;}},
+						{StartEvent,   StoppedState,   StartedState,   [&](auto event) {},                          [&] {return true;}},
+						{PrepareEvent, StartedState,   PreparingState, [&](auto event) {stateChangeToPreparing();}, [&] {return true;}},
 						{PrepareEvent, PreparingState, PreparingState, [&](auto event) {},                          [&] {return true;}},
-						{BufferEvent,  PreparingState, BufferingState, [&](auto event) {LOG(DEBUG) << LABELS{"proto"} << "Buffer";stateChangeToBuffering();}, [&] {return isReadyToBuffer();}},
+						{BufferEvent,  PreparingState, BufferingState, [&](auto event) {stateChangeToBuffering();}, [&] {return isReadyToBuffer();}},
 						{BufferEvent,  BufferingState, BufferingState, [&](auto event) {},                          [&] {return true;}},
 						{BufferEvent,  PlayingState,   PlayingState,   [&](auto event) {},                          [&] {return true;}},
-						{PlayEvent,    BufferingState, PlayingState,   [&](auto event) {LOG(DEBUG) << LABELS{"proto"} << "Play";stateChangeToPlaying();},   [&] {return isReadyToPlay();}},
+						{PlayEvent,    BufferingState, PlayingState,   [&](auto event) {stateChangeToPlaying();},   [&] {return isReadyToPlay();}},
 						{PlayEvent,    PlayingState,   PlayingState,   [&](auto event) {},                          [&] {return true;}},
 						{DrainEvent,   PreparingState, DrainingState,  [&](auto event) {},                          [&] {return true;}},
 						{DrainEvent,   BufferingState, DrainingState,  [&](auto event) {},                          [&] {return true;}},

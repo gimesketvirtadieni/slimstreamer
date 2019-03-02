@@ -108,6 +108,11 @@ namespace slim
 
 				inline void onRequest(unsigned char* data, std::size_t size)
 				{
+					if (!running)
+					{
+						return;
+					}
+
 					// TODO: make more strick validation
 					std::string get{"GET"};
 					std::string s{(char*)data, get.size()};
@@ -115,7 +120,10 @@ namespace slim
 					{
 						// stopping this session due an error
 						LOG(WARNING) << LABELS{"proto"} << "Wrong HTTP method provided";
-						stop([] {});
+						flush([&]
+						{
+							connection.get().stop();
+						});
 					}
 				}
 
@@ -141,45 +149,44 @@ namespace slim
 				template <typename CallbackType>
 				inline void stop(CallbackType callback)
 				{
-					if (running)
-					{
-						encoderPtr->stop([&, callback = std::move(callback)]
-						{
-							flush([&, callback = std::move(callback)]
-							{
-								running = false;
-								callback();
-							});
-						});
-					}
-					else
+					if (!running)
 					{
 						callback();
+						return;
 					}
+
+					flush([&, callback = std::move(callback)]
+					{
+						running = false;
+						callback();
+					});
 				}
 
 				inline void streamChunk(const Chunk& chunk)
 				{
-					if (chunk.getSamplingRate() == encoderPtr->getSamplingRate())
+					if (!running)
 					{
-						encoderPtr->encode(chunk.getData(), chunk.getSize());
-						framesProvided += chunk.getFrames();
-
-						if (chunk.isEndOfStream())
-						{
-							// stopping this session
-							stop([&]
-							{
-								connection.get().stop();
-							});
-						}
+						return;
 					}
-					else
-					{
-						LOG(ERROR) << LABELS{"proto"} << "Closing HTTP connection due to different sampling rate used by a client (session rate=" << encoderPtr->getSamplingRate() << "; data rate=" << chunk.getSamplingRate() << ")";
 
+					// stopping this session in case sampling rates do not match
+					if (chunk.getSamplingRate() != encoderPtr->getSamplingRate())
+					{
+						flush([&]
+						{
+							LOG(ERROR) << LABELS{"proto"} << "Closing HTTP connection due to different sampling rate used by a client (session rate=" << encoderPtr->getSamplingRate() << "; data rate=" << chunk.getSamplingRate() << ")";
+							connection.get().stop();
+						});
+						return;
+					}
+
+					encoderPtr->encode(chunk.getData(), chunk.getSize());
+					framesProvided += chunk.getFrames();
+
+					if (chunk.isEndOfStream())
+					{
 						// stopping this session
-						stop([&]
+						flush([&]
 						{
 							connection.get().stop();
 						});
@@ -190,21 +197,31 @@ namespace slim
 				template <typename CallbackType>
 				void flush(CallbackType callback)
 				{
-					if (bufferedWriter.isBufferAvailable())
+					if (encoderPtr->isRunning())
 					{
-						// submitting an 'empty' chunk so that a callback gets invoked when all data has been transferred
-						bufferedWriter.writeAsync(nullptr, 0, [callback = std::move(callback)](auto error, auto written)
+						encoderPtr->stop([&, callback = std::move(callback)]
 						{
-							callback();
+							flush(std::move(callback));
 						});
 					}
 					else
 					{
-						// waiting until data is transferred so a new 'empty' chunk can be submitted
-						timer = ts::ref(processorProxy.processWithDelay([&, callback = std::move(callback)]
+						if (bufferedWriter.isBufferAvailable())
 						{
-							flush(std::move(callback));
-						}, std::chrono::milliseconds{1}));
+							// submitting an 'empty' chunk so that a callback gets invoked when all data has been transferred
+							bufferedWriter.writeAsync(nullptr, 0, [callback = std::move(callback)](auto error, auto written)
+							{
+								callback();
+							});
+						}
+						else
+						{
+							// waiting until data is transferred so a new 'empty' chunk can be submitted
+							timer = ts::ref(processorProxy.processWithDelay([&, callback = std::move(callback)]
+							{
+								flush(std::move(callback));
+							}, std::chrono::milliseconds{1}));
+						}
 					}
 				}
 
@@ -215,7 +232,6 @@ namespace slim
 				// TODO: parameterize
 				util::BufferedAsyncWriter<ConnectionType, 128>           bufferedWriter;
 				std::unique_ptr<EncoderBase>                             encoderPtr;
-				// TODO: implement more guards based on running
 				bool                                                     running{false};
 				ts::optional_ref<conwrap2::Timer>                        timer{ts::nullopt};
 				util::BigInteger                                         framesProvided{0};
