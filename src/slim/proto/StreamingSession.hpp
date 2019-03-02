@@ -168,7 +168,10 @@ namespace slim
 						if (chunk.isEndOfStream())
 						{
 							// stopping this session
-							stop([] {});
+							stop([&]
+							{
+								connection.get().stop();
+							});
 						}
 					}
 					else
@@ -176,7 +179,10 @@ namespace slim
 						LOG(ERROR) << LABELS{"proto"} << "Closing HTTP connection due to different sampling rate used by a client (session rate=" << encoderPtr->getSamplingRate() << "; data rate=" << chunk.getSamplingRate() << ")";
 
 						// stopping this session
-						stop([] {});
+						stop([&]
+						{
+							connection.get().stop();
+						});
 					}
 				}
 
