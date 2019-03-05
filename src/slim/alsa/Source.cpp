@@ -15,7 +15,6 @@
 #include <string>
 
 #include "slim/alsa/Source.hpp"
-#include "slim/Exception.hpp"
 
 
 namespace slim
@@ -203,24 +202,11 @@ namespace slim
 		}
 
 
-		void Source::start()
+		void Source::startt()
 		{
 			auto          maxFrames     = parameters.getFramesPerChunk();
 			unsigned int  bytesPerFrame = parameters.getTotalChannels() * (parameters.getBitsPerSample() >> 3);
 			unsigned char srcBuffer[maxFrames * bytesPerFrame];
-
-			// changing state to 'running' in a thread-safe way
-			{
-				std::lock_guard<std::mutex> lockGuard{lock};
-				if (running)
-				{
-					throw Exception(formatError("Audio device was already started"));
-				}
-
-				// open ALSA device
-				open();
-				running = true;
-			}
 
 			auto result{snd_pcm_sframes_t{0}};
 			auto isBeginningOfStream{true};
@@ -300,14 +286,7 @@ namespace slim
 				LOG(ERROR) << LABELS{"alsa"} << formatError("Unexpected error while reading PCM data", result);
 			}
 
-			// changing state to 'not running' in a thread-safe way
-			{
-				std::lock_guard<std::mutex> lockGuard{lock};
-				running = false;
-
-				// closing ALSA device
-				close();
-			}
+			LOG(DEBUG) << LABELS{"slim"} << "PCM data capture thread was stopped (id=" << std::this_thread::get_id() << ")";
 		}
 	}
 }

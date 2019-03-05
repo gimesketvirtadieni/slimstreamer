@@ -182,7 +182,7 @@ namespace slim
 
 				inline auto isReadyToPrepare()
 				{
-					return (bool)samplingRate;
+					return samplingRate != 0;
 				}
 
 				inline auto isReadyToPlay()

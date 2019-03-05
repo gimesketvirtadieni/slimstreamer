@@ -20,12 +20,14 @@
 #include <functional>
 #include <memory>
 #include <mutex>
+#include <thread>
 #include <type_safe/optional.hpp>
 
 #include "slim/alsa/Parameters.hpp"
 #include "slim/Chunk.hpp"
 #include "slim/Consumer.hpp"
 #include "slim/ContainerBase.hpp"
+#include "slim/Exception.hpp"
 #include "slim/log/log.hpp"
 #include "slim/util/RealTimeQueue.hpp"
 
@@ -97,12 +99,72 @@ namespace slim
 					});
 				}
 
-				void start();
+				void startt();
+
+				void start()
+				{
+					// starting PCM data producer thread for Real-Time processing
+					if (!producerThread.joinable())
+					{
+						producerThread = std::thread{[&]
+						{
+							LOG(DEBUG) << LABELS{"slim"} << "PCM data capture thread was started (id=" << std::this_thread::get_id() << ")";
+
+							try
+							{
+								// changing state to 'running' in a thread-safe way
+								{
+									std::lock_guard<std::mutex> lockGuard{lock};
+									if (running)
+									{
+										throw Exception(formatError("Audio device was already started"));
+									}
+
+									// open ALSA device
+									open();
+									running = true;
+								}
+
+								startt();
+
+								// changing state to 'not running' in a thread-safe way
+								{
+									std::lock_guard<std::mutex> lockGuard{lock};
+									running = false;
+
+									// closing ALSA device
+									close();
+								}
+							}
+							catch (const Exception& error)
+							{
+								LOG(ERROR) << LABELS{"slim"} << "Error in producer thread: " << error;
+							}
+							catch (const std::exception& error)
+							{
+								LOG(ERROR) << LABELS{"slim"} << "Error in producer thread: " << error.what();
+							}
+							catch (...)
+							{
+								LOG(ERROR) << LABELS{"slim"} << "Unexpected exception";
+							}
+
+							LOG(DEBUG) << LABELS{"slim"} << "PCM data capture thread was stopped (id=" << std::this_thread::get_id() << ")";
+						}};
+
+						// making sure it is up and running
+						while (producerThread.joinable() && !running)
+						{
+							std::this_thread::sleep_for(std::chrono::milliseconds{1});
+						}
+					}
+				}
 
 				template<typename CallbackType>
 				inline void stop(CallbackType callback)
 				{
 					// issuing a request to stop receiving PCM data
+					// this part should be synchronyzed to prevent issueing stop request while open/close procedures
 					{
 						std::lock_guard<std::mutex> lockGuard{lock};
 						if (running)
@@ -114,8 +176,8 @@ namespace slim
 						}
 					}
 
-					// waiting for this ALSA device to stop receiving PCM data
-					while (isRunning())
+					// do not use thread.join, because it may cause race condition in case stop is called by multiple threads
+					while (producerThread.joinable() && running)
 					{
 						std::this_thread::sleep_for(std::chrono::milliseconds{10});
 					}
@@ -128,7 +190,7 @@ namespace slim
 				snd_pcm_sframes_t containsData(unsigned char* buffer, snd_pcm_uframes_t frames);
 				snd_pcm_uframes_t copyData(unsigned char* srcBuffer, unsigned char* dstBuffer, snd_pcm_uframes_t frames);
 
-				inline auto formatError(std::string message, int error = 0)
+				inline std::string formatError(std::string message, int error = 0)
 				{
 					return message + ": name='" + parameters.getDeviceName() + (error != 0 ? std::string{"' error='"} + snd_strerror(error) + "'" : "");
 				}
@@ -186,6 +248,7 @@ namespace slim
 			private:
 				Parameters            parameters;
 				std::function<void()> overflowCallback;
+				std::thread           producerThread;
 				QueueType             queue;
 				snd_pcm_t*            handlePtr{nullptr};
 				std::atomic<bool>     running{false};

@@ -109,53 +109,27 @@ namespace slim
 			{
 				for (auto& producerPtr : producers)
 				{
-					// starting PCM data producer thread for Real-Time processing
-					std::thread producerThread{[&producer = *producerPtr]
-					{
-						LOG(DEBUG) << LABELS{"slim"} << "PCM data capture thread was started (id=" << std::this_thread::get_id() << ")";
-
-						try
-						{
-							producer.start();
-						}
-						catch (const Exception& error)
-						{
-							LOG(ERROR) << LABELS{"slim"} << "Error in producer thread: " << error;
-						}
-						catch (const std::exception& error)
-						{
-							LOG(ERROR) << LABELS{"slim"} << "Error in producer thread: " << error.what();
-						}
-
-						LOG(DEBUG) << LABELS{"slim"} << "PCM data capture thread was stopped (id=" << std::this_thread::get_id() << ")";
-					}};
-
-					// making sure it is up and running
-					while (producerThread.joinable() && !producerPtr->isRunning())
-					{
-						std::this_thread::sleep_for(std::chrono::milliseconds{1});
-					}
-
-					// keeping producer's thread in dedicated vector
-					threads.push_back(std::move(producerThread));
+					producerPtr->start();
 				}
 			}
 
 			template<typename CallbackType>
 			inline void stop(CallbackType callback)
 			{
-				// signalling all threads to stop processing
+				// signalling all producers to stop
 				for (auto& producerPtr : producers)
 				{
 					producerPtr->stop([] {});
 				}
 
-				// waiting for all threads to terminate
-				for (auto& thread : threads)
+				// waiting for all producers to stop
+				for (auto running{true}; running;)
 				{
-					if (thread.joinable())
+					std::this_thread::sleep_for(std::chrono::milliseconds{1});
+					running = false;
+					for (auto& producerPtr : producers)
 					{
-						thread.join();
+						running |= producerPtr->isRunning();
 					}
 				}
 
@@ -184,7 +158,6 @@ namespace slim
 			std::vector<std::unique_ptr<ProducerType>> producers;
 			unsigned int                               currentProducerIndex{0};
 			ts::optional_ref<ProducerType>             currentProducer{ts::nullopt};
-			std::vector<std::thread>                   threads;
 			unsigned int                               emptySwitches{0};
 	};
 }
