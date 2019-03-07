@@ -113,6 +113,11 @@ namespace slim
 				{
 					StoppedState,  // initial state
 					{   // transition table definition
+						{StartEvent,     StartedState,   StartedState,   [&](auto event) {},                          [&] {return true;}},
+						{StartEvent,     PreparingState, PreparingState, [&](auto event) {},                          [&] {return true;}},
+						{StartEvent,     BufferingState, BufferingState, [&](auto event) {},                          [&] {return true;}},
+						{StartEvent,     PlayingState,   PlayingState,   [&](auto event) {},                          [&] {return true;}},
+						{StartEvent,     DrainingState,  DrainingState,  [&](auto event) {},                          [&] {return true;}},
 						{StartEvent,     StoppedState,   StartedState,   [&](auto event) {},                          [&] {return true;}},
 						{HandshakeEvent, StartedState,   DrainingState,  [&](auto event) {},                          [&] {return true;}},
 						{PrepareEvent,   StartedState,   PreparingState, [&](auto event) {stateChangeToPreparing();}, [&] {return isReadyToPrepare();}},
@@ -133,11 +138,11 @@ namespace slim
 						{FlushedEvent,   PlayingState,   PlayingState,   [&](auto event) {},                          [&] {return true;}},
 						{FlushedEvent,   DrainingState,  StartedState,   [&](auto event) {},                          [&] {return true;}},
 						{StopEvent,      StoppedState,   StoppedState,   [&](auto event) {},                          [&] {return true;}},
-						{StopEvent,      StartedState,   StoppedState,   [&](auto event) {},                          [&] {return true;}},
-						{StopEvent,      PreparingState, StoppedState,   [&](auto event) {},                          [&] {return true;}},
-						{StopEvent,      BufferingState, StoppedState,   [&](auto event) {},                          [&] {return true;}},
-						{StopEvent,      PlayingState,   StoppedState,   [&](auto event) {},                          [&] {return true;}},
-						{StopEvent,      DrainingState,  StoppedState,   [&](auto event) {},                          [&] {return true;}},
+						{StopEvent,      StartedState,   StoppedState,   [&](auto event) {stateChangeToStopped();},   [&] {return true;}},
+						{StopEvent,      PreparingState, StoppedState,   [&](auto event) {stateChangeToStopped();},   [&] {return true;}},
+						{StopEvent,      BufferingState, StoppedState,   [&](auto event) {stateChangeToStopped();},   [&] {return true;}},
+						{StopEvent,      PlayingState,   StoppedState,   [&](auto event) {stateChangeToStopped();},   [&] {return true;}},
+						{StopEvent,      DrainingState,  StoppedState,   [&](auto event) {stateChangeToStopped();},   [&] {return true;}},
 					}
 				}
 				{
@@ -197,6 +202,11 @@ namespace slim
 
 				inline void onRequest(unsigned char* buffer, std::size_t size, util::Timestamp timestamp)
 				{
+					if (!isRunning())
+					{
+						return;
+					}
+
 					// removing data from the buffer in case of an exception
 					::util::scope_guard_failure onException = [&]
 					{
@@ -252,7 +262,10 @@ namespace slim
 					samplingRate = s;
 
 					// 'trying' to change state to Preparing
-					if (!stateMachine.processEvent(PrepareEvent, [&](auto event, auto state) {}))
+					if (!stateMachine.processEvent(PrepareEvent, [&](auto event, auto state)
+					{
+						LOG(WARNING) << LABELS{"proto"} << "Invalid SlimProto session state while processing Prepare event";
+					}))
 					{
 						// restoring sampling rate if transition failed
 						samplingRate = temp;
@@ -267,14 +280,11 @@ namespace slim
 				inline void start()
 				{
 					// changing state to Running if needed
-					if (!isRunning())
+					stateMachine.processEvent(StartEvent, [&](auto event, auto state)
 					{
-						stateMachine.processEvent(StartEvent, [&](auto event, auto state)
-						{
-							LOG(WARNING) << LABELS{"proto"} << "Invalid SlimProto session state while processing Start event - closing the connection";
-							connection.get().stop();
-						});
-					}
+						LOG(WARNING) << LABELS{"proto"} << "Invalid SlimProto session state while processing Start event - closing the connection";
+						connection.get().stop();
+					});
 				}
 
 				template <typename CallbackType>
@@ -294,6 +304,7 @@ namespace slim
 							LOG(WARNING) << LABELS{"proto"} << "Invalid SlimProto session state while processing Stop event";
 						});
 					}
+					
 					callback();
 				}
 
@@ -648,6 +659,26 @@ namespace slim
 					streamingSession.reset();
 
 					send(server::CommandSTRM{CommandSelection::Start, formatSelection, streamingPort, samplingRate, clientID});
+				}
+
+				inline void stateChangeToStopped()
+				{
+					samplingRate = 0;
+					measuringLatency = false;
+					clientBufferIsReady = false;
+
+					streamingSession.reset();
+					commandBuffer.size(0);
+					timestampCache.clear();
+					latency.reset();
+					latencySamples.clear();
+					timeOffset.reset();
+					timeOffsetSamples.clear();
+
+					ts::with(pingTimer, [&](auto& timer)
+					{
+						timer.cancel();
+					});
 				}
 
 			private:

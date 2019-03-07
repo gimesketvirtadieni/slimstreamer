@@ -149,17 +149,18 @@ namespace slim
 				template <typename CallbackType>
 				inline void stop(CallbackType callback)
 				{
-					if (!running)
+					if (running)
 					{
-						callback();
-						return;
+						flush([&, callback = std::move(callback)]
+						{
+							running = false;
+							callback();
+						});
 					}
-
-					flush([&, callback = std::move(callback)]
+					else
 					{
-						running = false;
 						callback();
-					});
+					}
 				}
 
 				inline void streamChunk(const Chunk& chunk)
@@ -174,22 +175,23 @@ namespace slim
 					{
 						flush([&]
 						{
-							LOG(ERROR) << LABELS{"proto"} << "Closing HTTP connection due to different sampling rate used by a client (session rate=" << encoderPtr->getSamplingRate() << "; data rate=" << chunk.getSamplingRate() << ")";
+							LOG(WARNING) << LABELS{"proto"} << "Closing HTTP connection due to different sampling rate used by a client (session rate=" << encoderPtr->getSamplingRate() << "; data rate=" << chunk.getSamplingRate() << ")";
 							connection.get().stop();
 						});
-						return;
 					}
-
-					encoderPtr->encode(chunk.getData(), chunk.getSize());
-					framesProvided += chunk.getFrames();
-
-					if (chunk.isEndOfStream())
+					else
 					{
-						// stopping this session
-						flush([&]
+						encoderPtr->encode(chunk.getData(), chunk.getSize());
+						framesProvided += chunk.getFrames();
+
+						if (chunk.isEndOfStream())
 						{
-							connection.get().stop();
-						});
+							// stopping this session due to end-of-stream
+							flush([&]
+							{
+								connection.get().stop();
+							});
+						}
 					}
 				}
 

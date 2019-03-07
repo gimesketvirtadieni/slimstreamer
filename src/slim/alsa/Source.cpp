@@ -187,22 +187,7 @@ namespace slim
 		}
 
 
-		bool Source::restore(snd_pcm_sframes_t error)
-		{
-			auto restored{true};
-
-			if (error < 0)
-			{
-				// TODO: this is where ALSA stream may be restored depending on an error and the state
-				snd_pcm_state(handlePtr);
-				restored = false;
-			}
-
-			return restored;
-		}
-
-
-		void Source::startt()
+		void Source::produce()
 		{
 			auto          maxFrames     = parameters.getFramesPerChunk();
 			unsigned int  bytesPerFrame = parameters.getTotalChannels() * (parameters.getBitsPerSample() >> 3);
@@ -285,8 +270,21 @@ namespace slim
 			{
 				LOG(ERROR) << LABELS{"alsa"} << formatError("Unexpected error while reading PCM data", result);
 			}
+		}
 
-			LOG(DEBUG) << LABELS{"slim"} << "PCM data capture thread was stopped (id=" << std::this_thread::get_id() << ")";
+
+		bool Source::restore(snd_pcm_sframes_t error)
+		{
+			auto restored{true};
+
+			if (error < 0)
+			{
+				// TODO: this is where ALSA stream may be restored depending on an error and the state
+				snd_pcm_state(handlePtr);
+				restored = false;
+			}
+
+			return restored;
 		}
 	}
 }

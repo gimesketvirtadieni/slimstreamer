@@ -58,7 +58,6 @@ using namespace slim::conn;
 using namespace slim::proto;
 using namespace slim::util;
 
-namespace ts = type_safe;
 
 using TCPCallbacks  = tcp::Callbacks<ContainerBase>;
 using TCPConnection = tcp::Connection<ContainerBase>;
@@ -279,7 +278,7 @@ int main(int argc, char *argv[])
 			auto slimprotoPort = result["slimprotoport"].as<int>();
 
 			// setting optional parameters
-			auto gain{ts::optional<unsigned int>{0}};
+			auto gain{type_safe::optional<unsigned int>{0}};
 			gain.reset();
 			if (result.count("gain"))
 			{
@@ -403,7 +402,7 @@ int main(int argc, char *argv[])
 			signal(SIGINT, signalHandler);
 
 			// waiting for Control^C
-			while(running)
+			while (running)
 			{
 				std::this_thread::sleep_for(std::chrono::milliseconds{500});
 			}

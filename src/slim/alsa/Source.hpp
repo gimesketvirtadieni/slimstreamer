@@ -99,7 +99,7 @@ namespace slim
 					});
 				}
 
-				void startt();
+				void produce();
 
 				void start()
 				{
@@ -125,15 +125,15 @@ namespace slim
 									running = true;
 								}
 
-								startt();
+								produce();
 
 								// changing state to 'not running' in a thread-safe way
 								{
 									std::lock_guard<std::mutex> lockGuard{lock};
-									running = false;
 
 									// closing ALSA device
 									close();
+									running = false;
 								}
 							}
 							catch (const Exception& error)
@@ -176,10 +176,10 @@ namespace slim
 						}
 					}
 
-					// do not use thread.join, because it may cause race condition in case stop is called by multiple threads
-					while (producerThread.joinable() && running)
+					// waiting producer thread to terminate
+					if (producerThread.joinable())
 					{
-						std::this_thread::sleep_for(std::chrono::milliseconds{10});
+						producerThread.join();
 					}
 
 					callback();

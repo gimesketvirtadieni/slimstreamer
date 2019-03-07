@@ -85,6 +85,11 @@ namespace slim
 				{
 					StoppedState,  // initial state
 					{   // transition table definition
+						{StartEvent,   StartedState,   StartedState,   [&](auto event) {},                          [&] {return true;}},
+						{StartEvent,   PreparingState, PreparingState, [&](auto event) {},                          [&] {return true;}},
+						{StartEvent,   BufferingState, BufferingState, [&](auto event) {},                          [&] {return true;}},
+						{StartEvent,   PlayingState,   PlayingState,   [&](auto event) {},                          [&] {return true;}},
+						{StartEvent,   DrainingState,  DrainingState,  [&](auto event) {},                          [&] {return true;}},
 						{StartEvent,   StoppedState,   StartedState,   [&](auto event) {},                          [&] {return true;}},
 						{PrepareEvent, StartedState,   PreparingState, [&](auto event) {stateChangeToPreparing();}, [&] {return true;}},
 						{PrepareEvent, PreparingState, PreparingState, [&](auto event) {},                          [&] {return true;}},
@@ -370,7 +375,7 @@ namespace slim
 					// changing state to Running
 					stateMachine.processEvent(StartEvent, [&](auto event, auto state)
 					{
-						LOG(WARNING) << LABELS{"proto"} << "Invalid Streamer state while processing Run event";
+						LOG(WARNING) << LABELS{"proto"} << "Invalid Streamer state while processing Start event";
 					});
 				}
 
@@ -381,6 +386,8 @@ namespace slim
 					{
 						LOG(WARNING) << LABELS{"proto"} << "Invalid Streamer state while processing Stop event";
 					});
+
+					callback();
 				}
 
 			protected:
