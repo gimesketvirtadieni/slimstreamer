@@ -103,38 +103,26 @@ namespace slim
 
 				void start()
 				{
-					// starting PCM data producer thread for Real-Time processing
-					if (!producerThread.joinable())
+					std::lock_guard<std::mutex> lockGuard{threadLock};
+					if (!running)
 					{
+						running = true;
+
+						// starting PCM data producer thread for Real-Time processing
 						producerThread = std::thread{[&]
 						{
 							LOG(DEBUG) << LABELS{"slim"} << "PCM data capture thread was started (id=" << std::this_thread::get_id() << ")";
 
 							try
 							{
-								// changing state to 'running' in a thread-safe way
+								// opening ALSA device in a thread-safe way
 								{
 									std::lock_guard<std::mutex> lockGuard{lock};
-									if (running)
-									{
-										throw Exception(formatError("Audio device was already started"));
-									}
-
-									// open ALSA device
 									open();
-									running = true;
 								}
 
+								// start producing
 								produce();
-
-								// changing state to 'not running' in a thread-safe way
-								{
-									std::lock_guard<std::mutex> lockGuard{lock};
-
-									// closing ALSA device
-									close();
-									running = false;
-								}
 							}
 							catch (const Exception& error)
 							{
@@ -149,37 +137,61 @@ namespace slim
 								LOG(ERROR) << LABELS{"slim"} << "Unexpected exception";
 							}
 
+							// closing ALSA device in a thread-safe way
+							try
+							{
+								std::lock_guard<std::mutex> lockGuard{lock};
+								close();
+							}
+							catch (const Exception& error)
+							{
+								LOG(ERROR) << LABELS{"slim"} << "Error in producer thread: " << error;
+							}
+							catch (const std::exception& error)
+							{
+								LOG(ERROR) << LABELS{"slim"} << "Error in producer thread: " << error.what();
+							}
+							catch (...)
+							{
+								LOG(ERROR) << LABELS{"slim"} << "Unexpected exception";
+							}
+
+							// keep this thread busy until running state is not changed, even if producer is done
+							while (running)
+							{
+								std::this_thread::sleep_for(std::chrono::milliseconds{10});
+							}
+
 							LOG(DEBUG) << LABELS{"slim"} << "PCM data capture thread was stopped (id=" << std::this_thread::get_id() << ")";
 						}};
-
-						// making sure it is up and running
-						while (producerThread.joinable() && !running)
-						{
-							std::this_thread::sleep_for(std::chrono::milliseconds{1});
-						}
 					}
 				}
 
 				template<typename CallbackType>
 				inline void stop(CallbackType callback)
 				{
-					// issuing a request to stop receiving PCM data
-					// this part should be synchronyzed to prevent issueing stop request while open/close procedures
 					{
-						std::lock_guard<std::mutex> lockGuard{lock};
+						std::lock_guard<std::mutex> lockGuard{threadLock};
 						if (running)
 						{
-							if (int result; (result = snd_pcm_drop(handlePtr)) < 0)
+							// issuing a request to stop receiving PCM data; it is protected by deviceLock to prevent interference with open/close procedures
 							{
-								LOG(ERROR) << LABELS{"alsa"} << formatError("Error while stopping PCM stream unconditionally", result);
+								std::lock_guard<std::mutex> lockGuard{lock};
+								if (int result; (result = snd_pcm_drop(handlePtr)) < 0)
+								{
+									LOG(ERROR) << LABELS{"alsa"} << formatError("Error while stopping PCM stream unconditionally", result);
+								}
+							}
+
+							// changing state to 'not running'
+							running = false;
+
+							// waiting producer thread to terminate
+							if (producerThread.joinable())
+							{
+								producerThread.join();
 							}
 						}
-					}
-
-					// waiting producer thread to terminate
-					if (producerThread.joinable())
-					{
-						producerThread.join();
 					}
 
 					callback();
@@ -255,6 +267,7 @@ namespace slim
 				bool                  producing{false};
 				bool                  consuming{false};
 				std::mutex            lock;
+				std::mutex            threadLock;
 		};
 	}
 }

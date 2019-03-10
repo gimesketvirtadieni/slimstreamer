@@ -50,7 +50,10 @@ namespace slim
 						// do not feed writer with more data if there is no room in transfer buffer
 						if (bufferedWriter.isBufferAvailable())
 						{
-							bufferedWriter.writeAsync(data, size, [](auto error, auto written) {});
+							bufferedWriter.writeAsync(data, size, [](auto error, auto written)
+							{
+								LOG(DEBUG) << LABELS{"proto"} << "DATA SENT";
+							});
 						}
 						else
 						{
@@ -58,21 +61,6 @@ namespace slim
 						}
 					});
 					encoderPtr = std::move(eb.build());
-					encoderPtr->start();
-
-					// creating response string
-					std::stringstream ss;
-					ss << "HTTP/1.1 200 OK\r\n"
-					   << "Server: SlimStreamer ("
-					   // TODO: provide version to the constructor
-					   << VERSION
-					   << ")\r\n"
-					   << "Connection: close\r\n"
-					   << "Content-Type: " << encoderPtr->getMIME() << "\r\n"
-					   << "\r\n";
-
-					// sending response string
-					connection.get().write(ss.str());
 				}
 
 				~StreamingSession()
@@ -108,22 +96,17 @@ namespace slim
 
 				inline void onRequest(unsigned char* data, std::size_t size)
 				{
-					if (!running)
+					if (running)
 					{
-						return;
-					}
-
-					// TODO: make more strick validation
-					std::string get{"GET"};
-					std::string s{(char*)data, get.size()};
-					if (get.compare(s))
-					{
-						// stopping this session due an error
-						LOG(WARNING) << LABELS{"proto"} << "Wrong HTTP method provided";
-						flush([&]
+						// TODO: make more strick validation
+						std::string get{"GET"};
+						std::string s{(char*)data, get.size()};
+						if (get.compare(s))
 						{
-							connection.get().stop();
-						});
+							// stopping this session due an error
+							LOG(WARNING) << LABELS{"proto"} << "Wrong HTTP method provided";
+							stop([] {});
+						}
 					}
 				}
 
@@ -143,7 +126,22 @@ namespace slim
 
 				inline void start()
 				{
+					encoderPtr->start();
 					running = true;
+
+					// creating response string
+					std::stringstream ss;
+					ss << "HTTP/1.1 200 OK\r\n"
+					   << "Server: SlimStreamer ("
+					   // TODO: provide version to the constructor
+					   << VERSION
+					   << ")\r\n"
+					   << "Connection: close\r\n"
+					   << "Content-Type: " << encoderPtr->getMIME() << "\r\n"
+					   << "\r\n";
+
+					// sending response string
+					connection.get().write(ss.str());
 				}
 
 				template <typename CallbackType>
@@ -151,10 +149,21 @@ namespace slim
 				{
 					if (running)
 					{
-						flush([&, callback = std::move(callback)]
+						encoderPtr->stop([&, callback = std::move(callback)]
 						{
-							running = false;
-							callback();
+							flush([&, callback = std::move(callback)]
+							{
+								running = false;
+
+								// stopping connection will submit a onClose handler
+								connection.get().stop();
+
+								// submiting a new handler is required to run a callback after onClose handler is processed
+								processorProxy.process([callback = std::move(callback)]
+								{
+									callback();
+								});
+							});
 						});
 					}
 					else
@@ -165,32 +174,24 @@ namespace slim
 
 				inline void streamChunk(const Chunk& chunk)
 				{
-					if (!running)
+					if (running)
 					{
-						return;
-					}
-
-					// stopping this session in case sampling rates do not match
-					if (chunk.getSamplingRate() != encoderPtr->getSamplingRate())
-					{
-						flush([&]
+						// stopping this session in case sampling rates do not match
+						if (chunk.getSamplingRate() != encoderPtr->getSamplingRate())
 						{
+							// stopping this session due to incorrect data provided
 							LOG(WARNING) << LABELS{"proto"} << "Closing HTTP connection due to different sampling rate used by a client (session rate=" << encoderPtr->getSamplingRate() << "; data rate=" << chunk.getSamplingRate() << ")";
-							connection.get().stop();
-						});
-					}
-					else
-					{
-						encoderPtr->encode(chunk.getData(), chunk.getSize());
-						framesProvided += chunk.getFrames();
-
-						if (chunk.isEndOfStream())
+							stop([] {});
+						}
+						else
 						{
-							// stopping this session due to end-of-stream
-							flush([&]
+							encoderPtr->encode(chunk.getData(), chunk.getSize());
+							framesProvided += chunk.getFrames();
+
+							if (chunk.isEndOfStream())
 							{
-								connection.get().stop();
-							});
+								stop([] {});
+							}
 						}
 					}
 				}
@@ -199,31 +200,22 @@ namespace slim
 				template <typename CallbackType>
 				void flush(CallbackType callback)
 				{
-					if (encoderPtr->isRunning())
+					if (bufferedWriter.isBufferAvailable())
 					{
-						encoderPtr->stop([&, callback = std::move(callback)]
+						// submitting an 'empty' chunk so that a callback gets invoked when all data has been transferred
+						bufferedWriter.writeAsync(nullptr, 0, [callback = std::move(callback)](auto error, auto written)
 						{
-							flush(std::move(callback));
+							LOG(DEBUG) << LABELS{"proto"} << "FLUSHED";
+							callback();
 						});
 					}
 					else
 					{
-						if (bufferedWriter.isBufferAvailable())
+						// waiting until data is transferred so a new 'empty' chunk can be submitted
+						timer = ts::ref(processorProxy.processWithDelay([&, callback = std::move(callback)]
 						{
-							// submitting an 'empty' chunk so that a callback gets invoked when all data has been transferred
-							bufferedWriter.writeAsync(nullptr, 0, [callback = std::move(callback)](auto error, auto written)
-							{
-								callback();
-							});
-						}
-						else
-						{
-							// waiting until data is transferred so a new 'empty' chunk can be submitted
-							timer = ts::ref(processorProxy.processWithDelay([&, callback = std::move(callback)]
-							{
-								flush(std::move(callback));
-							}, std::chrono::milliseconds{1}));
-						}
+							flush(std::move(callback));
+						}, std::chrono::milliseconds{1}));
 					}
 				}
 

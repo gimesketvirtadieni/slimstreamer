@@ -107,11 +107,11 @@ namespace slim
 						{FlushedEvent, PlayingState,   PlayingState,   [&](auto event) {},                          [&] {return true;}},
 						{FlushedEvent, DrainingState,  StartedState,   [&](auto event) {},                          [&] {return !isDraining();}},
 						{StopEvent,    StoppedState,   StoppedState,   [&](auto event) {},                          [&] {return true;}},
-						{StopEvent,    StartedState,   StoppedState,   [&](auto event) {},                          [&] {return true;}},
-						{StopEvent,    PreparingState, StoppedState,   [&](auto event) {},                          [&] {return true;}},
-						{StopEvent,    BufferingState, StoppedState,   [&](auto event) {},                          [&] {return true;}},
-						{StopEvent,    PlayingState,   StoppedState,   [&](auto event) {},                          [&] {return true;}},
-						{StopEvent,    DrainingState,  StoppedState,   [&](auto event) {},                          [&] {return true;}},
+						{StopEvent,    StartedState,   StoppedState,   [&](auto event) {stateChangeToStopped();},   [&] {return true;}},
+						{StopEvent,    PreparingState, StoppedState,   [&](auto event) {stateChangeToStopped();},   [&] {return true;}},
+						{StopEvent,    BufferingState, StoppedState,   [&](auto event) {stateChangeToStopped();},   [&] {return true;}},
+						{StopEvent,    PlayingState,   StoppedState,   [&](auto event) {stateChangeToStopped();},   [&] {return true;}},
+						{StopEvent,    DrainingState,  StoppedState,   [&](auto event) {stateChangeToStopped();},   [&] {return true;}},
 					}
 				}
 				{
@@ -381,13 +381,16 @@ namespace slim
 
 				virtual void stop(std::function<void()> callback) override
 				{
-					// no need to do anything with sessions as they will be stopped & deleted by onClose event handler, so changing state Stopped
 					stateMachine.processEvent(StopEvent, [&](auto event, auto state)
 					{
 						LOG(WARNING) << LABELS{"proto"} << "Invalid Streamer state while processing Stop event";
 					});
 
-					callback();
+					// submitting a handler with a callback is required as stopping streamer creates numerous handlers
+					getProcessorProxy().process([callback = std::move(callback)]
+					{
+						callback();
+					});
 				}
 
 			protected:
@@ -570,6 +573,18 @@ namespace slim
 					for (auto& entry : commandSessions)
 					{
 						entry.second->prepare(samplingRate);
+					}
+				}
+
+				inline void stateChangeToStopped()
+				{
+					for (auto& entry : commandSessions)
+					{
+						entry.second->stop([] {});
+					}
+					for (auto& entry : streamingSessions)
+					{
+						entry.second->stop([] {});
 					}
 				}
 

@@ -54,17 +54,11 @@ namespace slim
 			virtual void stop() override
 			{
 				discoveryServerPtr->stop();
-				processorProxy.process([&]
+				schedulerPtr->stop([&]
 				{
+					// stooping servers after scheduler was stopped
 					commandServerPtr->stop();
-					processorProxy.process([&]
-					{
-						streamingServerPtr->stop();
-						processorProxy.process([&]
-						{
-							schedulerPtr->stop([] {});
-						});
-					});
+					streamingServerPtr->stop();
 				});
 			}
 

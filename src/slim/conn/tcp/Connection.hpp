@@ -161,6 +161,9 @@ namespace slim
 						else
 						{
 							LOG(DEBUG) << LABELS{"conn"} << "Could not send data as socket is not opened (id=" << this << ")";
+
+							// calling callback even if socket is closed
+							callback(std::error_code{std::experimental::net::error::not_connected}, 0);
 						}
 					}
 
