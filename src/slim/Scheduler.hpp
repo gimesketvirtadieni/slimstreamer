@@ -71,8 +71,6 @@ namespace slim
 				{
 					processTask();
 				});
-
-				LOG(DEBUG) << LABELS{"slim"} << "Streaming was started";
 			}
 
 			inline void stop(std::function<void()> callback)

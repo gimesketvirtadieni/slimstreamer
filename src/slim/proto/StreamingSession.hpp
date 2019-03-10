@@ -50,10 +50,7 @@ namespace slim
 						// do not feed writer with more data if there is no room in transfer buffer
 						if (bufferedWriter.isBufferAvailable())
 						{
-							bufferedWriter.writeAsync(data, size, [](auto error, auto written)
-							{
-								LOG(DEBUG) << LABELS{"proto"} << "DATA SENT";
-							});
+							bufferedWriter.writeAsync(data, size, [](auto error, auto written) {});
 						}
 						else
 						{
@@ -205,7 +202,6 @@ namespace slim
 						// submitting an 'empty' chunk so that a callback gets invoked when all data has been transferred
 						bufferedWriter.writeAsync(nullptr, 0, [callback = std::move(callback)](auto error, auto written)
 						{
-							LOG(DEBUG) << LABELS{"proto"} << "FLUSHED";
 							callback();
 						});
 					}

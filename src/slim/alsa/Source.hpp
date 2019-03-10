@@ -117,7 +117,7 @@ namespace slim
 							{
 								// opening ALSA device in a thread-safe way
 								{
-									std::lock_guard<std::mutex> lockGuard{lock};
+									std::lock_guard<std::mutex> lockGuard{deviceLock};
 									open();
 								}
 
@@ -140,7 +140,7 @@ namespace slim
 							// closing ALSA device in a thread-safe way
 							try
 							{
-								std::lock_guard<std::mutex> lockGuard{lock};
+								std::lock_guard<std::mutex> lockGuard{deviceLock};
 								close();
 							}
 							catch (const Exception& error)
@@ -164,6 +164,9 @@ namespace slim
 
 							LOG(DEBUG) << LABELS{"slim"} << "PCM data capture thread was stopped (id=" << std::this_thread::get_id() << ")";
 						}};
+
+						// this is an optional delay for producer thread to start
+						std::this_thread::sleep_for(std::chrono::milliseconds{1});
 					}
 				}
 
@@ -176,7 +179,7 @@ namespace slim
 						{
 							// issuing a request to stop receiving PCM data; it is protected by deviceLock to prevent interference with open/close procedures
 							{
-								std::lock_guard<std::mutex> lockGuard{lock};
+								std::lock_guard<std::mutex> lockGuard{deviceLock};
 								if (int result; (result = snd_pcm_drop(handlePtr)) < 0)
 								{
 									LOG(ERROR) << LABELS{"alsa"} << formatError("Error while stopping PCM stream unconditionally", result);
@@ -266,7 +269,7 @@ namespace slim
 				std::atomic<bool>     running{false};
 				bool                  producing{false};
 				bool                  consuming{false};
-				std::mutex            lock;
+				std::mutex            deviceLock;
 				std::mutex            threadLock;
 		};
 	}
