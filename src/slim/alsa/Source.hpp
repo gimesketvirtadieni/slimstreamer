@@ -20,6 +20,7 @@
 #include <functional>
 #include <memory>
 #include <mutex>
+#include <scope_guard.hpp>
 #include <thread>
 #include <type_safe/optional.hpp>
 
@@ -103,7 +104,7 @@ namespace slim
 
 				void start()
 				{
-					std::lock_guard<std::mutex> lockGuard{threadLock};
+					std::scoped_lock<std::mutex> lockGuard{threadLock};
 					if (!running)
 					{
 						running = true;
@@ -115,33 +116,20 @@ namespace slim
 
 							try
 							{
+								::util::scope_guard onScopeExit = [&]
+								{
+									std::scoped_lock<std::mutex> lockGuard{deviceLock};
+									close();
+								};
+
 								// opening ALSA device in a thread-safe way
 								{
-									std::lock_guard<std::mutex> lockGuard{deviceLock};
+									std::scoped_lock<std::mutex> lockGuard{deviceLock};
 									open();
 								}
 
 								// start producing
 								produce();
-							}
-							catch (const Exception& error)
-							{
-								LOG(ERROR) << LABELS{"slim"} << "Error in producer thread: " << error;
-							}
-							catch (const std::exception& error)
-							{
-								LOG(ERROR) << LABELS{"slim"} << "Error in producer thread: " << error.what();
-							}
-							catch (...)
-							{
-								LOG(ERROR) << LABELS{"slim"} << "Unexpected exception";
-							}
-
-							// closing ALSA device in a thread-safe way
-							try
-							{
-								std::lock_guard<std::mutex> lockGuard{deviceLock};
-								close();
 							}
 							catch (const Exception& error)
 							{
@@ -166,7 +154,7 @@ namespace slim
 						}};
 
 						// this is an optional delay for producer thread to start
-						std::this_thread::sleep_for(std::chrono::milliseconds{1});
+						std::this_thread::sleep_for(std::chrono::milliseconds{10});
 					}
 				}
 
@@ -174,12 +162,12 @@ namespace slim
 				inline void stop(CallbackType callback)
 				{
 					{
-						std::lock_guard<std::mutex> lockGuard{threadLock};
+						std::scoped_lock<std::mutex> lockGuard{threadLock};
 						if (running)
 						{
 							// issuing a request to stop receiving PCM data; it is protected by deviceLock to prevent interference with open/close procedures
 							{
-								std::lock_guard<std::mutex> lockGuard{deviceLock};
+								std::scoped_lock<std::mutex> lockGuard{deviceLock};
 								if (int result; (result = snd_pcm_drop(handlePtr)) < 0)
 								{
 									LOG(ERROR) << LABELS{"alsa"} << formatError("Error while stopping PCM stream unconditionally", result);
@@ -201,7 +189,7 @@ namespace slim
 				}
 
 			protected:
-				void              close();
+				void              close() noexcept;
 				snd_pcm_sframes_t containsData(unsigned char* buffer, snd_pcm_uframes_t frames);
 				snd_pcm_uframes_t copyData(unsigned char* srcBuffer, unsigned char* dstBuffer, snd_pcm_uframes_t frames);
 

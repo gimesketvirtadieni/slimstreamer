@@ -21,13 +21,11 @@ namespace slim
 {
 	namespace alsa
 	{
-		void Source::close()
+		void Source::close() noexcept
 		{
-			int result;
-
-			if ((result = snd_pcm_close(handlePtr)) < 0)
+			if (int result{snd_pcm_close(handlePtr)}; result < 0)
 			{
-				throw Exception(formatError("Error while closing audio device", result));
+				LOG(WARNING) << LABELS{"slim"} << formatError("Error while closing audio device", result);
 			}
 		}
 
