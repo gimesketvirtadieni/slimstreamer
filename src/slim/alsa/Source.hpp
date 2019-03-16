@@ -17,10 +17,11 @@
 #include <chrono>
 #include <conwrap2/Processor.hpp>
 #include <conwrap2/ProcessorProxy.hpp>
+#include <cstddef>   // std::size_t
+#include <cstdint>   // std::u..._t types
 #include <functional>
 #include <memory>
 #include <mutex>
-#include <scope_guard.hpp>
 #include <thread>
 #include <type_safe/optional.hpp>
 
@@ -54,11 +55,11 @@ namespace slim
 				Source(conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>> pp, Parameters pa, std::function<void()> oc = [] {})
 				: parameters{pa}
 				, overflowCallback{std::move(oc)}
-				, queue{parameters.getQueueSize(), [&](Chunk& chunk)
+				, queue{parameters.getQueueSize(), std::move([&](Chunk& chunk)
 				{
 					// no need to store data from the last channel as it contains commands
-					chunk.setCapacity(pa.getFramesPerChunk() * pa.getLogicalChannels() * (pa.getBitsPerSample() >> 3));
-				}} {}
+					chunk.setBufferSize(pa.getFramesPerChunk() * pa.getLogicalChannels() * (pa.getBitsPerSample() >> 3));
+				})} {}
 
 				~Source()
 				{
@@ -116,12 +117,6 @@ namespace slim
 
 							try
 							{
-								::util::scope_guard onScopeExit = [&]
-								{
-									std::scoped_lock<std::mutex> lockGuard{deviceLock};
-									close();
-								};
-
 								// opening ALSA device in a thread-safe way
 								{
 									std::scoped_lock<std::mutex> lockGuard{deviceLock};
@@ -144,11 +139,11 @@ namespace slim
 								LOG(ERROR) << LABELS{"slim"} << "Unexpected exception";
 							}
 
-							// keep this thread busy until running state is not changed, even if producer is done
-							while (running)
+							// closing ALSA device in a thread-safe way
 							{
-								std::this_thread::sleep_for(std::chrono::milliseconds{10});
-							}
+								std::scoped_lock<std::mutex> lockGuard{deviceLock};
+								close();
+							};
 
 							LOG(DEBUG) << LABELS{"slim"} << "PCM data capture thread was stopped (id=" << std::this_thread::get_id() << ")";
 						}};
@@ -176,12 +171,12 @@ namespace slim
 
 							// changing state to 'not running'
 							running = false;
+						}
 
-							// waiting producer thread to terminate
-							if (producerThread.joinable())
-							{
-								producerThread.join();
-							}
+						// waiting producer thread to terminate
+						if (producerThread.joinable())
+						{
+							producerThread.join();
 						}
 					}
 
@@ -205,7 +200,7 @@ namespace slim
 				{
 					auto result{ts::optional<std::chrono::milliseconds>{ts::nullopt}};
 
-					queue.dequeue([&](Chunk& chunk) -> bool  // 'mover' function
+					queue.dequeue(std::move([&](Chunk& chunk) -> bool  // 'mover' function
 					{
 						auto consumed{false};
 
@@ -234,13 +229,13 @@ namespace slim
 						}
 
 						return consumed;
-					}, [&]  // underflow callback
+					}), std::move([&]  // underflow callback
 					{
 						if (consuming)
 						{
 							result = 10;
 						}
-					});
+					}));
 
 					// if there are more chunks to be consumed
 					return result;

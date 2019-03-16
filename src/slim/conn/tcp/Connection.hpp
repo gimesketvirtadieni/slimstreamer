@@ -21,6 +21,7 @@
 #include "slim/conn/tcp/CallbacksBase.hpp"
 #include "slim/log/log.hpp"
 #include "slim/util/AsyncWriter.hpp"
+#include "slim/util/ExpandableBuffer.hpp"
 #include "slim/util/Timestamp.hpp"
 
 
@@ -39,8 +40,6 @@ namespace slim
 					, callbacks{c}
 					, nativeSocket{processorProxy.getDispatcher()}
 					, opened{false}
-					// TODO: parametrize
-					, buffer{1024}
 					{
 						LOG(DEBUG) << LABELS{"conn"} << "Connection object was created (id=" << this << ")";
 					}
@@ -198,19 +197,14 @@ namespace slim
 								callbacks.getDataCallback()(*this, buffer.data(), receivedSize, timestamp);
 							}
 
-							// submitting a new task here allows other tasks to progress
-							processorProxy.process([&]
-							{
-								// keep receiving data 'recursivelly' (task processor is used instead of stack)
-								nativeSocket.async_read_some(
-									std::experimental::net::mutable_buffer(buffer.data(), buffer.size()),
-									[&](const std::error_code error, std::size_t bytes_transferred)
-									{
-										//LOG(DEBUG) << LABELS{"proto"} << "DATA received";
-										onData(error, bytes_transferred, util::Timestamp());
-									}
-								);
-							});
+							// keep receiving data 'recursively' (task processor is used instead of stack)
+							nativeSocket.async_read_some(
+								std::experimental::net::mutable_buffer(buffer.data(), buffer.size()),
+								[&](const std::error_code error, std::size_t bytes_transferred)
+								{
+									onData(error, bytes_transferred, util::Timestamp());
+								}
+							);
 						}
 					}
 
@@ -246,7 +240,7 @@ namespace slim
 
 					void onStop()
 					{
-						// connection cannot be removed at this moment as this method is called withing this connection
+						// connection cannot be removed here so submitting a handler with a callback
 						processorProxy.process([&]
 						{
 							// invoking stop callback
@@ -261,7 +255,8 @@ namespace slim
 					CallbacksBase<Connection<ContainerType>>&                callbacks;
 					std::experimental::net::ip::tcp::socket                  nativeSocket;
 					bool                                                     opened;
-					util::ExpandableBuffer                                   buffer;
+					// TODO: parametrize
+					util::ExpandableBuffer                                   buffer{1024};
 			};
 		}
 	}

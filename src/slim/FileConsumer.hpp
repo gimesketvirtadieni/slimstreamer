@@ -71,7 +71,7 @@ namespace slim
 			virtual bool consumeChunk(Chunk& chunk) override
 			{
 				auto* data{chunk.getData()};
-				auto  size{chunk.getSize()};
+				auto  size{chunk.getDataSize()};
 
 				encoderPtr->encode(data, size);
 				bytesWritten += size;

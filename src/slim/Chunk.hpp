@@ -12,9 +12,10 @@
 
 #pragma once
 
+#include <cstddef>   // std::size_t
+
 #include "slim/util/BigInteger.hpp"
-#include "slim/util/ExpandableBuffer.hpp"
-#include "slim/util/Timestamp.hpp"
+#include "slim/util/Buffer.hpp"
 
 
 namespace slim
@@ -42,6 +43,23 @@ namespace slim
 			Chunk(Chunk&& rhs) = delete;
 			Chunk& operator=(Chunk&& rhs) = delete;
 
+			template<typename FuncType>
+			inline void fillWithData(FuncType func)
+			{
+				// TODO: introduce assert to make sure frames <= size / bytes per frame
+				frames = func(buffer.getData(), buffer.getSize());
+			}
+
+			inline void flush()
+			{
+				frames = 0;
+			}
+
+			inline auto getBufferSize() const
+			{
+				return buffer.getSize();
+			}
+
 			inline auto getChannels() const
 			{
 				return channels;
@@ -49,22 +67,22 @@ namespace slim
 
 			inline auto* getData() const
 			{
-				return buffer.data();
+				return buffer.getData();
 			}
 
-			inline std::size_t getFrames() const
+			inline std::size_t getDataSize() const
 			{
-				return getSize() / (channels * (bitsPerSample >> 3));
+				return frames * channels * (bitsPerSample >> 3);
+			}
+
+			inline auto getFrames() const
+			{
+				return frames;
 			}
 
 			inline unsigned int getSamplingRate() const
 			{
 				return samplingRate;
-			}
-
-			inline std::size_t getSize() const
-			{
-				return buffer.size();
 			}
 
 			inline bool isEndOfStream() const
@@ -77,9 +95,12 @@ namespace slim
 				bitsPerSample = b;
 			}
 
-			inline void setCapacity(std::size_t c)
+			inline void setBufferSize(std::size_t c)
 			{
-				buffer.capacity(c);
+				buffer = std::move(util::Buffer{c});
+
+				// changing buffer size resets the whole content of this chunk, hence reseting amount of frames stored
+				frames = 0;
 			}
 
 			inline void setChannels(unsigned int c)
@@ -97,20 +118,16 @@ namespace slim
 				samplingRate = r;
 			}
 
-			inline void setSize(std::size_t s)
-			{
-				buffer.size(s);
-			}
-
 		protected:
-			Chunk() {}
+			Chunk() = default;
 
 		private:
-			bool                   beginningOfStream{false};
-			bool                   endOfStream{false};
-			unsigned int           samplingRate{0};
-			unsigned int           channels{0};
-			unsigned int           bitsPerSample{0};
-			util::ExpandableBuffer buffer;
+			bool         beginningOfStream{false};
+			bool         endOfStream{false};
+			unsigned int samplingRate{0};
+			unsigned int channels{0};
+			unsigned int bitsPerSample{0};
+			std::size_t  frames{0};
+			util::Buffer buffer{0};
 		};
 }

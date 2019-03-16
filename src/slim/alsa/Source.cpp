@@ -217,9 +217,11 @@ namespace slim
 							chunk.setBitsPerSample(parameters.getBitsPerSample());
 							chunk.setEndOfStream(false);
 
-							// TODO: move functionality to Chunk class
-							// copying data and setting new chunk size in bytes
-							chunk.setSize(copyData(srcBuffer + offset * bytesPerFrame, chunk.getData(), static_cast<snd_pcm_uframes_t>(result - std::min(offset, result))) * parameters.getLogicalChannels() * (parameters.getBitsPerSample() >> 3));
+							// copying data and setting new chunk size in bytes; buffer size = toBytes(maxFrames) so this call will never cause chunk to extend its buffer
+							chunk.fillWithData([&, sourcePtr = (unsigned char*)srcBuffer](auto* destinationPtr, auto capacity)
+							{
+								return copyData(sourcePtr + offset * bytesPerFrame, destinationPtr, static_cast<snd_pcm_uframes_t>(result - std::min(offset, result)));
+							});
 
 							// only the first chunk in stream is marked as Beginning-Of-Stream
 							isBeginningOfStream = false;
@@ -242,7 +244,7 @@ namespace slim
 							chunk.setChannels(parameters.getLogicalChannels());
 							chunk.setBitsPerSample(parameters.getBitsPerSample());
 							chunk.setEndOfStream(true);
-							chunk.setSize(0);
+							chunk.flush();
 
 							// the next chunk in stream will be marked as Beginning-Of-Stream
 							isBeginningOfStream = true;
