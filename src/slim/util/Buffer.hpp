@@ -13,7 +13,7 @@
 
 #include <cstddef>   // std::size_t
 #include <cstdint>   // std::u..._t types
-#include <cstring>   // std::memcpy, std::memcmp, std::memset, std::memchr
+#include <cstring>   // std::memcpy
 #include <memory>    // std::unique_ptr
 #include <stdexcept> // std::out_of_range, std::invalid_argument
 
@@ -22,6 +22,7 @@ namespace slim
 {
     namespace util
     {
+        // TODO: implement asserts
         class Buffer
         {
             public:
@@ -30,9 +31,15 @@ namespace slim
 
                 inline Buffer() : Buffer{0} {}
 
-                inline explicit Buffer(size_type s)
+                inline Buffer(size_type s)
                 : data{s > 0 ? std::make_unique<byte_type[]>(s) : nullptr}
                 , size{s > 0 ? s : 0} {}
+
+                inline Buffer(const void* d, const size_type s)
+                : Buffer{s}
+                {
+                    copyData(d, s);
+                }
 
 				// there is a need for a custom destructor so Rule Of Zero cannot be used: http://scottmeyers.blogspot.dk/2014/06/the-drawbacks-of-implementing-move.html
 				~Buffer() = default;
@@ -40,27 +47,6 @@ namespace slim
                 Buffer& operator=(const Buffer& rhs) = delete;
                 Buffer(Buffer&& rhs) = default;
                 Buffer& operator=(Buffer&& rhs) = default;
-
-				inline size_type getSize() const
-				{
-					return size;
-				}
-
-				inline bool isEmpty() const
-				{
-					return size == 0;
-				}
-
-				inline byte_type* getData() const
-                {
-                    return data.get();
-                }
-
-				inline byte_type& operator[] (size_type i) const
-                {
-                    // No bounds checking is performed: https://en.cppreference.com/w/cpp/container/array/operator_at
-                    return getData()[i];
-                }
 
 				inline byte_type& at(size_type i) const
                 {
@@ -72,9 +58,58 @@ namespace slim
                     return getData()[i];
                 }
 
+				inline void copyData(const void* d, const size_type s)
+				{
+                    if (0 <= s && s <= size)
+                    {
+                        std::memcpy(data.get(), d, s);
+                        dataSize = s;
+                    }
+				}
+
+				inline void flush()
+				{
+                    setDataSize(0);
+				}
+
+				inline byte_type* getData() const
+                {
+                    return data.get();
+                }
+
+				inline size_type getDataSize() const
+				{
+					return dataSize;
+				}
+
+				inline size_type getSize() const
+				{
+					return size;
+				}
+
+				inline bool isEmpty() const
+				{
+					return dataSize == 0;
+				}
+
+				inline void setDataSize(size_type s)
+				{
+                    if (s <= size)
+                    {
+                        dataSize = s;
+                    }
+				}
+
+				inline byte_type& operator[] (size_type i) const
+                {
+                    // No bounds checking is performed: https://en.cppreference.com/w/cpp/container/array/operator_at
+                    return getData()[i];
+                }
+
 			private:
 				std::unique_ptr<byte_type[]> data;
-				size_type                    size;
+				size_type                    size{0};
+				size_type                    dataSize{0};
 		};
 
 		inline bool operator== (const Buffer& a, const Buffer& b)

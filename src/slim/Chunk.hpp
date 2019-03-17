@@ -47,12 +47,12 @@ namespace slim
 			inline void fillWithData(FuncType func)
 			{
 				// TODO: introduce assert to make sure frames <= size / bytes per frame
-				frames = func(buffer.getData(), buffer.getSize());
+				buffer.setDataSize(func(buffer.getData(), buffer.getSize()) * channels * (bitsPerSample >> 3));
 			}
 
 			inline void flush()
 			{
-				frames = 0;
+				buffer.flush();
 			}
 
 			inline auto getBufferSize() const
@@ -72,12 +72,12 @@ namespace slim
 
 			inline std::size_t getDataSize() const
 			{
-				return frames * channels * (bitsPerSample >> 3);
+				return buffer.getDataSize();
 			}
 
 			inline auto getFrames() const
 			{
-				return frames;
+				return buffer.getDataSize() / (channels * (bitsPerSample >> 3));
 			}
 
 			inline unsigned int getSamplingRate() const
@@ -97,10 +97,8 @@ namespace slim
 
 			inline void setBufferSize(std::size_t c)
 			{
-				buffer = std::move(util::Buffer{c});
-
 				// changing buffer size resets the whole content of this chunk, hence reseting amount of frames stored
-				frames = 0;
+				buffer = std::move(util::Buffer{c});
 			}
 
 			inline void setChannels(unsigned int c)
@@ -127,7 +125,6 @@ namespace slim
 			unsigned int samplingRate{0};
 			unsigned int channels{0};
 			unsigned int bitsPerSample{0};
-			std::size_t  frames{0};
 			util::Buffer buffer{0};
 		};
 }

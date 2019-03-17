@@ -19,6 +19,7 @@
 #include <system_error>
 
 #include "slim/util/AsyncWriter.hpp"
+#include "slim/util/Buffer.hpp"
 
 
 namespace slim
@@ -65,16 +66,22 @@ namespace slim
 					{
 						auto& buffer{buffers[index.value()]};
 
-						// no need for capacity adjustment as it is done by assign method
-						buffer.assign(data, size);
+						if (size <= buffer.getSize())
+						{
+							buffer.copyData(data, size);
+						}
+						else
+						{
+							buffer = std::move(util::Buffer{data, size});
+						}
 
-						writer.get().writeAsync(buffer.data(), buffer.size(), [c = callback, &b = buffer](auto error, auto written)
+						writer.get().writeAsync(buffer.getData(), buffer.getDataSize(), [c = callback, &b = buffer](auto error, auto written)
 						{
 							// invoking callback
 							c(error, written);
 
 							// releasing buffer
-							b.size(0);
+							b.flush();
 						});
 					}
 					else
@@ -87,11 +94,10 @@ namespace slim
 				inline ts::optional<std::size_t> getFreeBufferIndex()
 				{
 					auto result{ts::optional<std::size_t>{ts::nullopt}};
-					auto size{buffers.size()};
 
-					for (std::size_t i{0}; i < size; i++)
+					for (std::size_t i{0}; i < buffers.size(); i++)
 					{
-						if (!buffers[i].size())
+						if (buffers[i].isEmpty())
 						{
 							result = i;
 							break;
@@ -101,8 +107,8 @@ namespace slim
 					return result;
 				}
 			private:
-				std::reference_wrapper<AsyncWriterType>           writer;
-				std::array<util::ExpandableBuffer, TotalElements> buffers;
+				std::reference_wrapper<AsyncWriterType> writer;
+				std::array<util::Buffer, TotalElements> buffers;
 		};
 	}
 }
