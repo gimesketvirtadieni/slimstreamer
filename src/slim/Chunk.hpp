@@ -43,16 +43,16 @@ namespace slim
 			Chunk(Chunk&& rhs) = delete;
 			Chunk& operator=(Chunk&& rhs) = delete;
 
+			inline void clear()
+			{
+				buffer.clear();
+			}
+
 			template<typename FuncType>
-			inline void fillWithData(FuncType func)
+			inline void addData(FuncType func)
 			{
 				// TODO: introduce assert to make sure frames <= size / bytes per frame
 				buffer.setDataSize(func(buffer.getData(), buffer.getSize()) * channels * (bitsPerSample >> 3));
-			}
-
-			inline void flush()
-			{
-				buffer.flush();
 			}
 
 			inline auto getBufferSize() const

@@ -34,7 +34,7 @@
 #pragma once
 
 #include <atomic>
-#include <assert.h>
+#include <cassert>
 #include <cstddef>  // std::size_t
 #include <functional>
 #include <type_traits>

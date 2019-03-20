@@ -38,7 +38,7 @@ namespace slim
                 inline Buffer(const void* d, const size_type s)
                 : Buffer{s}
                 {
-                    copyData(d, s);
+                    addData(d, s);
                 }
 
 				// there is a need for a custom destructor so Rule Of Zero cannot be used: http://scottmeyers.blogspot.dk/2014/06/the-drawbacks-of-implementing-move.html
@@ -58,16 +58,16 @@ namespace slim
                     return getData()[i];
                 }
 
-				inline void copyData(const void* d, const size_type s)
+				inline void addData(const void* d, const size_type s)
 				{
-                    if (0 <= s && s <= size)
+                    if (0 <= s && s + dataSize <= size)
                     {
-                        std::memcpy(data.get(), d, s);
-                        dataSize = s;
+                        std::memcpy(data.get() + dataSize, d, s);
+                        dataSize += s;
                     }
 				}
 
-				inline void flush()
+				inline void clear()
 				{
                     setDataSize(0);
 				}

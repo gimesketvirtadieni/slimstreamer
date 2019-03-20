@@ -40,7 +40,7 @@
 #include "slim/proto/server/CommandSTRM.hpp"
 #include "slim/proto/StreamingSession.hpp"
 #include "slim/util/ArrayCache.hpp"
-#include "slim/util/ExpandableBuffer.hpp"
+#include "slim/util/Buffer.hpp"
 #include "slim/util/StateMachine.hpp"
 #include "slim/util/Timestamp.hpp"
 
@@ -210,11 +210,11 @@ namespace slim
 					// removing data from the buffer in case of an exception
 					::util::scope_guard_failure onException = [&]
 					{
-						commandBuffer.size(0);
+						commandBuffer.clear();
 					};
 
 					// adding data to the buffer
-					commandBuffer.append(buffer, size);
+					commandBuffer.addData(buffer, size);
 
 					std::size_t keySize{4};
 					std::size_t processedSize;
@@ -223,13 +223,13 @@ namespace slim
 						processedSize = 0;
 
 						// searching for a SlimProto Command based on a label in the buffer
-						auto label{std::string{(char*)commandBuffer.data(), commandBuffer.size() > keySize ? keySize : 0}};
+						auto label{std::string{(char*)commandBuffer.getData(), commandBuffer.getDataSize() > keySize ? keySize : 0}};
 						auto found{commandHandlers.find(label)};
 						if (found != commandHandlers.end())
 						{
 							// if there is enough data to process this message
-							auto data{commandBuffer.data()};
-							auto size{commandBuffer.size()};
+							auto data{commandBuffer.getData()};
+							auto size{commandBuffer.getDataSize()};
 							if (Command<char>::isEnoughData(data, size))
 							{
 								// if this is not STAT command then reseting measuring flag
@@ -242,16 +242,15 @@ namespace slim
 								processedSize = (*found).second(data, size, timestamp);
 
 								// removing processed data from the buffer
-								// TODO: shrinking memory means moving data towards the beginning of the buffer; think of a better way
-								commandBuffer.shrinkLeft(processedSize);
+								// TODO: shrinking memory means moving data towards the beginning of the buffer; RingBuffer should be used
+								shrinkBufferLeft(processedSize);
 							}
 						}
 						else if (label.length() > 0)
 						{
 							LOG(WARNING) << LABELS{"proto"} << "Unsupported SlimProto command received (header='" << label << "')";
 
-							// flushing command buffer
-							commandBuffer.size(0);
+							commandBuffer.clear();
 						}
 					} while (processedSize > 0);
 				}
@@ -640,6 +639,19 @@ namespace slim
 					connection.get().write(command.getBuffer(), command.getSize());
 				}
 
+				inline void shrinkBufferLeft(std::size_t pos)
+				{
+					if (pos >= commandBuffer.getDataSize())
+					{
+						commandBuffer.clear();
+					}
+					else if (pos > 0)
+					{
+						commandBuffer.setDataSize(commandBuffer.getDataSize() - pos);
+						std::memcpy(commandBuffer.getData(), commandBuffer.getData() + pos, commandBuffer.getDataSize());
+					}
+				}
+
 				inline void stateChangeToPlaying()
 				{
 					auto playbackStartedAt = streamer.get().getPlaybackTime(util::milliseconds);
@@ -668,7 +680,7 @@ namespace slim
 					clientBufferIsReady = false;
 
 					streamingSession.reset();
-					commandBuffer.size(0);
+					commandBuffer.clear();
 					timestampCache.clear();
 					latency.reset();
 					latencySamples.clear();
@@ -694,7 +706,8 @@ namespace slim
 				util::StateMachine<Event, State>                         stateMachine;
 				unsigned int                                             samplingRate{0};
 				ts::optional_ref<StreamingSession<ConnectionType>>       streamingSession{ts::nullopt};
-				util::ExpandableBuffer                                   commandBuffer{std::size_t{0}, std::size_t{2048}};
+				// TODO: parametrize
+				util::Buffer                                             commandBuffer{2048};
 				ts::optional<client::CommandHELO>                        commandHELO{ts::nullopt};
 				ts::optional_ref<conwrap2::Timer>                        pingTimer{ts::nullopt};
 				util::ArrayCache<util::Timestamp, 10>                    timestampCache;

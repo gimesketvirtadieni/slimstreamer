@@ -68,7 +68,8 @@ namespace slim
 
 						if (size <= buffer.getSize())
 						{
-							buffer.copyData(data, size);
+							// no need to clear data from buffer here as getFreeBufferIndex() picks an empty one
+							buffer.addData(data, size);
 						}
 						else
 						{
@@ -81,7 +82,7 @@ namespace slim
 							c(error, written);
 
 							// releasing buffer
-							b.flush();
+							b.clear();
 						});
 					}
 					else
