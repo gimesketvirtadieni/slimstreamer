@@ -271,7 +271,7 @@ namespace slim
 					}
 				}
 
-				inline void setStreamingSession(ts::optional_ref<StreamingSession<ConnectionType>> s)
+				inline void setStreamingSession(ts::optional_ref<StreamingSession<ConnectionType, StreamerType>> s)
 				{
 					streamingSession = s;
 				}
@@ -476,6 +476,16 @@ namespace slim
 
 						// invoking STAT event handler
 						(*found).second(commandSTAT, receiveTimestamp);
+
+						// TODO: work in progress
+						ts::with(streamingSession, [&](auto& streamingSession)
+						{
+							// getPlaybackStartTime
+							// getPlaybackDuration
+							// client playback duration (jiffies)
+							// duration must be for the ~same amount of frames played
+							//streamingSession.driftCorrection();
+						});
 					}
 					else
 					{
@@ -654,7 +664,7 @@ namespace slim
 
 				inline void stateChangeToPlaying()
 				{
-					auto playbackStartedAt = streamer.get().getPlaybackTime(util::milliseconds);
+					auto playbackStartedAt = streamer.get().getPlaybackStartTime();
 
 					ts::with(timeOffset, [&](auto& timeOffset)
 					{
@@ -694,29 +704,29 @@ namespace slim
 				}
 
 			private:
-				conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>> processorProxy;
-				std::reference_wrapper<ConnectionType>                   connection;
-				std::reference_wrapper<StreamerType>                     streamer;
-				std::string                                              clientID;
-				unsigned int                                             streamingPort;
-				FormatSelection                                          formatSelection;
-				ts::optional<unsigned int>                               gain;
-				CommandHandlersMap                                       commandHandlers;
-				EventHandlersMap                                         eventHandlers;
-				util::StateMachine<Event, State>                         stateMachine;
-				unsigned int                                             samplingRate{0};
-				ts::optional_ref<StreamingSession<ConnectionType>>       streamingSession{ts::nullopt};
+				conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>>         processorProxy;
+				std::reference_wrapper<ConnectionType>                           connection;
+				std::reference_wrapper<StreamerType>                             streamer;
+				std::string                                                      clientID;
+				unsigned int                                                     streamingPort;
+				FormatSelection                                                  formatSelection;
+				ts::optional<unsigned int>                                       gain;
+				CommandHandlersMap                                               commandHandlers;
+				EventHandlersMap                                                 eventHandlers;
+				util::StateMachine<Event, State>                                 stateMachine;
+				unsigned int                                                     samplingRate{0};
+				ts::optional_ref<StreamingSession<ConnectionType, StreamerType>> streamingSession{ts::nullopt};
 				// TODO: parametrize
-				util::Buffer                                             commandBuffer{2048};
-				ts::optional<client::CommandHELO>                        commandHELO{ts::nullopt};
-				ts::optional_ref<conwrap2::Timer>                        pingTimer{ts::nullopt};
-				util::ArrayCache<util::Timestamp, 10>                    timestampCache;
-				bool                                                     measuringLatency{false};
-				ts::optional<std::chrono::microseconds>                  latency{ts::nullopt};
-				std::vector<std::chrono::microseconds>                   latencySamples;
-				ts::optional<std::chrono::milliseconds>                  timeOffset{ts::nullopt};
-				std::vector<std::chrono::milliseconds>                   timeOffsetSamples;
-				bool                                                     clientBufferIsReady{false};
+				util::Buffer                                                     commandBuffer{2048};
+				ts::optional<client::CommandHELO>                                commandHELO{ts::nullopt};
+				ts::optional_ref<conwrap2::Timer>                                pingTimer{ts::nullopt};
+				util::ArrayCache<util::Timestamp, 10>                            timestampCache;
+				bool                                                             measuringLatency{false};
+				ts::optional<std::chrono::microseconds>                          latency{ts::nullopt};
+				std::vector<std::chrono::microseconds>                           latencySamples;
+				ts::optional<std::chrono::milliseconds>                          timeOffset{ts::nullopt};
+				std::vector<std::chrono::milliseconds>                           timeOffsetSamples;
+				bool                                                             clientBufferIsReady{false};
 		};
 	}
 }

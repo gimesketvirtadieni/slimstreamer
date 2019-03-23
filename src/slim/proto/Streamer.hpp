@@ -52,7 +52,7 @@ namespace slim
 			template<typename SessionType>
 			using SessionsMap          = std::unordered_map<ConnectionType*, std::unique_ptr<SessionType>>;
 			using CommandSessionType   = CommandSession<ConnectionType, Streamer>;
-			using StreamingSessionType = StreamingSession<ConnectionType>;
+			using StreamingSessionType = StreamingSession<ConnectionType, Streamer>;
 
 			enum Event
 			{
@@ -220,9 +220,20 @@ namespace slim
 				}
 
 				template<typename RatioType>
-				inline auto getPlaybackTime(const RatioType& ratio) const
+				inline auto getBufferingDuration(const RatioType& ratio) const
 				{
-					return playbackStartedAt + calculateDuration(streamingFrames - bufferedFrames, ratio);
+					return calculateDuration(bufferedFrames, ratio);
+				}
+
+				inline auto getPlaybackStartTime() const
+				{
+					return playbackStartedAt;
+				}
+
+				template<typename RatioType>
+				inline auto getPreparingDuration(const RatioType& ratio) const
+				{
+					return std::chrono::duration_cast<std::chrono::duration<int64_t, RatioType>>(bufferingStartedAt - preparingStartedAt);
 				}
 
 				inline auto getSamplingRate() const
@@ -233,7 +244,7 @@ namespace slim
 				template<typename RatioType>
 				inline auto getStreamingDuration(const RatioType& ratio) const
 				{
-					return calculateDuration(streamingFrames, ratio);
+					return calculateDuration(streamedFrames, ratio);
 				}
 
 				inline auto isDraining()
@@ -296,7 +307,7 @@ namespace slim
 						encoderBuilder.setSamplingRate(samplingRate);
 
 						// creating streaming session object
-						auto streamingSessionPtr{std::make_unique<StreamingSessionType>(getProcessorProxy(), std::ref<ConnectionType>(connection), clientID.value(), encoderBuilder)};
+						auto streamingSessionPtr{std::make_unique<StreamingSessionType>(getProcessorProxy(), std::ref(connection), std::ref(*this), clientID.value(), encoderBuilder)};
 						streamingSessionPtr->start();
 
 						// saving HTTP session reference in the relevant SlimProto session
@@ -363,7 +374,7 @@ namespace slim
 					ss << (++nextID);
 
 					// creating command session object
-					auto commandSessionPtr{std::make_unique<CommandSessionType>(getProcessorProxy(), std::ref<ConnectionType>(connection), std::ref<Streamer>(*this), ss.str(), streamingPort, encoderBuilder.getFormat(), gain)};
+					auto commandSessionPtr{std::make_unique<CommandSessionType>(getProcessorProxy(), std::ref(connection), std::ref(*this), ss.str(), streamingPort, encoderBuilder.getFormat(), gain)};
 					commandSessionPtr->start();
 
 					// saving command session in the map
@@ -443,7 +454,7 @@ namespace slim
 					return result;
  				}
 
-				inline auto calculatePlaybackTime()
+				inline auto calculatePlaybackStartTime()
 				{
 					auto maxLatency{std::chrono::microseconds{0}};
 
@@ -460,6 +471,7 @@ namespace slim
 
 					// TODO: parameterize
 					// adding extra 10 milliseconds required for sending out command to all the clients
+					// TODO: increase bufferedFrames to match added values (maxLatency + std::chrono::milliseconds{10})
 					return bufferingStartedAt + getStreamingDuration(util::milliseconds) + maxLatency + std::chrono::milliseconds{10};
 				}
 
@@ -554,26 +566,33 @@ namespace slim
 				{
 					// buffering start time is required for calculating min buffering time
 					bufferingStartedAt = util::Timestamp::now();
+
+					LOG(DEBUG) << LABELS{"proto"} << "Stream buffering started (preparing took " << getPreparingDuration(util::milliseconds).count() << " millisec)";
 				}
 
 				inline void stateChangeToPlaying()
 				{
+                    bufferedFrames = streamedFrames;
+
 					// capturing start playback time point and how many frames were buffered
-					playbackStartedAt = calculatePlaybackTime();
-                    bufferedFrames    = streamingFrames;
+					playbackStartedAt = calculatePlaybackStartTime();
+
+					LOG(DEBUG) << LABELS{"proto"} << "Playback started (buffering took " << getBufferingDuration(util::milliseconds).count() << " millisec)";
 				}
 
 				inline void stateChangeToPreparing()
 				{
 					// preparing start time is required for calculating defer time-out
 					preparingStartedAt = util::Timestamp::now();
-					streamingFrames    = 0;
+					streamedFrames     = 0;
                     bufferedFrames     = 0;
 
 					for (auto& entry : commandSessions)
 					{
 						entry.second->prepare(samplingRate);
 					}
+
+					LOG(DEBUG) << LABELS{"proto"} << "Preparing to stream started";
 				}
 
 				inline void stateChangeToStopped()
@@ -597,7 +616,7 @@ namespace slim
 					}
 
 					// increasing played frames counter
-					streamingFrames += chunk.getFrames();
+					streamedFrames += chunk.getFrames();
 
 					LOG(DEBUG) << LABELS{"proto"} << "A chunk was distributed to the clients (total clients=" << commandSessions.size() << ", frames=" << chunk.getFrames() << ")";
 				}
@@ -614,7 +633,7 @@ namespace slim
 				util::Timestamp                   preparingStartedAt;
 				util::Timestamp                   bufferingStartedAt;
 				util::Timestamp                   playbackStartedAt;
-				util::BigInteger                  streamingFrames{0};
+				util::BigInteger                  streamedFrames{0};
 				util::BigInteger                  bufferedFrames{0};
 		};
 	}

@@ -65,7 +65,7 @@ namespace slim
 					return *this;
 				}
 
-				inline auto operator-(const Timestamp& rhs)
+				inline auto operator-(const Timestamp& rhs) const
 				{
 					return timestamp - rhs.timestamp;
 				}

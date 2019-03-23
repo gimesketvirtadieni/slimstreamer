@@ -33,13 +33,14 @@ namespace slim
 	{
 		namespace ts = type_safe;
 
-		template<typename ConnectionType>
+		template<typename ConnectionType, typename StreamerType>
 		class StreamingSession
 		{
 			public:
-				StreamingSession(conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>> pp, std::reference_wrapper<ConnectionType> co, std::string id, EncoderBuilder eb)
+				StreamingSession(conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>> pp, std::reference_wrapper<ConnectionType> co, std::reference_wrapper<StreamerType> st, std::string id, EncoderBuilder eb)
 				: processorProxy{pp}
 				, connection{co}
+				, streamer{st}
 				, clientID{id}
 				, bufferedWriter{co}
 				{
@@ -218,6 +219,7 @@ namespace slim
 			private:
 				conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>> processorProxy;
 				std::reference_wrapper<ConnectionType>                   connection;
+				std::reference_wrapper<StreamerType>                     streamer;
 				std::string                                              clientID;
 				// TODO: parameterize
 				util::BufferedAsyncWriter<ConnectionType, 128>           bufferedWriter;
