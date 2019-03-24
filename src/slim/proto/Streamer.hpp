@@ -15,14 +15,15 @@
 #include <algorithm>
 #include <chrono>
 #include <conwrap2/ProcessorProxy.hpp>
-#include <cstddef>  // std::size_t
-#include <cstdint>  // std::u..._t types
+#include <cstddef>     // std::size_t
+#include <cstdint>     // std::u..._t types
 #include <functional>
 #include <memory>
-#include <sstream>  // std::stringstream
+#include <sstream>     // std::stringstream
 #include <string>
 #include <type_safe/optional.hpp>
 #include <type_safe/optional_ref.hpp>
+#include <type_traits> // std::remove_reference
 #include <unordered_map>
 #include <vector>
 
@@ -233,7 +234,13 @@ namespace slim
 				template<typename RatioType>
 				inline auto getPreparingDuration(const RatioType& ratio) const
 				{
-					return std::chrono::duration_cast<std::chrono::duration<int64_t, RatioType>>(bufferingStartedAt - preparingStartedAt);
+					auto until{util::Timestamp::now()};
+					if (bufferingStartedAt > preparingStartedAt)
+					{
+						until = bufferingStartedAt;
+					}
+					
+					return std::chrono::duration_cast<std::chrono::duration<int64_t, RatioType>>(until - preparingStartedAt);
 				}
 
 				inline auto getSamplingRate() const
@@ -441,20 +448,7 @@ namespace slim
 					return (found != sessions.end());
 				}
 
-				template<typename RatioType>
-				inline auto calculateDuration(const util::BigInteger& frames, const RatioType& ratio) const
- 				{
-					auto result{std::chrono::duration<long long, RatioType>{0}};
-
-					if (samplingRate)
-					{
-						result = std::chrono::duration<long long, RatioType>{frames * ratio.den / samplingRate};
-					}
-
-					return result;
- 				}
-
-				inline auto calculatePlaybackStartTime()
+				inline auto calculateClientsLatency()
 				{
 					auto maxLatency{std::chrono::microseconds{0}};
 
@@ -469,10 +463,38 @@ namespace slim
 						});
 					}
 
-					// TODO: parameterize
-					// adding extra 10 milliseconds required for sending out command to all the clients
-					// TODO: increase bufferedFrames to match added values (maxLatency + std::chrono::milliseconds{10})
-					return bufferingStartedAt + getStreamingDuration(util::milliseconds) + maxLatency + std::chrono::milliseconds{10};
+					return maxLatency;
+				}
+
+				template<typename RatioType>
+				inline auto calculateDuration(const util::BigInteger& frames, const RatioType& ratio) const
+ 				{
+					auto result{std::chrono::duration<long long, RatioType>{0}};
+
+					if (samplingRate)
+					{
+						result = std::chrono::duration<long long, RatioType>{frames * ratio.den / samplingRate};
+					}
+
+					return result;
+ 				}
+
+				template<typename DurationType>
+				inline auto calculateFrames(const DurationType& duration) const
+ 				{
+					auto result{util::BigInteger{0}};
+
+					if (samplingRate)
+					{
+						result = (duration.count() * samplingRate) / std::remove_reference<decltype(duration)>::type::period::den;
+					}
+
+					return result;
+ 				}
+
+				inline auto calculatePlaybackStartTime()
+				{
+					return bufferingStartedAt + getBufferingDuration(util::milliseconds);
 				}
 
 				template<typename SessionType>
@@ -572,9 +594,12 @@ namespace slim
 
 				inline void stateChangeToPlaying()
 				{
-                    bufferedFrames = streamedFrames;
-
-					// capturing start playback time point and how many frames were buffered
+					// adding extra to the amount of buffered frames here will postpone playback start by the same amount
+					// postponing playback is required due to network latency and time for sending out play command
+					// TODO: parameterize
+                    bufferedFrames = streamedFrames + calculateFrames(calculateClientsLatency() + std::chrono::microseconds{10000});
+					
+					// capturing playback start point
 					playbackStartedAt = calculatePlaybackStartTime();
 
 					LOG(DEBUG) << LABELS{"proto"} << "Playback started (buffering took " << getBufferingDuration(util::milliseconds).count() << " millisec)";
