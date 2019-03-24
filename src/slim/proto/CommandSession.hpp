@@ -476,16 +476,6 @@ namespace slim
 
 						// invoking STAT event handler
 						(*found).second(commandSTAT, receiveTimestamp);
-
-						// TODO: work in progress
-						ts::with(streamingSession, [&](auto& streamingSession)
-						{
-							// getPlaybackStartTime
-							// getPlaybackDuration
-							// client playback duration (jiffies)
-							// duration must be for the ~same amount of frames played
-							//streamingSession.driftCorrection();
-						});
 					}
 					else
 					{
@@ -574,6 +564,16 @@ namespace slim
 								timestampCache.clear();
 								latencySamples.clear();
 								timeOffsetSamples.clear();
+
+								// TODO: work in progress
+								ts::with(streamingSession, [&](auto& streamingSession)
+								{
+									// elapsed_milliseconds vs ???
+									// getStreamingDuration - getBufferingDuration - ???
+									// 
+									// getServerTime(jiffies) - getPlaybackStartTime should be ~equal to elapsed_milliseconds
+									//streamingSession.driftCorrection();
+								});
 
 								// TODO: make it configurable
 								// TODO: make it resistant to clients 'loosing' requests
