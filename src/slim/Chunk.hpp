@@ -16,6 +16,7 @@
 
 #include "slim/util/BigInteger.hpp"
 #include "slim/util/Buffer.hpp"
+#include "slim/util/Timestamp.hpp"
 
 
 namespace slim
@@ -80,6 +81,11 @@ namespace slim
 				return buffer.getDataSize() / (channels * (bitsPerSample >> 3));
 			}
 
+			inline auto getFramesConsumed() const
+			{
+				return framesConsumed;
+			}
+
 			inline unsigned int getSamplingRate() const
 			{
 				return samplingRate;
@@ -88,6 +94,11 @@ namespace slim
 			inline bool isEndOfStream() const
 			{
 				return endOfStream;
+			}
+
+			inline auto getTimestamp()
+			{
+				return timestamp;
 			}
 
 			inline void setBitsPerSample(unsigned int b)
@@ -111,20 +122,32 @@ namespace slim
 				endOfStream = e;
 			}
 
+			inline void setFramesConsumed(util::BigInteger f)
+			{
+				framesConsumed = f;
+			}
+
 			inline void setSamplingRate(unsigned int r)
 			{
 				samplingRate = r;
+			}
+
+			inline void setTimestamp(const util::Timestamp& t)
+			{
+				timestamp = t;
 			}
 
 		protected:
 			Chunk() = default;
 
 		private:
-			bool         beginningOfStream{false};
-			bool         endOfStream{false};
-			unsigned int samplingRate{0};
-			unsigned int channels{0};
-			unsigned int bitsPerSample{0};
-			util::Buffer buffer{0};
+			bool             endOfStream{false};
+			unsigned int     samplingRate{0};
+			unsigned int     channels{0};
+			unsigned int     bitsPerSample{0};
+			util::Buffer     buffer{0};
+			// TODO: introduce SyncPoint class for timestamp + frames
+			util::Timestamp  timestamp;
+			util::BigInteger framesConsumed{0};
 		};
 }

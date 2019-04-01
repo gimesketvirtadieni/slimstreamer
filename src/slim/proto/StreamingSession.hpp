@@ -77,6 +77,30 @@ namespace slim
 				StreamingSession(StreamingSession&& rhs) = delete;              // non-movable
 				StreamingSession& operator=(StreamingSession&& rhs) = delete;   // non-movable-assignable
 
+				inline void consumeChunk(const Chunk& chunk)
+				{
+					if (running)
+					{
+						// stopping this session in case sampling rates do not match
+						if (chunk.getSamplingRate() != encoderPtr->getSamplingRate())
+						{
+							// stopping this session due to incorrect data provided
+							LOG(WARNING) << LABELS{"proto"} << "Closing HTTP connection due to different sampling rate used by a client (session rate=" << encoderPtr->getSamplingRate() << "; data rate=" << chunk.getSamplingRate() << ")";
+							stop([] {});
+						}
+						else
+						{
+							encoderPtr->encode(chunk.getData(), chunk.getDataSize());
+							framesProvided += chunk.getFrames();
+
+							if (chunk.isEndOfStream())
+							{
+								stop([] {});
+							}
+						}
+					}
+				}
+
 				inline auto getClientID()
 				{
 					return clientID;
@@ -167,30 +191,6 @@ namespace slim
 					else
 					{
 						callback();
-					}
-				}
-
-				inline void streamChunk(const Chunk& chunk)
-				{
-					if (running)
-					{
-						// stopping this session in case sampling rates do not match
-						if (chunk.getSamplingRate() != encoderPtr->getSamplingRate())
-						{
-							// stopping this session due to incorrect data provided
-							LOG(WARNING) << LABELS{"proto"} << "Closing HTTP connection due to different sampling rate used by a client (session rate=" << encoderPtr->getSamplingRate() << "; data rate=" << chunk.getSamplingRate() << ")";
-							stop([] {});
-						}
-						else
-						{
-							encoderPtr->encode(chunk.getData(), chunk.getDataSize());
-							framesProvided += chunk.getFrames();
-
-							if (chunk.isEndOfStream())
-							{
-								stop([] {});
-							}
-						}
 					}
 				}
 

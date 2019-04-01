@@ -70,9 +70,9 @@ namespace slim
 					return timestamp - rhs.timestamp;
 				}
 
-				inline auto operator>(const Timestamp& rhs) const
+				inline auto operator<(const Timestamp& rhs) const
 				{
-					return timestamp > rhs.timestamp;
+					return timestamp < rhs.timestamp;
 				}
 
 			private:

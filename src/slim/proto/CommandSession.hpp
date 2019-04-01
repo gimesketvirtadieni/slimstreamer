@@ -79,6 +79,17 @@ namespace slim
 				StoppedState,
 			};
 
+			struct ProbeValues
+			{
+				std::chrono::microseconds latency;
+				std::chrono::milliseconds timeOffset;
+
+				inline auto operator<(const ProbeValues& rhs) const
+				{
+					return latency < rhs.latency;
+				}
+			};
+
 			public:
 				CommandSession(conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>> pp, std::reference_wrapper<ConnectionType> co, std::reference_wrapper<StreamerType> st, std::string id, unsigned int po, FormatSelection fo, ts::optional<unsigned int> ga)
 				: processorProxy{pp}
@@ -135,6 +146,7 @@ namespace slim
 						{DrainEvent,     DrainingState,  DrainingState,  [&](auto event) {},                          [&] {return true;}},
 						{DrainEvent,     StartedState,   StartedState,   [&](auto event) {},                          [&] {return true;}},
 						{FlushedEvent,   StartedState,   StartedState,   [&](auto event) {},                          [&] {return true;}},
+						{FlushedEvent,   PreparingState, PreparingState, [&](auto event) {},                          [&] {return true;}},
 						{FlushedEvent,   PlayingState,   PlayingState,   [&](auto event) {},                          [&] {return true;}},
 						{FlushedEvent,   DrainingState,  StartedState,   [&](auto event) {},                          [&] {return true;}},
 						{StopEvent,      StoppedState,   StoppedState,   [&](auto event) {},                          [&] {return true;}},
@@ -164,6 +176,54 @@ namespace slim
 				CommandSession& operator=(const CommandSession&) = delete;  // non-assignable
 				CommandSession(CommandSession&& rhs) = delete;              // non-movable
 				CommandSession& operator=(CommandSession&& rhs) = delete;   // non-movable-assignable
+
+				inline void consumeChunk(const Chunk& chunk)
+				{
+					if (stateMachine.state == StartedState)
+					{
+						// calling prepare() here is required for cases when SlimProto session is created while streaming
+						prepare(streamer.get().getSamplingRate());
+					}
+
+					if (stateMachine.state == PreparingState)
+					{
+						// 'trying' to change state to Buffering
+						stateMachine.processEvent(BufferEvent, [&](auto event, auto state)
+						{
+							LOG(WARNING) << LABELS{"proto"} << "Invalid SlimProto session state while processing Buffer event - closing the connection";
+							connection.get().stop();
+						});
+					}
+
+					if (stateMachine.state == BufferingState || stateMachine.state == PlayingState)
+					{
+						if (stateMachine.state == BufferingState && streamer.get().isPlaying())
+						{
+							// changing state to Playing
+							stateMachine.processEvent(PlayEvent, [&](auto event, auto state)
+							{
+								LOG(WARNING) << LABELS{"proto"} << "Invalid SlimProto session state while processing Play event - closing the connection";
+								connection.get().stop();
+							});
+						}
+
+						// TODO: implement accounting for amount of frames which were not sent out
+						ts::with(streamingSession, [&](auto& streamingSession)
+						{
+							streamingSession.consumeChunk(chunk);
+						});
+
+						if (chunk.isEndOfStream())
+						{
+							// changing state to Draining
+							stateMachine.processEvent(DrainEvent, [&](auto event, auto state)
+							{
+								LOG(WARNING) << LABELS{"proto"} << "Invalid SlimProto session state while processing Drain event - closing the connection";
+								connection.get().stop();
+							});
+						}
+					}
+				}
 
 				inline auto getClientID()
 				{
@@ -307,65 +367,19 @@ namespace slim
 					callback();
 				}
 
-				inline void streamChunk(const Chunk& chunk)
-				{
-					if (stateMachine.state == StartedState)
-					{
-						// calling prepare() here is required for cases when SlimProto session is created while streaming
-						prepare(streamer.get().getSamplingRate());
-					}
-
-					if (stateMachine.state == PreparingState)
-					{
-						// 'trying' to change state to Buffering
-						stateMachine.processEvent(BufferEvent, [&](auto event, auto state)
-						{
-							LOG(WARNING) << LABELS{"proto"} << "Invalid SlimProto session state while processing Buffer event - closing the connection";
-							connection.get().stop();
-						});
-					}
-
-					if (stateMachine.state == BufferingState || stateMachine.state == PlayingState)
-					{
-						if (stateMachine.state == BufferingState && streamer.get().isPlaying())
-						{
-							// changing state to Playing
-							stateMachine.processEvent(PlayEvent, [&](auto event, auto state)
-							{
-								LOG(WARNING) << LABELS{"proto"} << "Invalid SlimProto session state while processing Play event - closing the connection";
-								connection.get().stop();
-							});
-						}
-
-						// TODO: implement accounting for amount of frames which were not sent out
-						ts::with(streamingSession, [&](auto& streamingSession)
-						{
-							streamingSession.streamChunk(chunk);
-						});
-
-						if (chunk.isEndOfStream())
-						{
-							// changing state to Draining
-							stateMachine.processEvent(DrainEvent, [&](auto event, auto state)
-							{
-								LOG(WARNING) << LABELS{"proto"} << "Invalid SlimProto session state while processing Drain event - closing the connection";
-								connection.get().stop();
-							});
-						}
-					}
-				}
-
 			protected:
-				template <typename DurationType>
-				inline auto calculateMean(std::vector<DurationType>& samples)
+				template <typename SortableType>
+				inline auto calculateMean(std::vector<SortableType>& samples)
 				{
-					DurationType result{0};
+					SortableType result;
 
-					// sorting samples
-					std::sort(samples.begin(), samples.end());
+					// sorting samples if needed
+					if (samples.size() > 1)
+					{
+						std::sort(samples.begin(), samples.end());
+					}
 
-					// making sure there is enough sample
-					if (samples.size() > 7)
+					if (samples.size() > 0)
 					{
 						result = samples[samples.size() >> 1];
 					}
@@ -541,37 +555,38 @@ namespace slim
 						// if latency measurement was not interfered by other commands then repeat round trip once again
 						if (measuringLatency)
 						{
-							// latency is calculated assuming that server->client part takes 66% of a round-trip
-							auto latencySample{std::chrono::duration_cast<std::chrono::microseconds>(((receiveTimestamp - sendTimestamp) * 2) / 3)};
+							// latency is calculated assuming that server -> client part takes 66% of a round-trip
+							auto latencyProbe{std::chrono::duration_cast<std::chrono::microseconds>(((receiveTimestamp - sendTimestamp) * 2) / 3)};
+							auto timeOffsetProbe{std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::milliseconds{sendTimestamp.get(util::milliseconds) - commandSTAT.getBuffer()->jiffies} + latencyProbe)};
 
-							// saving latency sample for further processing
-							latencySamples.push_back(latencySample);
-							timeOffsetSamples.emplace_back(sendTimestamp.get(util::milliseconds) - commandSTAT.getBuffer()->jiffies);
+							LOG(DEBUG) << LABELS{"proto"} << "AAAAAAAAAA network latency=" << latencyProbe.count();
+							LOG(DEBUG) << LABELS{"proto"} << "AAAAAAAAAA playback latency=" << std::chrono::duration_cast<std::chrono::milliseconds>(streamer.get().getPlaybackStartTime() - streamer.get().getConsumingStartTime()).count();
+							LOG(DEBUG) << LABELS{"proto"} << "AAAAAAAAAA time offset=" << timeOffsetProbe.count();
+							LOG(DEBUG) << LABELS{"proto"} << "AAAAAAAAAA client playback time elapsed=" << commandSTAT.getElapsed();
+
+							// saving latency and time offset probes for further processing
+							probes.push_back(ProbeValues{latencyProbe, timeOffsetProbe});
 
 							// if there is enough samples to calculate latency
 							if (timestampCache.size() >= timestampCache.capacity())
 							{
-								// calculating new latency value
-								auto meanLatency{calculateMean(latencySamples)};
-								auto meanTimeOffset{calculateMean(timeOffsetSamples)};
+								// calculating latency mean value
+								auto meanProbe{calculateMean(probes)};
 
-								// updating current latency value
-								latency    = (latency.value_or(meanLatency)       * 8 + meanLatency    * 2) / 10;
-								timeOffset = (timeOffset.value_or(meanTimeOffset) * 8 + meanTimeOffset * 2) / 10;
-								LOG(DEBUG) << LABELS{"proto"} << "Client latency updated (client id=" << clientID << ", latency=" << latency.value().count() << " microsec)";
+								// updating current latency and time offset values
+								latency    = (latency.value_or(meanProbe.latency) * 8 + meanProbe.latency * 2) / 10;
+								timeOffset = (timeOffset.value_or(meanProbe.timeOffset) * 8 + meanProbe.timeOffset * 2) / 10;
+
+								LOG(DEBUG) << LABELS{"proto"} << "Client latency was updated (client id=" << clientID << ", latency=" << latency.value().count() << " microsec)";
 
 								// clearing the cache so it can be used for collecting new samples
 								timestampCache.clear();
-								latencySamples.clear();
-								timeOffsetSamples.clear();
+								probes.clear();
 
 								// TODO: work in progress
 								ts::with(streamingSession, [&](auto& streamingSession)
 								{
-									// elapsed_milliseconds vs ???
-									// getStreamingDuration - getBufferingDuration - ???
-									// 
-									// getServerTime(jiffies) - getPlaybackStartTime should be ~equal to elapsed_milliseconds
+									// getFramesPlayedAt(serverTime - offset)
 									//streamingSession.driftCorrection();
 								});
 
@@ -693,9 +708,8 @@ namespace slim
 					commandBuffer.clear();
 					timestampCache.clear();
 					latency.reset();
-					latencySamples.clear();
+					probes.clear();
 					timeOffset.reset();
-					timeOffsetSamples.clear();
 
 					ts::with(pingTimer, [&](auto& timer)
 					{
@@ -723,9 +737,8 @@ namespace slim
 				util::ArrayCache<util::Timestamp, 10>                            timestampCache;
 				bool                                                             measuringLatency{false};
 				ts::optional<std::chrono::microseconds>                          latency{ts::nullopt};
-				std::vector<std::chrono::microseconds>                           latencySamples;
 				ts::optional<std::chrono::milliseconds>                          timeOffset{ts::nullopt};
-				std::vector<std::chrono::milliseconds>                           timeOffsetSamples;
+				std::vector<ProbeValues>                                         probes;
 				bool                                                             clientBufferIsReady{false};
 		};
 	}

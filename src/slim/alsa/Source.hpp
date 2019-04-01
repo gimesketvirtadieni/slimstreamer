@@ -32,6 +32,7 @@
 #include "slim/Exception.hpp"
 #include "slim/log/log.hpp"
 #include "slim/util/RealTimeQueue.hpp"
+#include "slim/util/BigInteger.hpp"
 
 
 namespace slim
@@ -254,6 +255,7 @@ namespace slim
 				bool                  consuming{false};
 				std::mutex            deviceLock;
 				std::mutex            threadLock;
+				util::BigInteger      framesConsumed{0};
 		};
 	}
 }

@@ -139,8 +139,10 @@ namespace slim
 					{
 						if (chunkSamplingRate)
 						{
-							LOG(DEBUG) << LABELS{"proto"} << "Started streaming (rate=" << chunkSamplingRate << ")";
 							samplingRate = chunkSamplingRate;
+				            consumingStartedAt = chunk.getTimestamp();
+
+							LOG(DEBUG) << LABELS{"proto"} << "Started streaming (rate=" << samplingRate << ")";
 
 							// trying to change state to Preparing
 							stateMachine.processEvent(PrepareEvent, [&](auto event, auto state)
@@ -226,6 +228,11 @@ namespace slim
 					return calculateDuration(bufferedFrames, ratio);
 				}
 
+				inline auto getConsumingStartTime() const
+				{
+					return consumingStartedAt;
+				}
+
 				inline auto getPlaybackStartTime() const
 				{
 					return playbackStartedAt;
@@ -235,7 +242,7 @@ namespace slim
 				inline auto getPreparingDuration(const RatioType& ratio) const
 				{
 					auto until{util::Timestamp::now()};
-					if (bufferingStartedAt > preparingStartedAt)
+					if (preparingStartedAt < bufferingStartedAt)
 					{
 						until = bufferingStartedAt;
 					}
@@ -479,8 +486,13 @@ namespace slim
 					return result;
  				}
 
+				inline auto calculatePlaybackStartTime()
+				{
+					return bufferingStartedAt + getBufferingDuration(util::milliseconds);
+				}
+
 				template<typename DurationType>
-				inline auto calculateFrames(const DurationType& duration) const
+				inline auto durationToFrames(const DurationType& duration) const
  				{
 					auto result{util::BigInteger{0}};
 
@@ -491,11 +503,6 @@ namespace slim
 
 					return result;
  				}
-
-				inline auto calculatePlaybackStartTime()
-				{
-					return bufferingStartedAt + getBufferingDuration(util::milliseconds);
-				}
 
 				template<typename SessionType>
 				auto findSessionByID(SessionsMap<SessionType>& sessions,  std::string clientID)
@@ -594,11 +601,11 @@ namespace slim
 
 				inline void stateChangeToPlaying()
 				{
-					// adding extra to the amount of buffered frames here will postpone playback start by the same amount
-					// postponing playback is required due to network latency and time for sending out play command
+					// postponing playback due to network max latency among all clients (required to deliver 'play' command)
+					// also a little bit of extra delay is needed to be able to send out 'play' command actually
 					// TODO: parameterize
-                    bufferedFrames = streamedFrames + calculateFrames(calculateClientsLatency() + std::chrono::microseconds{10000});
-					
+                    bufferedFrames = streamedFrames + durationToFrames(calculateClientsLatency() + std::chrono::microseconds{10000});
+
 					// capturing playback start point
 					playbackStartedAt = calculatePlaybackStartTime();
 
@@ -637,7 +644,7 @@ namespace slim
 					// sending chunk to all SlimProto sessions
 					for (auto& entry : commandSessions)
 					{
-						entry.second->streamChunk(chunk);
+						entry.second->consumeChunk(chunk);
 					}
 
 					// increasing played frames counter
@@ -655,6 +662,7 @@ namespace slim
 				SessionsMap<CommandSessionType>   commandSessions;
 				SessionsMap<StreamingSessionType> streamingSessions;
 				unsigned int                      samplingRate{0};
+				util::Timestamp                   consumingStartedAt;
 				util::Timestamp                   preparingStartedAt;
 				util::Timestamp                   bufferingStartedAt;
 				util::Timestamp                   playbackStartedAt;

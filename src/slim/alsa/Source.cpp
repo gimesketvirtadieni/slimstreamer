@@ -194,7 +194,7 @@ namespace slim
 			auto result{snd_pcm_sframes_t{0}};
 			auto isBeginningOfStream{true};
 
-			// everything inside this loop (except overflowCallback) must be real-time safe: no memory allocation, no logging, etc.
+			// everything inside this loop (except overflowCallback and timestamping) must be real-time safe: no memory allocation, no logging, etc.
 			while (result >= 0)
 			{
 				// this call will block until buffer is filled or PCM stream state is changed
@@ -203,7 +203,8 @@ namespace slim
 				// if PCM data is available in the buffer
 				if (result > 0)
 				{
-					auto offset = containsData(srcBuffer, static_cast<snd_pcm_uframes_t>(result));
+					auto timestamp{util::Timestamp::now()};
+					auto offset{containsData(srcBuffer, static_cast<snd_pcm_uframes_t>(result))};
 
 					// if PCM data contains active stream
 					if (offset >= 0)
@@ -216,12 +217,15 @@ namespace slim
 							chunk.setChannels(parameters.getLogicalChannels());
 							chunk.setBitsPerSample(parameters.getBitsPerSample());
 							chunk.setEndOfStream(false);
+							chunk.setTimestamp(timestamp);
+							chunk.setFramesConsumed(framesConsumed);
 
-							// copying data and setting new chunk size in bytes; buffer size = toBytes(maxFrames) so this call will never cause chunk to extend its buffer
+							// copying data which will set chunk's payload size in bytes
 							chunk.addData([&, sourcePtr = (unsigned char*)srcBuffer](auto* destinationPtr, auto capacity)
 							{
 								return copyData(sourcePtr + offset * bytesPerFrame, destinationPtr, static_cast<snd_pcm_uframes_t>(result - std::min(offset, result)));
 							});
+							framesConsumed += chunk.getFrames();
 
 							// only the first chunk in stream is marked as Beginning-Of-Stream
 							isBeginningOfStream = false;
@@ -244,10 +248,13 @@ namespace slim
 							chunk.setChannels(parameters.getLogicalChannels());
 							chunk.setBitsPerSample(parameters.getBitsPerSample());
 							chunk.setEndOfStream(true);
+							chunk.setTimestamp(timestamp);
+							chunk.setFramesConsumed(framesConsumed);
 							chunk.clear();
 
 							// the next chunk in stream will be marked as Beginning-Of-Stream
 							isBeginningOfStream = true;
+							framesConsumed      = 0;
 
 							// always true as source buffer contains data
 							return true;
