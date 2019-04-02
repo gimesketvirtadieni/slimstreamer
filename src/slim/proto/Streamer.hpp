@@ -140,7 +140,7 @@ namespace slim
 						if (chunkSamplingRate)
 						{
 							samplingRate = chunkSamplingRate;
-				            consumingStartedAt = chunk.getTimestamp();
+				            consumingStartedAt = chunk.getSyncPoint().getTimestamp();
 
 							LOG(DEBUG) << LABELS{"proto"} << "Started streaming (rate=" << samplingRate << ")";
 

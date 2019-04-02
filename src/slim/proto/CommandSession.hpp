@@ -26,8 +26,10 @@
 #include <unordered_map>
 #include <vector>
 
+#include "slim/Chunk.hpp"
 #include "slim/ContainerBase.hpp"
 #include "slim/Exception.hpp"
+#include "slim/SyncPoint.hpp"
 #include "slim/log/log.hpp"
 #include "slim/proto/client/CommandDSCO.hpp"
 #include "slim/proto/client/CommandHELO.hpp"
@@ -223,6 +225,10 @@ namespace slim
 							});
 						}
 					}
+
+					// TODO: Ring Buffer should be used to get the closest sync point
+					// saving sync point to be used for drift calculation
+					lastSyncPoint = chunk.getSyncPoint();
 				}
 
 				inline auto getClientID()
@@ -559,11 +565,6 @@ namespace slim
 							auto latencyProbe{std::chrono::duration_cast<std::chrono::microseconds>(((receiveTimestamp - sendTimestamp) * 2) / 3)};
 							auto timeOffsetProbe{std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::milliseconds{sendTimestamp.get(util::milliseconds) - commandSTAT.getBuffer()->jiffies} + latencyProbe)};
 
-							LOG(DEBUG) << LABELS{"proto"} << "AAAAAAAAAA network latency=" << latencyProbe.count();
-							LOG(DEBUG) << LABELS{"proto"} << "AAAAAAAAAA playback latency=" << std::chrono::duration_cast<std::chrono::milliseconds>(streamer.get().getPlaybackStartTime() - streamer.get().getConsumingStartTime()).count();
-							LOG(DEBUG) << LABELS{"proto"} << "AAAAAAAAAA time offset=" << timeOffsetProbe.count();
-							LOG(DEBUG) << LABELS{"proto"} << "AAAAAAAAAA client playback time elapsed=" << commandSTAT.getElapsed();
-
 							// saving latency and time offset probes for further processing
 							probes.push_back(ProbeValues{latencyProbe, timeOffsetProbe});
 
@@ -578,6 +579,15 @@ namespace slim
 								timeOffset = (timeOffset.value_or(meanProbe.timeOffset) * 8 + meanProbe.timeOffset * 2) / 10;
 
 								LOG(DEBUG) << LABELS{"proto"} << "Client latency was updated (client id=" << clientID << ", latency=" << latency.value().count() << " microsec)";
+
+
+								LOG(DEBUG) << LABELS{"proto"} << "AAAAAAAAAA playback latency=" << std::chrono::duration_cast<std::chrono::milliseconds>(streamer.get().getPlaybackStartTime() - streamer.get().getConsumingStartTime()).count();
+								LOG(DEBUG) << LABELS{"proto"} << "AAAAAAAAAA network latency=" << latencyProbe.count();
+								// TODO: work in progress
+								//SyncPoint{clientTime + timeOffset, clientElapsedTime -> played frames}
+								LOG(DEBUG) << LABELS{"proto"} << "AAAAAAAAAA playback drift=" << lastSyncPoint.calculateDrift(SyncPoint{}, samplingRate).count();
+								LOG(DEBUG) << LABELS{"proto"} << "AAAAAAAAAA time offset=" << timeOffsetProbe.count();
+								LOG(DEBUG) << LABELS{"proto"} << "AAAAAAAAAA client playback time elapsed=" << commandSTAT.getElapsed();
 
 								// clearing the cache so it can be used for collecting new samples
 								timestampCache.clear();
@@ -739,6 +749,7 @@ namespace slim
 				ts::optional<std::chrono::microseconds>                          latency{ts::nullopt};
 				ts::optional<std::chrono::milliseconds>                          timeOffset{ts::nullopt};
 				std::vector<ProbeValues>                                         probes;
+				SyncPoint                                                        lastSyncPoint;
 				bool                                                             clientBufferIsReady{false};
 		};
 	}

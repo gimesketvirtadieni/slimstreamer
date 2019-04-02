@@ -14,6 +14,7 @@
 #include <scope_guard.hpp>
 #include <string>
 
+#include "slim/SyncPoint.hpp"
 #include "slim/alsa/Source.hpp"
 
 
@@ -217,8 +218,7 @@ namespace slim
 							chunk.setChannels(parameters.getLogicalChannels());
 							chunk.setBitsPerSample(parameters.getBitsPerSample());
 							chunk.setEndOfStream(false);
-							chunk.setTimestamp(timestamp);
-							chunk.setFramesConsumed(framesConsumed);
+							chunk.setSyncPoint(SyncPoint{timestamp, framesConsumed});
 
 							// copying data which will set chunk's payload size in bytes
 							chunk.addData([&, sourcePtr = (unsigned char*)srcBuffer](auto* destinationPtr, auto capacity)
@@ -248,8 +248,7 @@ namespace slim
 							chunk.setChannels(parameters.getLogicalChannels());
 							chunk.setBitsPerSample(parameters.getBitsPerSample());
 							chunk.setEndOfStream(true);
-							chunk.setTimestamp(timestamp);
-							chunk.setFramesConsumed(framesConsumed);
+							chunk.setSyncPoint(SyncPoint{timestamp, framesConsumed});
 							chunk.clear();
 
 							// the next chunk in stream will be marked as Beginning-Of-Stream
