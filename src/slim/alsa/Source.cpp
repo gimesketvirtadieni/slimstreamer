@@ -218,7 +218,7 @@ namespace slim
 							chunk.setChannels(parameters.getLogicalChannels());
 							chunk.setBitsPerSample(parameters.getBitsPerSample());
 							chunk.setEndOfStream(false);
-							chunk.setSyncPoint(SyncPoint{timestamp, framesConsumed});
+							chunk.setSyncPoint(SyncPoint{timestamp, framesConsumed, parameters.getSamplingRate()});
 
 							// copying data which will set chunk's payload size in bytes
 							chunk.addData([&, sourcePtr = (unsigned char*)srcBuffer](auto* destinationPtr, auto capacity)
@@ -248,7 +248,7 @@ namespace slim
 							chunk.setChannels(parameters.getLogicalChannels());
 							chunk.setBitsPerSample(parameters.getBitsPerSample());
 							chunk.setEndOfStream(true);
-							chunk.setSyncPoint(SyncPoint{timestamp, framesConsumed});
+							chunk.setSyncPoint(SyncPoint{timestamp, framesConsumed, parameters.getSamplingRate()});
 							chunk.clear();
 
 							// the next chunk in stream will be marked as Beginning-Of-Stream

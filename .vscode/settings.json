@@ -89,7 +89,8 @@
         "bitset": "cpp",
         "cwctype": "cpp",
         "typeindex": "cpp",
-        "variant": "cpp"
+        "variant": "cpp",
+        "memory_resource": "cpp"
     },
     "C_Cpp.intelliSenseEngineFallback": "Disabled"
 }

@@ -85,6 +85,7 @@ namespace slim
 			{
 				std::chrono::microseconds latency;
 				std::chrono::milliseconds timeOffset;
+				SyncPoint                 syncPoint;
 
 				inline auto operator<(const ProbeValues& rhs) const
 				{
@@ -224,11 +225,11 @@ namespace slim
 								connection.get().stop();
 							});
 						}
-					}
 
-					// TODO: Ring Buffer should be used to get the closest sync point
-					// saving sync point to be used for drift calculation
-					lastSyncPoint = chunk.getSyncPoint();
+						// TODO: Ring Buffer should be used to get the closest sync point
+						// saving sync point to be used for drift calculation
+						lastSyncPoint = chunk.getSyncPoint();
+					}
 				}
 
 				inline auto getClientID()
@@ -565,8 +566,8 @@ namespace slim
 							auto latencyProbe{std::chrono::duration_cast<std::chrono::microseconds>(((receiveTimestamp - sendTimestamp) * 2) / 3)};
 							auto timeOffsetProbe{std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::milliseconds{sendTimestamp.get(util::milliseconds) - commandSTAT.getBuffer()->jiffies} + latencyProbe)};
 
-							// saving latency and time offset probes for further processing
-							probes.push_back(ProbeValues{latencyProbe, timeOffsetProbe});
+							// saving probe values for further processing
+							probes.push_back(ProbeValues{latencyProbe, timeOffsetProbe, SyncPoint{sendTimestamp + latencyProbe, std::chrono::milliseconds{commandSTAT.getBuffer()->elapsedMilliseconds}}});
 
 							// if there is enough samples to calculate latency
 							if (timestampCache.size() >= timestampCache.capacity())
@@ -580,24 +581,16 @@ namespace slim
 
 								LOG(DEBUG) << LABELS{"proto"} << "Client latency was updated (client id=" << clientID << ", latency=" << latency.value().count() << " microsec)";
 
-
-								LOG(DEBUG) << LABELS{"proto"} << "AAAAAAAAAA playback latency=" << std::chrono::duration_cast<std::chrono::milliseconds>(streamer.get().getPlaybackStartTime() - streamer.get().getConsumingStartTime()).count();
-								LOG(DEBUG) << LABELS{"proto"} << "AAAAAAAAAA network latency=" << latencyProbe.count();
-								// TODO: work in progress
-								//SyncPoint{clientTime + timeOffset, clientElapsedTime -> played frames}
-								LOG(DEBUG) << LABELS{"proto"} << "AAAAAAAAAA playback drift=" << lastSyncPoint.calculateDrift(SyncPoint{}, samplingRate).count();
-								LOG(DEBUG) << LABELS{"proto"} << "AAAAAAAAAA time offset=" << timeOffsetProbe.count();
-								LOG(DEBUG) << LABELS{"proto"} << "AAAAAAAAAA client playback time elapsed=" << commandSTAT.getElapsed();
-
 								// clearing the cache so it can be used for collecting new samples
 								timestampCache.clear();
 								probes.clear();
 
 								// TODO: work in progress
-								ts::with(streamingSession, [&](auto& streamingSession)
+								ts::with(lastSyncPoint, [&](auto& lastSyncPoint)
 								{
-									// getFramesPlayedAt(serverTime - offset)
-									//streamingSession.driftCorrection();
+									LOG(DEBUG) << LABELS{"proto"} << "AAAAAAAAAA playback latency=" << std::chrono::duration_cast<std::chrono::milliseconds>(streamer.get().getPlaybackStartTime() - streamer.get().getConsumingStartTime()).count();
+									LOG(DEBUG) << LABELS{"proto"} << "AAAAAAAAAA network latency=" << latency.value().count();
+									LOG(DEBUG) << LABELS{"proto"} << "AAAAAAAAAA playback drift=" << lastSyncPoint.calculateDrift(meanProbe.syncPoint).count();
 								});
 
 								// TODO: make it configurable
@@ -720,6 +713,7 @@ namespace slim
 					latency.reset();
 					probes.clear();
 					timeOffset.reset();
+					lastSyncPoint.reset();
 
 					ts::with(pingTimer, [&](auto& timer)
 					{
@@ -749,7 +743,7 @@ namespace slim
 				ts::optional<std::chrono::microseconds>                          latency{ts::nullopt};
 				ts::optional<std::chrono::milliseconds>                          timeOffset{ts::nullopt};
 				std::vector<ProbeValues>                                         probes;
-				SyncPoint                                                        lastSyncPoint;
+				ts::optional<SyncPoint>                                          lastSyncPoint;
 				bool                                                             clientBufferIsReady{false};
 		};
 	}
