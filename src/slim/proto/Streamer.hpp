@@ -141,6 +141,7 @@ namespace slim
 						{
 							samplingRate       = chunkSamplingRate;
 				            consumingStartedAt = chunk.getSyncPoint().getTimestamp();
+							LOG(DEBUG) << LABELS{"proto"} << "BBBBBBBB " << consumingStartedAt.get(util::milliseconds);
 
 							LOG(DEBUG) << LABELS{"proto"} << "Started streaming (rate=" << samplingRate << ")";
 
@@ -608,6 +609,7 @@ namespace slim
 
 					// capturing playback start point
 					playbackStartedAt = calculatePlaybackStartTime();
+					LOG(DEBUG) << LABELS{"proto"} << "BBBBBBBB " << playbackStartedAt.get(util::milliseconds);
 
 					LOG(DEBUG) << LABELS{"proto"} << "Playback started (buffering took " << getBufferingDuration(util::milliseconds).count() << " millisec)";
 				}

@@ -15,6 +15,7 @@
 #include <chrono>
 
 #include "slim/util/BigInteger.hpp"
+#include "slim/util/Duration.hpp"
 #include "slim/util/Timestamp.hpp"
 
 
@@ -22,16 +23,14 @@ namespace slim
 {
 	class SyncPoint
 	{
-		using DurationType = std::chrono::duration<int64_t, std::micro>;
-
 		public:
 			SyncPoint()
-			: SyncPoint{util::Timestamp::now(), DurationType{0}} {}
+			: SyncPoint{util::Timestamp::now(), util::Duration{0}} {}
 
 			SyncPoint(const util::Timestamp& timestamp, const util::BigInteger& frames, unsigned int samplingRate)
 			: SyncPoint{timestamp, framesToDuration(frames, samplingRate)} {}
 
-			SyncPoint(const util::Timestamp& t, const DurationType& e)
+			SyncPoint(const util::Timestamp& t, const util::Duration& e)
 			: timestamp{t}
 			, timeElapsed{e} {}
 
@@ -46,12 +45,12 @@ namespace slim
 				auto t1{timestamp - timeElapsed};
 				auto t2{syncPoint.getTimestamp() - syncPoint.getTimeElapsed()};
 
-				return std::chrono::duration_cast<DurationType>(t2 - t1);
+				return t2 - t1;
 			}
 
-			inline static DurationType framesToDuration(const util::BigInteger& frames, unsigned int samplingRate)
+			inline static util::Duration framesToDuration(const util::BigInteger& frames, unsigned int samplingRate)
 			{
-				return DurationType{(frames * 1000 / samplingRate) * 1000};
+				return util::Duration{(frames * 1000 / samplingRate) * 1000};
 			}
 
 			inline util::Timestamp getTimestamp() const
@@ -59,13 +58,13 @@ namespace slim
 				return timestamp;
 			}
 
-			inline DurationType getTimeElapsed() const
+			inline util::Duration getTimeElapsed() const
 			{
 				return timeElapsed;
 			}
 
 		private:
 			util::Timestamp timestamp;
-			DurationType    timeElapsed{0};
+			util::Duration  timeElapsed{0};
 		};
 }

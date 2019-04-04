@@ -83,9 +83,9 @@ namespace slim
 
 			struct ProbeValues
 			{
-				std::chrono::microseconds latency;
-				std::chrono::milliseconds timeOffset;
-				SyncPoint                 syncPoint;
+				util::Duration latency;
+				util::Duration timeOffset;
+				SyncPoint      syncPoint;
 
 				inline auto operator<(const ProbeValues& rhs) const
 				{
@@ -563,8 +563,8 @@ namespace slim
 						if (measuringLatency)
 						{
 							// latency is calculated assuming that server -> client part takes 66% of a round-trip
-							auto latencyProbe{std::chrono::duration_cast<std::chrono::microseconds>(((receiveTimestamp - sendTimestamp) * 2) / 3)};
-							auto timeOffsetProbe{std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::milliseconds{sendTimestamp.get(util::milliseconds) - commandSTAT.getBuffer()->jiffies} + latencyProbe)};
+							auto latencyProbe{((receiveTimestamp - sendTimestamp) * 2) / 3};
+							auto timeOffsetProbe{util::Duration{(sendTimestamp.get(util::milliseconds) - commandSTAT.getBuffer()->jiffies) * 1000} + latencyProbe};
 
 							// saving probe values for further processing
 							probes.push_back(ProbeValues{latencyProbe, timeOffsetProbe, SyncPoint{sendTimestamp + latencyProbe, std::chrono::milliseconds{commandSTAT.getBuffer()->elapsedMilliseconds}}});
@@ -588,9 +588,9 @@ namespace slim
 								// TODO: work in progress
 								ts::with(lastSyncPoint, [&](auto& lastSyncPoint)
 								{
-									LOG(DEBUG) << LABELS{"proto"} << "AAAAAAAAAA playback latency=" << std::chrono::duration_cast<std::chrono::milliseconds>(streamer.get().getPlaybackStartTime() - streamer.get().getConsumingStartTime()).count();
-									LOG(DEBUG) << LABELS{"proto"} << "AAAAAAAAAA network latency=" << latency.value().count();
-									LOG(DEBUG) << LABELS{"proto"} << "AAAAAAAAAA playback drift=" << lastSyncPoint.calculateDrift(meanProbe.syncPoint).count();
+									LOG(DEBUG) << LABELS{"proto"} << "AAAAAAAAAA playback latency=" << (streamer.get().getPlaybackStartTime() - streamer.get().getConsumingStartTime()).count();
+									LOG(DEBUG) << LABELS{"proto"} << "AAAAAAAAAA network latency="  << latency.value().count();
+									LOG(DEBUG) << LABELS{"proto"} << "AAAAAAAAAA playback drift="   << lastSyncPoint.calculateDrift(meanProbe.syncPoint).count();
 								});
 
 								// TODO: make it configurable
@@ -740,8 +740,8 @@ namespace slim
 				ts::optional_ref<conwrap2::Timer>                                pingTimer{ts::nullopt};
 				util::ArrayCache<util::Timestamp, 10>                            timestampCache;
 				bool                                                             measuringLatency{false};
-				ts::optional<std::chrono::microseconds>                          latency{ts::nullopt};
-				ts::optional<std::chrono::milliseconds>                          timeOffset{ts::nullopt};
+				ts::optional<util::Duration>                                     latency{ts::nullopt};
+				ts::optional<util::Duration>                                     timeOffset{ts::nullopt};
 				std::vector<ProbeValues>                                         probes;
 				ts::optional<SyncPoint>                                          lastSyncPoint;
 				bool                                                             clientBufferIsReady{false};

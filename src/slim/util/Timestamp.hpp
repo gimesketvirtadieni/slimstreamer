@@ -15,6 +15,7 @@
 #include <chrono>
 
 #include "slim/util/BigInteger.hpp"
+#include "slim/util/Duration.hpp"
 
 
 namespace slim
@@ -67,7 +68,7 @@ namespace slim
 
 				inline auto operator-(const Timestamp& rhs) const
 				{
-					return timestamp - rhs.timestamp;
+					return std::chrono::duration_cast<util::Duration>(timestamp - rhs.timestamp);
 				}
 
 				inline auto operator<(const Timestamp& rhs) const
