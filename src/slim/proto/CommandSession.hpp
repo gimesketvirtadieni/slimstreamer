@@ -322,7 +322,7 @@ namespace slim
 					} while (processedSize > 0);
 				}
 
-				inline auto prepare(const unsigned int& s)
+				inline auto prepare(unsigned int s)
 				{
 					auto temp{samplingRate};
 					samplingRate = s;
@@ -566,8 +566,12 @@ namespace slim
 							auto latencyProbe{((receiveTimestamp - sendTimestamp) * 2) / 3};
 							auto timeOffsetProbe{util::Duration{(sendTimestamp.get(util::milliseconds) - commandSTAT.getBuffer()->jiffies) * 1000} + latencyProbe};
 
+							auto o{util::Duration{(commandSTAT.getBuffer()->jiffies - sendTimestamp.get(util::milliseconds)) * 1000}};
+							LOG(DEBUG) << LABELS{"proto"} << "000 round trip (micro)="  << (receiveTimestamp - sendTimestamp).count();
+							LOG(DEBUG) << LABELS{"proto"} << "000 time offset (milli)=" << o.count() / 1000;
+
 							// saving probe values for further processing
-							probes.push_back(ProbeValues{latencyProbe, timeOffsetProbe, SyncPoint{sendTimestamp + latencyProbe, std::chrono::milliseconds{commandSTAT.getBuffer()->elapsedMilliseconds}}});
+							probes.push_back(ProbeValues{latencyProbe, timeOffsetProbe, SyncPoint{sendTimestamp, util::Duration{commandSTAT.getBuffer()->elapsedMilliseconds * 1000} - latencyProbe}});
 
 							// if there is enough samples to calculate latency
 							if (timestampCache.size() >= timestampCache.capacity())
@@ -586,11 +590,27 @@ namespace slim
 								probes.clear();
 
 								// TODO: work in progress
-								ts::with(lastSyncPoint, [&](auto& lastSyncPoint)
+								if (stateMachine.state == PlayingState) ts::with(lastSyncPoint, [&](auto& lastSyncPoint)
 								{
-									LOG(DEBUG) << LABELS{"proto"} << "AAAAAAAAAA playback latency=" << (streamer.get().getPlaybackStartTime() - streamer.get().getConsumingStartTime()).count();
+									auto d{streamer.get().getPlaybackStartTime() - streamer.get().getConsumingStartTime()};
+
+									auto t1{lastSyncPoint.getTimestamp() - lastSyncPoint.getTimeElapsed() + d};
+									auto t2{meanProbe.syncPoint.getTimestamp() - meanProbe.syncPoint.getTimeElapsed()};
+
 									LOG(DEBUG) << LABELS{"proto"} << "AAAAAAAAAA network latency="  << latency.value().count();
-									LOG(DEBUG) << LABELS{"proto"} << "AAAAAAAAAA playback drift="   << lastSyncPoint.calculateDrift(meanProbe.syncPoint).count();
+									LOG(DEBUG) << LABELS{"proto"} << "AAAAAAAAAA playback latency=" << d.count();
+									LOG(DEBUG) << LABELS{"proto"} << "AAAAAAAAAA playback drift="   << (t2 - streamer.get().getPlaybackStartTime()).count();
+
+									//13 -> 5
+									//9 -> 1
+									//5 - (13 - 9 + 1)
+
+									auto c1{meanProbe.syncPoint.getTimeElapsed() - (sendTimestamp - lastSyncPoint.getTimestamp() + lastSyncPoint.getTimeElapsed())};
+									auto c2{sendTimestamp - lastSyncPoint.getTimestamp()};
+									auto c3{meanProbe.syncPoint.getTimeElapsed() - lastSyncPoint.getTimeElapsed()};
+									LOG(DEBUG) << LABELS{"proto"} << "CAAAAAAAAA1 c1=" << c1.count() / 1000;
+									LOG(DEBUG) << LABELS{"proto"} << "CAAAAAAAAA1 c2=" << c2.count() / 1000;
+									LOG(DEBUG) << LABELS{"proto"} << "CAAAAAAAAA1 c3=" << c3.count() / 1000;
 								});
 
 								// TODO: make it configurable

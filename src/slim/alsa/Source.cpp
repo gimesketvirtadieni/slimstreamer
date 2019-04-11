@@ -218,7 +218,6 @@ namespace slim
 							chunk.setChannels(parameters.getLogicalChannels());
 							chunk.setBitsPerSample(parameters.getBitsPerSample());
 							chunk.setEndOfStream(false);
-							chunk.setSyncPoint(SyncPoint{timestamp, framesConsumed, parameters.getSamplingRate()});
 
 							// copying data which will set chunk's payload size in bytes
 							chunk.addData([&, sourcePtr = (unsigned char*)srcBuffer](auto* destinationPtr, auto capacity)
@@ -226,6 +225,7 @@ namespace slim
 								return copyData(sourcePtr + offset * bytesPerFrame, destinationPtr, static_cast<snd_pcm_uframes_t>(result - std::min(offset, result)));
 							});
 							framesConsumed += chunk.getFrames();
+							chunk.setSyncPoint(SyncPoint{timestamp, framesConsumed, parameters.getSamplingRate()});
 
 							// only the first chunk in stream is marked as Beginning-Of-Stream
 							isBeginningOfStream = false;

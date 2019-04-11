@@ -140,20 +140,20 @@ namespace slim
 						if (chunkSamplingRate)
 						{
 							samplingRate       = chunkSamplingRate;
-				            consumingStartedAt = chunk.getSyncPoint().getTimestamp();
-							LOG(DEBUG) << LABELS{"proto"} << "BBBBBBBB " << consumingStartedAt.get(util::milliseconds);
-
-							LOG(DEBUG) << LABELS{"proto"} << "Started streaming (rate=" << samplingRate << ")";
+				            consumingStartedAt = chunk.getSyncPoint().getTimestamp() - chunk.getSyncPoint().getTimeElapsed();
 
 							// trying to change state to Preparing
-							stateMachine.processEvent(PrepareEvent, [&](auto event, auto state)
+							if (stateMachine.processEvent(PrepareEvent, [&](auto event, auto state)
 							{
 								LOG(WARNING) << LABELS{"proto"} << "Invalid Streamer state while processing Start event - skipping chunk";
 								result = true;
-							});
+							}))
+							{
+								LOG(DEBUG) << LABELS{"proto"} << "Started streaming (rate=" << samplingRate << ")";
 
-							// chunk will be reprocessed after PreparingState is over
-							result = false;
+								// chunk will be reprocessed after PreparingState is over
+								result = false;
+							}
 						}
 						else
 						{
@@ -609,7 +609,6 @@ namespace slim
 
 					// capturing playback start point
 					playbackStartedAt = calculatePlaybackStartTime();
-					LOG(DEBUG) << LABELS{"proto"} << "BBBBBBBB " << playbackStartedAt.get(util::milliseconds);
 
 					LOG(DEBUG) << LABELS{"proto"} << "Playback started (buffering took " << getBufferingDuration(util::milliseconds).count() << " millisec)";
 				}
@@ -651,8 +650,6 @@ namespace slim
 
 					// increasing played frames counter
 					streamedFrames += chunk.getFrames();
-
-					LOG(DEBUG) << LABELS{"proto"} << "A chunk was distributed to the clients (total clients=" << commandSessions.size() << ", frames=" << chunk.getFrames() << ")";
 				}
 
 			private:
