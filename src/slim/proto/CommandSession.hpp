@@ -83,13 +83,12 @@ namespace slim
 
 			struct ProbeValues
 			{
-				util::Duration latency;
+				util::Duration roundTrip;
 				util::Duration timeOffset;
-				SyncPoint      syncPoint;
 
 				inline auto operator<(const ProbeValues& rhs) const
 				{
-					return latency < rhs.latency;
+					return roundTrip < rhs.roundTrip;
 				}
 			};
 
@@ -239,7 +238,14 @@ namespace slim
 
 				inline auto getLatency()
 				{
-					return latency;
+					auto result{ts::optional<util::Duration>{ts::nullopt}};
+
+					ts::with(roundTrip, [&](auto& roundTrip)
+					{
+						result = util::Duration{roundTrip.count() >> 1};
+					});
+
+					return result;
 				}
 
 				inline auto isDraining()
@@ -376,19 +382,20 @@ namespace slim
 
 			protected:
 				template <typename SortableType>
-				inline auto calculateMean(std::vector<SortableType>& samples)
+				inline auto calculateMean(std::vector<SortableType> probes)
 				{
 					SortableType result;
 
-					// sorting samples if needed
-					if (samples.size() > 1)
+					// sorting probes if needed
+					if (probes.size() > 1)
 					{
-						std::sort(samples.begin(), samples.end());
+						std::sort(probes.begin(), probes.end());
 					}
 
-					if (samples.size() > 0)
+					// picking mean value
+					if (probes.size() > 0)
 					{
-						result = samples[samples.size() >> 1];
+						result = probes[probes.size() >> 1];
 					}
 
 					return result;
@@ -563,55 +570,57 @@ namespace slim
 						if (measuringLatency)
 						{
 							// latency is calculated assuming that server -> client part takes 66% of a round-trip
-							auto latencyProbe{((receiveTimestamp - sendTimestamp) * 2) / 3};
-							auto timeOffsetProbe{util::Duration{(sendTimestamp.get(util::milliseconds) - commandSTAT.getBuffer()->jiffies) * 1000} + latencyProbe};
+							auto roundTripProbe{receiveTimestamp - sendTimestamp};
+							auto timeOffsetProbe{util::Duration{sendTimestamp.get(util::microseconds) - commandSTAT.getBuffer()->jiffies * 1000}};
 
-							auto o{util::Duration{(commandSTAT.getBuffer()->jiffies - sendTimestamp.get(util::milliseconds)) * 1000}};
-							LOG(DEBUG) << LABELS{"proto"} << "000 round trip (micro)="  << (receiveTimestamp - sendTimestamp).count();
-							LOG(DEBUG) << LABELS{"proto"} << "000 time offset (milli)=" << o.count() / 1000;
+							LOG(DEBUG) << LABELS{"proto"} << "000 round trip (micro)="  << roundTripProbe.count();
+							LOG(DEBUG) << LABELS{"proto"} << "000 time offset (milli)=" << timeOffsetProbe.count() / 1000;
 
 							// saving probe values for further processing
-							probes.push_back(ProbeValues{latencyProbe, timeOffsetProbe, SyncPoint{sendTimestamp, util::Duration{commandSTAT.getBuffer()->elapsedMilliseconds * 1000} - latencyProbe}});
+							probes.push_back(ProbeValues{roundTripProbe, timeOffsetProbe});
 
-							// if there is enough samples to calculate latency
+							// if there is enough samples to calculate mean values
 							if (timestampCache.size() >= timestampCache.capacity())
 							{
-								// calculating latency mean value
-								auto meanProbe{calculateMean(probes)};
+								// erasing the first N elements due to TCP 'slow start' (https://en.wikipedia.org/wiki/TCP_congestion_control)
+								// TODO: parameterize
+								probes.erase(probes.begin(), probes.begin() + 3);
 
-								// updating current latency and time offset values
-								latency    = (latency.value_or(meanProbe.latency) * 8 + meanProbe.latency * 2) / 10;
-								timeOffset = (timeOffset.value_or(meanProbe.timeOffset) * 8 + meanProbe.timeOffset * 2) / 10;
+								// calculating mean probe
+								auto meanProbe{calculateMean(std::move(probes))};
 
-								LOG(DEBUG) << LABELS{"proto"} << "Client latency was updated (client id=" << clientID << ", latency=" << latency.value().count() << " microsec)";
-
-								// clearing the cache so it can be used for collecting new samples
+								// clearing the cache so it can be used for collecting new probes
 								timestampCache.clear();
 								probes.clear();
 
 								// TODO: work in progress
-								if (stateMachine.state == PlayingState) ts::with(lastSyncPoint, [&](auto& lastSyncPoint)
+								// updating current round-trip and time offset values
+								if (stateMachine.state == PlayingState)
 								{
-									auto d{streamer.get().getPlaybackStartTime() - streamer.get().getConsumingStartTime()};
+									if (!roundTripBase.has_value())
+									{
+										roundTripBase = meanProbe.roundTrip;
+									}
+									if (!timeOffsetBase.has_value())
+									{
+										timeOffsetBase = meanProbe.timeOffset;
+									}
+								}
+								if (roundTrips.size() >= 10)
+								{
+									roundTrips.erase(roundTrips.begin());
+								}
+								roundTrips.push_back(meanProbe.roundTrip);
+								if (timeOffsets.size() >= 10)
+								{
+									timeOffsets.erase(timeOffsets.begin());
+								}
+								timeOffsets.push_back(meanProbe.timeOffset);
 
-									auto t1{lastSyncPoint.getTimestamp() - lastSyncPoint.getTimeElapsed() + d};
-									auto t2{meanProbe.syncPoint.getTimestamp() - meanProbe.syncPoint.getTimeElapsed()};
+								roundTrip  = (roundTrip.value_or(meanProbe.roundTrip) * 8 + meanProbe.roundTrip * 2) / 10;
+								timeOffset = meanProbe.timeOffset;
 
-									LOG(DEBUG) << LABELS{"proto"} << "AAAAAAAAAA network latency="  << latency.value().count();
-									LOG(DEBUG) << LABELS{"proto"} << "AAAAAAAAAA playback latency=" << d.count();
-									LOG(DEBUG) << LABELS{"proto"} << "AAAAAAAAAA playback drift="   << (t2 - streamer.get().getPlaybackStartTime()).count();
-
-									//13 -> 5
-									//9 -> 1
-									//5 - (13 - 9 + 1)
-
-									auto c1{meanProbe.syncPoint.getTimeElapsed() - (sendTimestamp - lastSyncPoint.getTimestamp() + lastSyncPoint.getTimeElapsed())};
-									auto c2{sendTimestamp - lastSyncPoint.getTimestamp()};
-									auto c3{meanProbe.syncPoint.getTimeElapsed() - lastSyncPoint.getTimeElapsed()};
-									LOG(DEBUG) << LABELS{"proto"} << "CAAAAAAAAA1 c1=" << c1.count() / 1000;
-									LOG(DEBUG) << LABELS{"proto"} << "CAAAAAAAAA1 c2=" << c2.count() / 1000;
-									LOG(DEBUG) << LABELS{"proto"} << "CAAAAAAAAA1 c3=" << c3.count() / 1000;
-								});
+								LOG(DEBUG) << LABELS{"proto"} << "Client round-trip time was updated (client id=" << clientID << ", round-trip=" << roundTrip.value().count() << " microsec)";
 
 								// TODO: make it configurable
 								// TODO: make it resistant to clients 'loosing' requests
@@ -730,9 +739,13 @@ namespace slim
 					streamingSession.reset();
 					commandBuffer.clear();
 					timestampCache.clear();
-					latency.reset();
-					probes.clear();
+					roundTripBase.reset();
+					timeOffsetBase.reset();
+					roundTrips.clear();
+					timeOffsets.clear();
+					roundTrip.reset();
 					timeOffset.reset();
+					probes.clear();
 					lastSyncPoint.reset();
 
 					ts::with(pingTimer, [&](auto& timer)
@@ -758,9 +771,14 @@ namespace slim
 				util::Buffer                                                     commandBuffer{2048};
 				ts::optional<client::CommandHELO>                                commandHELO{ts::nullopt};
 				ts::optional_ref<conwrap2::Timer>                                pingTimer{ts::nullopt};
-				util::ArrayCache<util::Timestamp, 10>                            timestampCache;
+				// TODO: parametrize
+				util::ArrayCache<util::Timestamp, 13>                            timestampCache;
 				bool                                                             measuringLatency{false};
-				ts::optional<util::Duration>                                     latency{ts::nullopt};
+				ts::optional<util::Duration>                                     roundTripBase{ts::nullopt};
+				ts::optional<util::Duration>                                     timeOffsetBase{ts::nullopt};
+				std::vector<util::Duration>                                      roundTrips;
+				std::vector<util::Duration>                                      timeOffsets;
+				ts::optional<util::Duration>                                     roundTrip{ts::nullopt};
 				ts::optional<util::Duration>                                     timeOffset{ts::nullopt};
 				std::vector<ProbeValues>                                         probes;
 				ts::optional<SyncPoint>                                          lastSyncPoint;
