@@ -37,6 +37,7 @@
 #include "slim/proto/CommandSession.hpp"
 #include "slim/proto/StreamingSession.hpp"
 #include "slim/util/BigInteger.hpp"
+#include "slim/util/Duration.hpp"
 #include "slim/util/StateMachine.hpp"
 #include "slim/util/Timestamp.hpp"
 
@@ -456,24 +457,6 @@ namespace slim
 					return (found != sessions.end());
 				}
 
-				inline auto calculateClientsLatency()
-				{
-					auto maxLatency{std::chrono::microseconds{0}};
-
-					for (auto& entry : commandSessions)
-					{
-						ts::with(entry.second->getLatency(), [&](const auto& latency)
-						{
-							if (maxLatency < latency)
-							{
-								maxLatency = latency;
-							}
-						});
-					}
-
-					return maxLatency;
-				}
-
 				template<typename RatioType>
 				inline auto calculateDuration(const util::BigInteger& frames, const RatioType& ratio) const
  				{
@@ -486,6 +469,24 @@ namespace slim
 
 					return result;
  				}
+
+				inline auto calculatePlaybackDelay()
+				{
+					// postponing playback due to network latency while sending play command to all clients
+					// also a little bit of extra delay is needed to be able to send out 'play' command actually
+					// TODO: parameterize
+					auto result{util::Duration{1000}};
+
+					for (auto& entry : commandSessions)
+					{
+						ts::with(entry.second->getLatency(), [&](const auto& latency)
+						{
+							result += latency;
+						});
+					}
+
+					return result;
+				}
 
 				inline auto calculatePlaybackStartTime()
 				{
@@ -602,10 +603,7 @@ namespace slim
 
 				inline void stateChangeToPlaying()
 				{
-					// postponing playback due to network max latency among all clients (required to deliver 'play' command)
-					// also a little bit of extra delay is needed to be able to send out 'play' command actually
-					// TODO: parameterize
-                    bufferedFrames = streamedFrames + durationToFrames(calculateClientsLatency() + std::chrono::microseconds{10000});
+                    bufferedFrames = streamedFrames + durationToFrames(calculatePlaybackDelay());
 
 					// capturing playback start point
 					playbackStartedAt = calculatePlaybackStartTime();

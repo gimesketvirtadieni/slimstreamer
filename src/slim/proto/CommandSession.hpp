@@ -29,7 +29,6 @@
 #include "slim/Chunk.hpp"
 #include "slim/ContainerBase.hpp"
 #include "slim/Exception.hpp"
-#include "slim/SyncPoint.hpp"
 #include "slim/log/log.hpp"
 #include "slim/proto/client/CommandDSCO.hpp"
 #include "slim/proto/client/CommandHELO.hpp"
@@ -224,10 +223,6 @@ namespace slim
 								connection.get().stop();
 							});
 						}
-
-						// TODO: Ring Buffer should be used to get the closest sync point
-						// saving sync point to be used for drift calculation
-						lastSyncPoint = chunk.getSyncPoint();
 					}
 				}
 
@@ -240,10 +235,10 @@ namespace slim
 				{
 					auto result{ts::optional<util::Duration>{ts::nullopt}};
 
-					ts::with(roundTrip, [&](auto& roundTrip)
+					if (!roundTrips.empty())
 					{
-						result = util::Duration{roundTrip.count() >> 1};
-					});
+						result = util::Duration{calculateMean(roundTrips).count() >> 1};
+					}
 
 					return result;
 				}
@@ -265,7 +260,7 @@ namespace slim
 
 				inline auto isReadyToPlay()
 				{
-					return isReadyToPrepare() && isReadyToBuffer() && timeOffset.has_value() && clientBufferIsReady;
+					return isReadyToPrepare() && isReadyToBuffer() && !roundTrips.empty() && !timeOffsets.empty() && clientBufferIsReady;
 				}
 
 				inline bool isRunning()
@@ -384,7 +379,7 @@ namespace slim
 				template <typename SortableType>
 				inline auto calculateMean(std::vector<SortableType> probes)
 				{
-					SortableType result;
+					SortableType result{};
 
 					// sorting probes if needed
 					if (probes.size() > 1)
@@ -393,7 +388,7 @@ namespace slim
 					}
 
 					// picking mean value
-					if (probes.size() > 0)
+					if (!probes.empty())
 					{
 						result = probes[probes.size() >> 1];
 					}
@@ -571,10 +566,7 @@ namespace slim
 						{
 							// latency is calculated assuming that server -> client part takes 66% of a round-trip
 							auto roundTripProbe{receiveTimestamp - sendTimestamp};
-							auto timeOffsetProbe{util::Duration{sendTimestamp.get(util::microseconds) - commandSTAT.getBuffer()->jiffies * 1000}};
-
-							LOG(DEBUG) << LABELS{"proto"} << "000 round trip (micro)="  << roundTripProbe.count();
-							LOG(DEBUG) << LABELS{"proto"} << "000 time offset (milli)=" << timeOffsetProbe.count() / 1000;
+							auto timeOffsetProbe{util::Duration{(sendTimestamp.get(util::milliseconds) - commandSTAT.getBuffer()->jiffies) * 1000}};
 
 							// saving probe values for further processing
 							probes.push_back(ProbeValues{roundTripProbe, timeOffsetProbe});
@@ -588,24 +580,17 @@ namespace slim
 
 								// calculating mean probe
 								auto meanProbe{calculateMean(std::move(probes))};
+								LOG(DEBUG) << LABELS{"proto"} << "Client round-trip time was calculated (client id=" << clientID << ", round-trip=" << meanProbe.roundTrip.count() << " microsec)";
+
+								LOG(DEBUG) << LABELS{"proto"} << "000 round trip (micro)="  << meanProbe.roundTrip.count();
+								LOG(DEBUG) << LABELS{"proto"} << "000 time offset (milli)=" << meanProbe.timeOffset.count() / 1000;
 
 								// clearing the cache so it can be used for collecting new probes
 								timestampCache.clear();
 								probes.clear();
 
 								// TODO: work in progress
-								// updating current round-trip and time offset values
-								if (stateMachine.state == PlayingState)
-								{
-									if (!roundTripBase.has_value())
-									{
-										roundTripBase = meanProbe.roundTrip;
-									}
-									if (!timeOffsetBase.has_value())
-									{
-										timeOffsetBase = meanProbe.timeOffset;
-									}
-								}
+								// adding round-trip and time offset values to relevant samples
 								if (roundTrips.size() >= 10)
 								{
 									roundTrips.erase(roundTrips.begin());
@@ -616,11 +601,6 @@ namespace slim
 									timeOffsets.erase(timeOffsets.begin());
 								}
 								timeOffsets.push_back(meanProbe.timeOffset);
-
-								roundTrip  = (roundTrip.value_or(meanProbe.roundTrip) * 8 + meanProbe.roundTrip * 2) / 10;
-								timeOffset = meanProbe.timeOffset;
-
-								LOG(DEBUG) << LABELS{"proto"} << "Client round-trip time was updated (client id=" << clientID << ", round-trip=" << roundTrip.value().count() << " microsec)";
 
 								// TODO: make it configurable
 								// TODO: make it resistant to clients 'loosing' requests
@@ -711,11 +691,18 @@ namespace slim
 
 				inline void stateChangeToPlaying()
 				{
-					auto playbackStartedAt = streamer.get().getPlaybackStartTime();
-
-					ts::with(timeOffset, [&](auto& timeOffset)
+					if (!roundTrips.empty())
 					{
-						send(server::CommandSTRM{CommandSelection::Unpause, playbackStartedAt - timeOffset});
+						roundTripBase = roundTrips.back();
+					}
+					if (!timeOffsets.empty())
+					{
+						timeOffsetBase = timeOffsets.back();
+					}
+
+					ts::with(timeOffsetBase, [&](auto& timeOffsetBase)
+					{
+						send(server::CommandSTRM{CommandSelection::Unpause, streamer.get().getPlaybackStartTime() - timeOffsetBase});
 					});
 				}
 
@@ -743,10 +730,7 @@ namespace slim
 					timeOffsetBase.reset();
 					roundTrips.clear();
 					timeOffsets.clear();
-					roundTrip.reset();
-					timeOffset.reset();
 					probes.clear();
-					lastSyncPoint.reset();
 
 					ts::with(pingTimer, [&](auto& timer)
 					{
@@ -778,10 +762,7 @@ namespace slim
 				ts::optional<util::Duration>                                     timeOffsetBase{ts::nullopt};
 				std::vector<util::Duration>                                      roundTrips;
 				std::vector<util::Duration>                                      timeOffsets;
-				ts::optional<util::Duration>                                     roundTrip{ts::nullopt};
-				ts::optional<util::Duration>                                     timeOffset{ts::nullopt};
 				std::vector<ProbeValues>                                         probes;
-				ts::optional<SyncPoint>                                          lastSyncPoint;
 				bool                                                             clientBufferIsReady{false};
 		};
 	}
