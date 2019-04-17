@@ -14,7 +14,6 @@
 
 #include <cstddef>   // std::size_t
 
-#include "slim/SyncPoint.hpp"
 #include "slim/util/BigInteger.hpp"
 #include "slim/util/Buffer.hpp"
 #include "slim/util/Timestamp.hpp"
@@ -92,11 +91,6 @@ namespace slim
 				return endOfStream;
 			}
 
-			inline auto getSyncPoint() const
-			{
-				return syncPoint;
-			}
-
 			inline void setBitsPerSample(unsigned int b)
 			{
 				bitsPerSample = b;
@@ -123,11 +117,6 @@ namespace slim
 				samplingRate = r;
 			}
 
-			inline void setSyncPoint(const SyncPoint& s)
-			{
-				syncPoint = s;
-			}
-
 		protected:
 			Chunk() = default;
 
@@ -137,6 +126,5 @@ namespace slim
 			unsigned int channels{0};
 			unsigned int bitsPerSample{0};
 			util::Buffer buffer{0};
-			SyncPoint    syncPoint;
 		};
 }

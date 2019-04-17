@@ -131,6 +131,45 @@ namespace slim
 				Streamer(Streamer&& rhs) = delete;              // non-movable
 				Streamer& operator=(Streamer&& rhs) = delete;   // non-movable-assignable
 
+				template <typename IntegralType>
+				inline static auto calculateAverage(const std::vector<IntegralType>& samples)
+				{
+					IntegralType result{0};
+					IntegralType sum{0};
+
+					for (auto& sample : samples)
+					{
+						result += sample;
+					}
+
+					if (!samples.empty())
+					{
+						result /= samples.size();
+					}
+
+					return result;
+				}
+
+				template <typename SortableType>
+				inline static auto calculateMean(std::vector<SortableType> samples)
+				{
+					SortableType result{};
+
+					// sorting samples if needed
+					if (samples.size() > 1)
+					{
+						std::sort(samples.begin(), samples.end());
+					}
+
+					// picking mean value
+					if (!samples.empty())
+					{
+						result = samples[samples.size() >> 1];
+					}
+
+					return result;
+				}
+
 				virtual bool consumeChunk(Chunk& chunk) override
 				{
 					auto result{false};
@@ -140,8 +179,7 @@ namespace slim
 					{
 						if (chunkSamplingRate)
 						{
-							samplingRate       = chunkSamplingRate;
-				            consumingStartedAt = chunk.getSyncPoint().getTimestamp() - chunk.getSyncPoint().getTimeElapsed();
+							samplingRate = chunkSamplingRate;
 
 							// trying to change state to Preparing
 							if (stateMachine.processEvent(PrepareEvent, [&](auto event, auto state)
@@ -228,11 +266,6 @@ namespace slim
 				inline auto getBufferingDuration(const RatioType& ratio) const
 				{
 					return calculateDuration(bufferedFrames, ratio);
-				}
-
-				inline auto getConsumingStartTime() const
-				{
-					return consumingStartedAt;
 				}
 
 				inline auto getPlaybackStartTime() const
@@ -477,6 +510,7 @@ namespace slim
 					// TODO: parameterize
 					auto result{util::Duration{1000}};
 
+					// 'play' command is sent synchroniously hence playback delay is a sum of all latencies
 					for (auto& entry : commandSessions)
 					{
 						ts::with(entry.second->getLatency(), [&](const auto& latency)
@@ -493,8 +527,7 @@ namespace slim
 					return bufferingStartedAt + getBufferingDuration(util::milliseconds);
 				}
 
-				template<typename DurationType>
-				inline auto durationToFrames(const DurationType& duration) const
+				inline auto durationToFrames(const util::Duration& duration) const
  				{
 					auto result{util::BigInteger{0}};
 
@@ -525,6 +558,18 @@ namespace slim
 					if (found != sessions.end())
 					{
 						result = (*found).second.get();
+					}
+
+					return result;
+				}
+
+				inline auto framesToDuration(const util::BigInteger& frames) const
+				{
+					auto result{util::Duration{0}};
+
+					if (samplingRate)
+					{
+						result = util::Duration{frames * 1000000 / samplingRate};
 					}
 
 					return result;
@@ -603,12 +648,13 @@ namespace slim
 
 				inline void stateChangeToPlaying()
 				{
-                    bufferedFrames = streamedFrames + durationToFrames(calculatePlaybackDelay());
+					auto playbackDelay{calculatePlaybackDelay()};
+                    bufferedFrames = streamedFrames + durationToFrames(playbackDelay);
 
 					// capturing playback start point
 					playbackStartedAt = calculatePlaybackStartTime();
 
-					LOG(DEBUG) << LABELS{"proto"} << "Playback started (buffering took " << getBufferingDuration(util::milliseconds).count() << " millisec)";
+					LOG(DEBUG) << LABELS{"proto"} << "Playback started (streamed duration=" << getStreamingDuration(util::milliseconds).count() << " millisec, playback delay duration=" << playbackDelay.count() / 1000 << " millisec)";
 				}
 
 				inline void stateChangeToPreparing()
@@ -659,7 +705,6 @@ namespace slim
 				SessionsMap<CommandSessionType>   commandSessions;
 				SessionsMap<StreamingSessionType> streamingSessions;
 				unsigned int                      samplingRate{0};
-				util::Timestamp                   consumingStartedAt;
 				util::Timestamp                   preparingStartedAt;
 				util::Timestamp                   bufferingStartedAt;
 				util::Timestamp                   playbackStartedAt;

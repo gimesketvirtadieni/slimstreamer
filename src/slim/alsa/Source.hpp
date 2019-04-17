@@ -255,7 +255,6 @@ namespace slim
 				bool                  consuming{false};
 				std::mutex            deviceLock;
 				std::mutex            threadLock;
-				util::BigInteger      framesConsumed{0};
 		};
 	}
 }

@@ -14,7 +14,6 @@
 #include <scope_guard.hpp>
 #include <string>
 
-#include "slim/SyncPoint.hpp"
 #include "slim/alsa/Source.hpp"
 
 
@@ -195,7 +194,7 @@ namespace slim
 			auto result{snd_pcm_sframes_t{0}};
 			auto isBeginningOfStream{true};
 
-			// everything inside this loop (except overflowCallback and timestamping) must be real-time safe: no memory allocation, no logging, etc.
+			// everything inside this loop (except overflowCallback) must be real-time safe: no memory allocation, no logging, etc.
 			while (result >= 0)
 			{
 				// this call will block until buffer is filled or PCM stream state is changed
@@ -224,8 +223,6 @@ namespace slim
 							{
 								return copyData(sourcePtr + offset * bytesPerFrame, destinationPtr, static_cast<snd_pcm_uframes_t>(result - std::min(offset, result)));
 							});
-							framesConsumed += chunk.getFrames();
-							chunk.setSyncPoint(SyncPoint{timestamp, framesConsumed, parameters.getSamplingRate()});
 
 							// only the first chunk in stream is marked as Beginning-Of-Stream
 							isBeginningOfStream = false;
@@ -248,12 +245,10 @@ namespace slim
 							chunk.setChannels(parameters.getLogicalChannels());
 							chunk.setBitsPerSample(parameters.getBitsPerSample());
 							chunk.setEndOfStream(true);
-							chunk.setSyncPoint(SyncPoint{timestamp, framesConsumed, parameters.getSamplingRate()});
 							chunk.clear();
 
 							// the next chunk in stream will be marked as Beginning-Of-Stream
 							isBeginningOfStream = true;
-							framesConsumed      = 0;
 
 							// always true as source buffer contains data
 							return true;

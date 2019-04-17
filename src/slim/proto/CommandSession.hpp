@@ -235,9 +235,9 @@ namespace slim
 				{
 					auto result{ts::optional<util::Duration>{ts::nullopt}};
 
-					if (!roundTrips.empty())
+					if (roundTripBase.has_value() && !roundTripDiffs.empty())
 					{
-						result = util::Duration{calculateMean(roundTrips).count() >> 1};
+						result = roundTripBase.value() + StreamerType::calculateMean(roundTripDiffs) / 2;
 					}
 
 					return result;
@@ -260,7 +260,7 @@ namespace slim
 
 				inline auto isReadyToPlay()
 				{
-					return isReadyToPrepare() && isReadyToBuffer() && !roundTrips.empty() && !timeOffsets.empty() && clientBufferIsReady;
+					return isReadyToPrepare() && isReadyToBuffer() && lastProbe.has_value() && clientBufferIsReady;
 				}
 
 				inline bool isRunning()
@@ -376,24 +376,11 @@ namespace slim
 				}
 
 			protected:
-				template <typename SortableType>
-				inline auto calculateMean(std::vector<SortableType> probes)
+				inline void calculateDrift()
 				{
-					SortableType result{};
+					auto avg{StreamerType::calculateAverage(roundTripDiffs)};
 
-					// sorting probes if needed
-					if (probes.size() > 1)
-					{
-						std::sort(probes.begin(), probes.end());
-					}
-
-					// picking mean value
-					if (!probes.empty())
-					{
-						result = probes[probes.size() >> 1];
-					}
-
-					return result;
+					LOG(DEBUG) << LABELS{"proto"} << "avg=" << avg.count();
 				}
 
 				inline auto onDSCO(unsigned char* buffer, std::size_t size)
@@ -575,15 +562,14 @@ namespace slim
 							if (timestampCache.size() >= timestampCache.capacity())
 							{
 								// erasing the first N elements due to TCP 'slow start' (https://en.wikipedia.org/wiki/TCP_congestion_control)
-								// TODO: parameterize
 								probes.erase(probes.begin(), probes.begin() + 3);
 
 								// calculating mean probe
-								auto meanProbe{calculateMean(std::move(probes))};
-								LOG(DEBUG) << LABELS{"proto"} << "Client round-trip time was calculated (client id=" << clientID << ", round-trip=" << meanProbe.roundTrip.count() << " microsec)";
+								lastProbe = StreamerType::calculateMean(std::move(probes));
+								LOG(DEBUG) << LABELS{"proto"} << "Client round-trip time was calculated (client id=" << clientID << ", round-trip=" << lastProbe.value().roundTrip.count() << " microsec)";
 
-								LOG(DEBUG) << LABELS{"proto"} << "000 round trip (micro)="  << meanProbe.roundTrip.count();
-								LOG(DEBUG) << LABELS{"proto"} << "000 time offset (milli)=" << meanProbe.timeOffset.count() / 1000;
+								LOG(DEBUG) << LABELS{"proto"} << "000 round trip (micro)="  << lastProbe.value().roundTrip.count();
+								LOG(DEBUG) << LABELS{"proto"} << "000 time offset (milli)=" << lastProbe.value().timeOffset.count() / 1000;
 
 								// clearing the cache so it can be used for collecting new probes
 								timestampCache.clear();
@@ -591,16 +577,29 @@ namespace slim
 
 								// TODO: work in progress
 								// adding round-trip and time offset values to relevant samples
-								if (roundTrips.size() >= 10)
+								if (roundTripDiffs.size() >= 10)
 								{
-									roundTrips.erase(roundTrips.begin());
+									roundTripDiffs.erase(roundTripDiffs.begin());
 								}
-								roundTrips.push_back(meanProbe.roundTrip);
-								if (timeOffsets.size() >= 10)
+								ts::with(roundTripBase, [&](auto& roundTripBase)
 								{
-									timeOffsets.erase(timeOffsets.begin());
+									roundTripDiffs.push_back(lastProbe.value().roundTrip - roundTripBase);
+								});
+								if (timeOffsetDiffs.size() >= 10)
+								{
+									timeOffsetDiffs.erase(timeOffsetDiffs.begin());
 								}
-								timeOffsets.push_back(meanProbe.timeOffset);
+								ts::with(timeOffsetBase, [&](auto& timeOffsetBase)
+								{
+									timeOffsetDiffs.push_back(lastProbe.value().timeOffset - timeOffsetBase);
+								});
+
+								// TODO: parameterize
+								if (std::chrono::seconds{10} < (util::Timestamp::now() - lastSyncCheckpoint))
+								{
+									calculateDrift();
+									lastSyncCheckpoint = util::Timestamp::now();
+								}
 
 								// TODO: make it configurable
 								// TODO: make it resistant to clients 'loosing' requests
@@ -691,14 +690,11 @@ namespace slim
 
 				inline void stateChangeToPlaying()
 				{
-					if (!roundTrips.empty())
+					ts::with(lastProbe, [&](auto& lastProbe)
 					{
-						roundTripBase = roundTrips.back();
-					}
-					if (!timeOffsets.empty())
-					{
-						timeOffsetBase = timeOffsets.back();
-					}
+						roundTripBase  = lastProbe.roundTrip;
+						timeOffsetBase = lastProbe.timeOffset;
+					});
 
 					ts::with(timeOffsetBase, [&](auto& timeOffsetBase)
 					{
@@ -726,11 +722,12 @@ namespace slim
 					streamingSession.reset();
 					commandBuffer.clear();
 					timestampCache.clear();
+					probes.clear();
+					lastProbe.reset();
 					roundTripBase.reset();
 					timeOffsetBase.reset();
-					roundTrips.clear();
-					timeOffsets.clear();
-					probes.clear();
+					roundTripDiffs.clear();
+					timeOffsetDiffs.clear();
 
 					ts::with(pingTimer, [&](auto& timer)
 					{
@@ -758,12 +755,14 @@ namespace slim
 				// TODO: parametrize
 				util::ArrayCache<util::Timestamp, 13>                            timestampCache;
 				bool                                                             measuringLatency{false};
+				std::vector<ProbeValues>                                         probes;
+				ts::optional<ProbeValues>                                        lastProbe;
 				ts::optional<util::Duration>                                     roundTripBase{ts::nullopt};
 				ts::optional<util::Duration>                                     timeOffsetBase{ts::nullopt};
-				std::vector<util::Duration>                                      roundTrips;
-				std::vector<util::Duration>                                      timeOffsets;
-				std::vector<ProbeValues>                                         probes;
+				std::vector<util::Duration>                                      roundTripDiffs;
+				std::vector<util::Duration>                                      timeOffsetDiffs;
 				bool                                                             clientBufferIsReady{false};
+				util::Timestamp                                                  lastSyncCheckpoint;
 		};
 	}
 }
