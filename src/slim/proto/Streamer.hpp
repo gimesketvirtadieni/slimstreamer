@@ -150,6 +150,19 @@ namespace slim
 					return result;
 				}
 
+				template<typename RatioType>
+				inline auto calculateDuration(const util::BigInteger& frames, const RatioType& ratio) const
+ 				{
+					auto result{std::chrono::duration<long long, RatioType>{0}};
+
+					if (samplingRate)
+					{
+						result = std::chrono::duration<long long, RatioType>{frames * ratio.den / samplingRate};
+					}
+
+					return result;
+ 				}
+
 				template <typename SortableType>
 				inline static auto calculateMean(std::vector<SortableType> samples)
 				{
@@ -489,19 +502,6 @@ namespace slim
 
 					return (found != sessions.end());
 				}
-
-				template<typename RatioType>
-				inline auto calculateDuration(const util::BigInteger& frames, const RatioType& ratio) const
- 				{
-					auto result{std::chrono::duration<long long, RatioType>{0}};
-
-					if (samplingRate)
-					{
-						result = std::chrono::duration<long long, RatioType>{frames * ratio.den / samplingRate};
-					}
-
-					return result;
- 				}
 
 				inline auto calculatePlaybackDelay()
 				{

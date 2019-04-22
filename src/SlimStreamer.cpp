@@ -332,6 +332,9 @@ int main(int argc, char *argv[])
 				// creating producers (one per device)
 				auto producers{createProducers(processorProxy, parameters)};
 
+				// creating a multiplexor which combines producers into one 'virtual' producer
+				auto multiplexorPtr{std::make_unique<Multiplexor<Source>>(processorProxy, std::move(producers))};
+
 				// creating a streamer object
 				streamerPtr = std::move(std::make_unique<Streamer<TCPConnection>>(processorProxy, httpPort, encoderBuilder, gain));
 
@@ -363,9 +366,6 @@ int main(int argc, char *argv[])
 				{
 					consumerPtr = std::move(streamerPtr);
 				}
-
-				// creating a multiplexor which combines producers into one 'virtual' producer
-				auto multiplexorPtr{std::make_unique<Multiplexor<Source>>(processorProxy, std::move(producers))};
 
 				// creating a scheduler
 				auto schedulerPtr{std::make_unique<Scheduler<Multiplexor<Source>, Consumer>>(processorProxy, std::move(multiplexorPtr), std::move(consumerPtr))};

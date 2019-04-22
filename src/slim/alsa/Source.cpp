@@ -203,7 +203,6 @@ namespace slim
 				// if PCM data is available in the buffer
 				if (result > 0)
 				{
-					auto timestamp{util::Timestamp::now()};
 					auto offset{containsData(srcBuffer, static_cast<snd_pcm_uframes_t>(result))};
 
 					// if PCM data contains active stream

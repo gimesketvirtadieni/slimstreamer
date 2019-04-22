@@ -42,6 +42,7 @@
 #include "slim/proto/StreamingSession.hpp"
 #include "slim/util/ArrayCache.hpp"
 #include "slim/util/Buffer.hpp"
+#include "slim/util/Duration.hpp"
 #include "slim/util/StateMachine.hpp"
 #include "slim/util/Timestamp.hpp"
 
@@ -82,12 +83,12 @@ namespace slim
 
 			struct ProbeValues
 			{
-				util::Duration roundTrip;
+				util::Duration latency;
 				util::Duration timeOffset;
 
 				inline auto operator<(const ProbeValues& rhs) const
 				{
-					return roundTrip < rhs.roundTrip;
+					return latency < rhs.latency;
 				}
 			};
 
@@ -233,14 +234,10 @@ namespace slim
 
 				inline auto getLatency()
 				{
-					auto result{ts::optional<util::Duration>{ts::nullopt}};
-
-					if (roundTripBase.has_value() && !roundTripDiffs.empty())
+					return latencyBase.map([&](auto& latencyBase)
 					{
-						result = roundTripBase.value() + StreamerType::calculateMean(roundTripDiffs) / 2;
-					}
-
-					return result;
+						return latencyBase + StreamerType::calculateAverage(latencyDiffs);
+					});
 				}
 
 				inline auto isDraining()
@@ -378,9 +375,22 @@ namespace slim
 			protected:
 				inline void calculateDrift()
 				{
-					auto avg{StreamerType::calculateAverage(roundTripDiffs)};
+					auto timeOffsetDiffAvg{StreamerType::calculateAverage(timeOffsetDiffs)};
+					auto latencyDiffAvg{StreamerType::calculateAverage(latencyDiffs)};
 
-					LOG(DEBUG) << LABELS{"proto"} << "avg=" << avg.count();
+					auto drift{timeOffsetDiffAvg + latencyDiffAvg};
+					if (drift.count() > 0)
+					{
+						// pause for ...
+					}
+					else if (drift.count() < 0)
+					{
+						// skip ahead for ...
+					}
+
+					LOG(DEBUG) << LABELS{"proto"} << "time offset diffs avg=" << timeOffsetDiffAvg.count();
+					LOG(DEBUG) << LABELS{"proto"} << "latency diffs avg=" << latencyDiffAvg.count();
+					LOG(DEBUG) << LABELS{"proto"} << "time drift=" << drift.count();
 				}
 
 				inline auto onDSCO(unsigned char* buffer, std::size_t size)
@@ -536,6 +546,7 @@ namespace slim
 
 				inline void onSTMt(client::CommandSTAT& commandSTAT, util::Timestamp receiveTimestamp)
 				{
+					auto moreProbesNeeded{false};
 					auto timestampKey{commandSTAT.getBuffer()->serverTimestamp};
 					auto sendTimestamp{ts::optional<util::Timestamp>{ts::nullopt}};
 
@@ -548,42 +559,42 @@ namespace slim
 					// making sure it is a proper response from the client
 					ts::with(sendTimestamp, [&](auto& sendTimestamp)
 					{
-						// if latency measurement was not interfered by other commands then repeat round trip once again
+						// if latency measurement was not interfered by other commands then probe once again
 						if (measuringLatency)
 						{
-							// latency is calculated assuming that server -> client part takes 66% of a round-trip
-							auto roundTripProbe{receiveTimestamp - sendTimestamp};
-							auto timeOffsetProbe{util::Duration{(sendTimestamp.get(util::milliseconds) - commandSTAT.getBuffer()->jiffies) * 1000}};
+							// latency is calculated assuming that latency = round trip / 2
+							auto latency{(receiveTimestamp - sendTimestamp) / 2};
+							auto timeOffset{util::Duration{(sendTimestamp.get(util::milliseconds) - commandSTAT.getBuffer()->jiffies) * 1000}};
+
+							//LOG(DEBUG) << LABELS{"proto"} << "AAA1 time=" << commandSTAT.getBuffer()->jiffies;
+							//LOG(DEBUG) << LABELS{"proto"} << "AAA1 duration=" << commandSTAT.getBuffer()->elapsedMilliseconds;
 
 							// saving probe values for further processing
-							probes.push_back(ProbeValues{roundTripProbe, timeOffsetProbe});
+							probes.push_back(ProbeValues{latency, timeOffset});
 
 							// if there is enough samples to calculate mean values
 							if (timestampCache.size() >= timestampCache.capacity())
 							{
-								// erasing the first N elements due to TCP 'slow start' (https://en.wikipedia.org/wiki/TCP_congestion_control)
+								// erasing the first 3 elements due to TCP 'slow start' (https://en.wikipedia.org/wiki/TCP_congestion_control)
 								probes.erase(probes.begin(), probes.begin() + 3);
 
 								// calculating mean probe
 								lastProbe = StreamerType::calculateMean(std::move(probes));
-								LOG(DEBUG) << LABELS{"proto"} << "Client round-trip time was calculated (client id=" << clientID << ", round-trip=" << lastProbe.value().roundTrip.count() << " microsec)";
-
-								LOG(DEBUG) << LABELS{"proto"} << "000 round trip (micro)="  << lastProbe.value().roundTrip.count();
-								LOG(DEBUG) << LABELS{"proto"} << "000 time offset (milli)=" << lastProbe.value().timeOffset.count() / 1000;
+								LOG(DEBUG) << LABELS{"proto"} << "Client latency was calculated (client id=" << clientID << ", latency=" << lastProbe.value().latency.count() << " microsec)";
 
 								// clearing the cache so it can be used for collecting new probes
 								timestampCache.clear();
 								probes.clear();
 
 								// TODO: work in progress
-								// adding round-trip and time offset values to relevant samples
-								if (roundTripDiffs.size() >= 10)
+								// adding latency and time offset values to relevant samples
+								if (latencyDiffs.size() >= 10)
 								{
-									roundTripDiffs.erase(roundTripDiffs.begin());
+									latencyDiffs.erase(latencyDiffs.begin());
 								}
-								ts::with(roundTripBase, [&](auto& roundTripBase)
+								ts::with(latencyBase, [&](auto& latencyBase)
 								{
-									roundTripDiffs.push_back(lastProbe.value().roundTrip - roundTripBase);
+									latencyDiffs.push_back(lastProbe.value().latency - latencyBase);
 								});
 								if (timeOffsetDiffs.size() >= 10)
 								{
@@ -598,44 +609,51 @@ namespace slim
 								if (std::chrono::seconds{10} < (util::Timestamp::now() - lastSyncCheckpoint))
 								{
 									calculateDrift();
+
+									LOG(DEBUG) << LABELS{"proto"} << "client duration=" << commandSTAT.getBuffer()->elapsedMilliseconds;
+
 									lastSyncCheckpoint = util::Timestamp::now();
-								}
-
-								// TODO: make it configurable
-								// TODO: make it resistant to clients 'loosing' requests
-								// submitting a new ping request if there is no other pending request
-								if (!pingTimer.has_value())
-								{
-									pingTimer = ts::ref(processorProxy.processWithDelay([&]
-									{
-										// releasing timer so a new 'delayed' request may be issued
-										pingTimer.reset();
-
-										// creating a timestamp cache entry required to allocate a key
-										ping(timestampCache.store(util::Timestamp::now()));
-									}, std::chrono::seconds{5}));
 								}
 							}
 							else
 							{
-								processorProxy.process([&]
-								{
-									// creating a timestamp cache entry required to allocate a key
-									ping(timestampCache.store(util::Timestamp::now()));
-								});
+								// creating a timestamp cache entry required to allocate a key
+								timestampKey     = timestampCache.store(util::Timestamp::now());
+								moreProbesNeeded = true;
 							}
 						}
 						else
 						{
+							moreProbesNeeded = true;
 							LOG(DEBUG) << LABELS{"proto"} << "Latency probe was skipped";
-
-							// capturing timestamp key by value
-							processorProxy.process([&, timestampKey{timestampKey}]
-							{
-								ping(timestampKey);
-							});
 						}
 					});
+
+					if (moreProbesNeeded)
+					{
+						// capturing timestamp key by value
+						processorProxy.process([&, timestampKey{timestampKey}]
+						{
+							ping(timestampKey);
+						});
+					}
+					else
+					{
+						// TODO: make it configurable
+						// TODO: make it resistant to clients 'loosing' requests
+						// submitting a new ping request if there is no other pending request
+						if (!pingTimer.has_value())
+						{
+							pingTimer = ts::ref(processorProxy.processWithDelay([&]
+							{
+								// releasing timer so a new 'delayed' request may be issued
+								pingTimer.reset();
+
+								// creating a timestamp cache entry required to allocate a key
+								ping(timestampCache.store(util::Timestamp::now()));
+							}, std::chrono::seconds{5}));
+						}
+					}
 				}
 
 				inline void onSTMu(client::CommandSTAT& commandSTAT)
@@ -692,7 +710,7 @@ namespace slim
 				{
 					ts::with(lastProbe, [&](auto& lastProbe)
 					{
-						roundTripBase  = lastProbe.roundTrip;
+						latencyBase    = lastProbe.latency;
 						timeOffsetBase = lastProbe.timeOffset;
 					});
 
@@ -724,9 +742,9 @@ namespace slim
 					timestampCache.clear();
 					probes.clear();
 					lastProbe.reset();
-					roundTripBase.reset();
+					latencyBase.reset();
 					timeOffsetBase.reset();
-					roundTripDiffs.clear();
+					latencyDiffs.clear();
 					timeOffsetDiffs.clear();
 
 					ts::with(pingTimer, [&](auto& timer)
@@ -757,9 +775,9 @@ namespace slim
 				bool                                                             measuringLatency{false};
 				std::vector<ProbeValues>                                         probes;
 				ts::optional<ProbeValues>                                        lastProbe;
-				ts::optional<util::Duration>                                     roundTripBase{ts::nullopt};
+				ts::optional<util::Duration>                                     latencyBase{ts::nullopt};
 				ts::optional<util::Duration>                                     timeOffsetBase{ts::nullopt};
-				std::vector<util::Duration>                                      roundTripDiffs;
+				std::vector<util::Duration>                                      latencyDiffs;
 				std::vector<util::Duration>                                      timeOffsetDiffs;
 				bool                                                             clientBufferIsReady{false};
 				util::Timestamp                                                  lastSyncCheckpoint;
