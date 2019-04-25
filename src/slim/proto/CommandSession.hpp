@@ -224,6 +224,9 @@ namespace slim
 								connection.get().stop();
 							});
 						}
+
+						lastChunkTimestamp      = chunk.timestamp;
+						lastChunkCapturedFrames = chunk.capturedFrames;
 					}
 				}
 
@@ -556,7 +559,7 @@ namespace slim
 						sendTimestamp = timestampCache.load(timestampKey);
 					}
 
-					// making sure it is a proper response from the client
+					// if this response was originated from a server request
 					ts::with(sendTimestamp, [&](auto& sendTimestamp)
 					{
 						// if latency measurement was not interfered by other commands then probe once again
@@ -565,9 +568,6 @@ namespace slim
 							// latency is calculated assuming that latency = round trip / 2
 							auto latency{(receiveTimestamp - sendTimestamp) / 2};
 							auto timeOffset{util::Duration{(sendTimestamp.get(util::milliseconds) - commandSTAT.getBuffer()->jiffies) * 1000}};
-
-							//LOG(DEBUG) << LABELS{"proto"} << "AAA1 time=" << commandSTAT.getBuffer()->jiffies;
-							//LOG(DEBUG) << LABELS{"proto"} << "AAA1 duration=" << commandSTAT.getBuffer()->elapsedMilliseconds;
 
 							// saving probe values for further processing
 							probes.push_back(ProbeValues{latency, timeOffset});
@@ -624,10 +624,30 @@ namespace slim
 						}
 						else
 						{
-							moreProbesNeeded = true;
 							LOG(DEBUG) << LABELS{"proto"} << "Latency probe was skipped";
+							moreProbesNeeded = true;
 						}
 					});
+
+					if (commandSTAT.getBuffer()->elapsedMilliseconds && std::chrono::seconds{20} < (util::Timestamp::now() - lastClientSyncTime))
+					{
+						lastClientSyncTime        = util::Timestamp::now();
+						lastPlaybackDuration      = commandSTAT.getBuffer()->elapsedMilliseconds;
+						measuringPlaybackDuration = true;
+					}
+					if (measuringPlaybackDuration)
+					{
+						if (lastPlaybackDuration != commandSTAT.getBuffer()->elapsedMilliseconds)
+						{
+							measuringPlaybackDuration = false;
+
+							LOG(DEBUG) << LABELS{"proto"} << "Client time=" << commandSTAT.getBuffer()->jiffies;
+							LOG(DEBUG) << LABELS{"proto"} << "Client duration=" << commandSTAT.getBuffer()->elapsedMilliseconds;
+							LOG(DEBUG) << LABELS{"proto"} << "Server time=" << lastChunkTimestamp.get(util::milliseconds);
+							LOG(DEBUG) << LABELS{"proto"} << "Server duration=" << streamer.get().calculateDuration(lastChunkCapturedFrames, util::milliseconds).count();
+						}
+						moreProbesNeeded = measuringPlaybackDuration;
+					}
 
 					if (moreProbesNeeded)
 					{
@@ -781,6 +801,12 @@ namespace slim
 				std::vector<util::Duration>                                      timeOffsetDiffs;
 				bool                                                             clientBufferIsReady{false};
 				util::Timestamp                                                  lastSyncCheckpoint;
+
+				util::Timestamp                                                  lastChunkTimestamp;
+				util::BigInteger                                                 lastChunkCapturedFrames{0};
+				bool                                                             measuringPlaybackDuration{false};
+				util::Timestamp                                                  lastClientSyncTime;
+				std::uint32_t                                                    lastPlaybackDuration{0};
 		};
 	}
 }

@@ -203,6 +203,7 @@ namespace slim
 				// if PCM data is available in the buffer
 				if (result > 0)
 				{
+					auto timestamp{util::Timestamp::now()};
 					auto offset{containsData(srcBuffer, static_cast<snd_pcm_uframes_t>(result))};
 
 					// if PCM data contains active stream
@@ -222,6 +223,10 @@ namespace slim
 							{
 								return copyData(sourcePtr + offset * bytesPerFrame, destinationPtr, static_cast<snd_pcm_uframes_t>(result - std::min(offset, result)));
 							});
+
+							capturedFrames      += chunk.getFrames();
+							chunk.timestamp      = timestamp;
+							chunk.capturedFrames = capturedFrames;
 
 							// only the first chunk in stream is marked as Beginning-Of-Stream
 							isBeginningOfStream = false;
@@ -245,6 +250,9 @@ namespace slim
 							chunk.setBitsPerSample(parameters.getBitsPerSample());
 							chunk.setEndOfStream(true);
 							chunk.clear();
+
+							chunk.timestamp      = timestamp;
+							chunk.capturedFrames = capturedFrames;
 
 							// the next chunk in stream will be marked as Beginning-Of-Stream
 							isBeginningOfStream = true;

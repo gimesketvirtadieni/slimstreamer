@@ -117,14 +117,17 @@ namespace slim
 				samplingRate = r;
 			}
 
-		protected:
+		//protected:
 			Chunk() = default;
 
-		private:
+		//private:
 			bool         endOfStream{false};
 			unsigned int samplingRate{0};
 			unsigned int channels{0};
 			unsigned int bitsPerSample{0};
 			util::Buffer buffer{0};
+
+			util::Timestamp  timestamp;
+			util::BigInteger capturedFrames{0};
 		};
 }
