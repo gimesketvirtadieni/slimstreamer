@@ -642,7 +642,6 @@ namespace slim
 							measuringPlaybackDuration = false;
 
 							auto clientTime{util::Timestamp{util::Duration{(std::uint64_t)commandSTAT.getBuffer()->jiffies * 1000}}};
-							auto clientDuration{util::Duration{(std::uint64_t)commandSTAT.getBuffer()->elapsedMilliseconds * 1000}};
 							auto timeDiff{clientTime + timeOffsetBase.value() - lastChunkTimestamp};
 							auto playbackDiff{util::Duration{(std::uint64_t)commandSTAT.getBuffer()->elapsedMilliseconds * 1000} - streamer.get().calculateDuration(lastChunkCapturedFrames, util::microseconds)};
 
