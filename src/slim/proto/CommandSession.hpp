@@ -629,7 +629,7 @@ namespace slim
 						}
 					});
 
-					if (commandSTAT.getBuffer()->elapsedMilliseconds && std::chrono::seconds{20} < (util::Timestamp::now() - lastClientSyncTime))
+					if (commandSTAT.getBuffer()->elapsedMilliseconds && std::chrono::seconds{10} < (util::Timestamp::now() - lastClientSyncTime))
 					{
 						lastClientSyncTime        = util::Timestamp::now();
 						lastPlaybackDuration      = commandSTAT.getBuffer()->elapsedMilliseconds;
@@ -641,10 +641,12 @@ namespace slim
 						{
 							measuringPlaybackDuration = false;
 
-							LOG(DEBUG) << LABELS{"proto"} << "Client time=" << commandSTAT.getBuffer()->jiffies;
-							LOG(DEBUG) << LABELS{"proto"} << "Client duration=" << commandSTAT.getBuffer()->elapsedMilliseconds;
-							LOG(DEBUG) << LABELS{"proto"} << "Server time=" << lastChunkTimestamp.get(util::milliseconds);
-							LOG(DEBUG) << LABELS{"proto"} << "Server duration=" << streamer.get().calculateDuration(lastChunkCapturedFrames, util::milliseconds).count();
+							auto clientTime{util::Timestamp{util::Duration{(std::uint64_t)commandSTAT.getBuffer()->jiffies * 1000}}};
+							auto clientDuration{util::Duration{(std::uint64_t)commandSTAT.getBuffer()->elapsedMilliseconds * 1000}};
+							auto timeDiff{clientTime + timeOffsetBase.value() - lastChunkTimestamp};
+							auto playbackDiff{util::Duration{(std::uint64_t)commandSTAT.getBuffer()->elapsedMilliseconds * 1000} - streamer.get().calculateDuration(lastChunkCapturedFrames, util::microseconds)};
+
+							LOG(DEBUG) << LABELS{"proto"} << "Playback drift=" << (timeDiff + playbackDiff).count() / 1000 << " millisec";
 						}
 						moreProbesNeeded = measuringPlaybackDuration;
 					}

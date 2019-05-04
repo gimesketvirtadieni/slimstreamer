@@ -32,7 +32,7 @@ namespace slim
 				Timestamp()
 				: timestamp{std::chrono::high_resolution_clock::now()} {}
 
-				Timestamp(const std::chrono::high_resolution_clock::time_point& t)
+				Timestamp(const util::Duration& t)
 				: timestamp{t} {}
 
 				~Timestamp() = default;
