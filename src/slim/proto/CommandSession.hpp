@@ -43,6 +43,7 @@
 #include "slim/util/ArrayCache.hpp"
 #include "slim/util/Buffer.hpp"
 #include "slim/util/Duration.hpp"
+#include "slim/util/RingBuffer.hpp"
 #include "slim/util/StateMachine.hpp"
 #include "slim/util/Timestamp.hpp"
 
@@ -642,10 +643,13 @@ namespace slim
 							measuringPlaybackDuration = false;
 
 							auto clientTime{util::Timestamp{util::Duration{(std::uint64_t)commandSTAT.getBuffer()->jiffies * 1000}}};
-							auto timeDiff{clientTime + timeOffsetBase.value() - lastChunkTimestamp};
+							auto timeDiff{clientTime + timeOffsetBase.value() - latencyBase.value() - lastChunkTimestamp};
 							auto playbackDiff{util::Duration{(std::uint64_t)commandSTAT.getBuffer()->elapsedMilliseconds * 1000} - streamer.get().calculateDuration(lastChunkCapturedFrames, util::microseconds)};
 
 							LOG(DEBUG) << LABELS{"proto"} << "Playback drift=" << (timeDiff + playbackDiff).count() / 1000 << " millisec";
+							LOG(DEBUG) << LABELS{"proto"} << "latency=" << (latencyBase.value()).count() / 1000 << " millisec";
+							LOG(DEBUG) << LABELS{"proto"} << "timeDiff=" << timeDiff.count() / 1000 << " millisec";
+							LOG(DEBUG) << LABELS{"proto"} << "PlaybackDiff=" << playbackDiff.count() / 1000 << " millisec";
 						}
 						moreProbesNeeded = measuringPlaybackDuration;
 					}
