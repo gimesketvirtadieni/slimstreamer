@@ -13,7 +13,7 @@
 #pragma once
 
 #include <cstddef>  // std::size_t
-#include <vector>
+#include <memory>
 
 
 namespace slim
@@ -24,17 +24,14 @@ namespace slim
         class RingBuffer
         {
             public:
-                using size_type = std::size_t;
-
-                typedef ElementType&       reference;
-                typedef const ElementType& const_reference;
-                typedef ElementType*       pointer;
-                typedef const ElementType* const_pointer;
+                using SizeType           = std::size_t;
+                using ReferenceType      = ElementType&;
+                using ConstReferenceType = const ElementType&;
             
                 RingBuffer() = delete;
 
-                explicit RingBuffer(size_type c)
-                : buffer{c}
+                inline explicit RingBuffer(SizeType c)
+                : bufferPtr{std::make_unique<ElementType[]>(c)}
                 , capacity{c} {}
 
 				~RingBuffer() = default;
@@ -43,58 +40,94 @@ namespace slim
 				RingBuffer(RingBuffer&&) = default;
 				RingBuffer& operator=(RingBuffer&&) = default;
 
-                const_reference operator[](size_type index) const
+                inline ConstReferenceType operator[](const SizeType& i) const
                 {
-                    static const std::out_of_range ex("index out of range");
-                    if (index < 0) throw ex;
-
-                    if (size == capacity)
-                    {
-                        if (index >= capacity) throw ex;
-                        return buffer[(front + index) % capacity];
-                    }
-                    else
-                    {
-                        if (index >= front) throw ex;
-                        return buffer[index];
-                    }
+                    return bufferPtr.get()[index(head + i)];
                 }
 
-                reference operator[](size_type index)
+                inline ReferenceType operator[](const SizeType& i)
                 {
-                    return const_cast<reference>(static_cast<const RingBuffer<ElementType>&>(*this)[index]);
+                    return bufferPtr.get()[index(head + i)];
                 }
 
-                void pushBack(ElementType item)
+                inline void clear()
                 {
-                    buffer[front++] = item;
-                    if (front == capacity)
-                    {
-                        front = 0;
-                    }
+                    size = 0;
                 }
 
-                size_type getCapacity() const
+                inline SizeType getCapacity() const
                 {
                     return capacity;
                 }
                 
-                size_type getSize() const
+                inline SizeType getSize() const
                 { 
-                    return (size == capacity ? capacity : front);
+                    return size;
                 }
 
-                bool isFull() const
+                inline bool isEmpty() const
+                {
+                    return size == 0;
+                }
+
+                inline bool isFull() const
                 {
                     return size == capacity;
                 }
 
+                inline bool popBack()
+                {
+                    auto result{false};
+
+                    if (!isEmpty())
+                    {
+                        size--;
+                        result = true;
+                    }
+
+                    return result;
+                }
+
+                inline bool popFront()
+                {
+                    auto result{popBack()};
+
+                    if (result)
+                    {
+                        head = index(head + 1);
+                    }
+
+                    return result;
+                }
+
+                inline SizeType pushBack(const ElementType& item)
+                {
+                    if (!isFull())
+                    {
+                        size++;
+                    }
+                    else
+                    {
+                        head = index(head + 1);
+                    }
+
+                    auto i{index(head + size - 1)};
+                    bufferPtr.get()[i] = item;
+
+                    return i;
+                }
+
+            protected:
+                inline SizeType index(const SizeType& value) const
+                {
+                    return value < capacity ? value : value - capacity;
+                }
+
             private:
-                std::vector<ElementType> buffer;
-                size_type                capacity{0};
-                size_type                size{0};
-                size_type                front{0};
-                size_type                back{0};
+                std::unique_ptr<ElementType[]> bufferPtr;
+                SizeType                       capacity;
+                SizeType                       size{0};
+                SizeType                       head{0};
         };
     }
 }

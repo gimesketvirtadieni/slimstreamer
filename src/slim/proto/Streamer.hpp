@@ -163,21 +163,27 @@ namespace slim
 					return result;
  				}
 
-				template <typename SortableType>
-				inline static auto calculateMean(std::vector<SortableType> samples)
+				template <template <typename> class ArrayType, typename SortableType, typename SizeType>
+				inline static auto calculateMean(const ArrayType<SortableType>& samples, const SizeType& from, const SizeType& to)
 				{
-					SortableType result{};
+					SortableType              result{};
+					std::vector<SortableType> sortableSamples{from <= to ? to - from + 1 : 0};
+
+					for (auto i{SizeType{from}}; i <= to; i++)
+					{
+						sortableSamples.push_back(samples[i]);
+					}
 
 					// sorting samples if needed
-					if (samples.size() > 1)
+					if (sortableSamples.size() > 1)
 					{
-						std::sort(samples.begin(), samples.end());
+						std::sort(sortableSamples.begin(), sortableSamples.end());
 					}
 
 					// picking mean value
-					if (!samples.empty())
+					if (!sortableSamples.empty())
 					{
-						result = samples[samples.size() >> 1];
+						result = sortableSamples[sortableSamples.size() >> 1];
 					}
 
 					return result;
