@@ -394,6 +394,35 @@ namespace slim
 					return result;
 				}
 
+				inline auto getLatencyMeanProbe()
+				{
+					auto result{ProbeValues{}};
+					auto samples{std::vector<ProbeValues>{}};
+
+					// skipping the first 3 elements while calculating 'mean probe' due to TCP 'slow start' (https://en.wikipedia.org/wiki/TCP_congestion_control)
+					for (auto i{std::size_t{3}}; i < probes.getSize(); i++)
+					{
+						if (probes[i].latency != probes[i].latency.zero())
+						{
+							samples.push_back(probes[i]);
+						}
+					}
+
+					// sorting samples if needed
+					if (samples.size() > 1)
+					{
+						std::sort(samples.begin(), samples.end());
+					}
+
+					// picking mean value
+					if (!samples.empty())
+					{
+						result = samples[samples.size() >> 1];
+					}
+
+					return result;
+				}
+
 				inline auto onDSCO(unsigned char* buffer, std::size_t size)
 				{
 					std::size_t result{0};
@@ -521,6 +550,7 @@ namespace slim
 
 					auto bufferSize{commandSTAT.getBuffer()->streamBufferSize};
 					auto fullness{commandSTAT.getBuffer()->streamBufferFullness};
+
 					LOG(DEBUG) << LABELS{"proto"}
 							<<  "bufferSize=" << bufferSize
 							<< " fullness="   << fullness << " (" << 100 * fullness / bufferSize << "%)";
@@ -530,19 +560,10 @@ namespace slim
 				{
 					auto bufferSize{commandSTAT.getBuffer()->streamBufferSize};
 					auto fullness{commandSTAT.getBuffer()->streamBufferFullness};
+
 					LOG(DEBUG) << LABELS{"proto"}
 							<<  "bufferSize=" << bufferSize
 							<< " fullness="   << fullness << " (" << 100 * fullness / bufferSize << "%)";
-
-					LOG(DEBUG) << LABELS{"proto"} << "client played=" << commandSTAT.getBuffer()->elapsedMilliseconds;
-
-					ts::with(streamingSession, [&](auto& streamingSession)
-					{
-						if (samplingRate)
-						{
-							LOG(DEBUG) << LABELS{"proto"} << "server played=" << ((streamingSession.getFramesProvided() / samplingRate) * 1000);
-						}
-					});
 				}
 
 				inline void onSTMt(client::CommandSTAT& commandSTAT, util::Timestamp receiveTimestamp)
@@ -553,8 +574,6 @@ namespace slim
 						auto  index{commandSTAT.getBuffer()->serverTimestamp - 1};
 						auto& probe{probes[index]};
 						auto  moreProbesNeeded{true};
-
-						LOG(DEBUG) << LABELS{"proto"} << "received index=" << index;
 
 						// latency is calculated assuming that it equals to network round-trip / 2
 						probe.clientTimestamp = util::Timestamp{util::Duration{((std::uint64_t)commandSTAT.getBuffer()->jiffies) * 1000}};
@@ -578,8 +597,7 @@ namespace slim
 								// if latency and time offset must be calculated
 								if (stateMachine.state != PlayingState || accurateDurationIndex.value_or(0) >= 3)
 								{
-									// skipping the first 3 elements while calculating 'mean probe' due to TCP 'slow start' (https://en.wikipedia.org/wiki/TCP_congestion_control)
-									auto meanProbe{StreamerType::calculateMean(probes, std::size_t{3}, probes.getSize() - 1)};
+									auto meanProbe{getLatencyMeanProbe()};
 									auto timeOffset{meanProbe.sendTimestamp - meanProbe.clientTimestamp};
 
 									// TODO: work in progress
@@ -591,16 +609,21 @@ namespace slim
 										auto& accurateDurationProbe{probes[accurateDurationIndex.value()]};
 
 										// calculating timing
-										auto timeDiff{accurateDurationProbe.sendTimestamp - lastChunkTimestamp};
-										auto playbackDiff{accurateDurationProbe.clientDuration - accurateDurationProbe.latency - streamer.get().calculateDuration(lastChunkCapturedFrames, util::microseconds)};
+										auto playbackDiff{std::chrono::abs(accurateDurationProbe.clientDuration + accurateDurationProbe.latency - streamer.get().calculateDuration(lastChunkCapturedFrames, util::microseconds))};
+										auto timeDiff{std::chrono::abs(accurateDurationProbe.sendTimestamp - lastChunkTimestamp)};
 
-										LOG(DEBUG) << LABELS{"proto"} << "Client timing was calculated (client id=" << clientID
-											<< ", latency=" << meanProbe.latency.count() << " microsec"
-											<< ", playback drift=" << " microsec)";
-
-										LOG(DEBUG) << LABELS{"proto"} << "Playback drift=" << (timeDiff + playbackDiff).count() / 1000 << " millisec";
-										LOG(DEBUG) << LABELS{"proto"} << "timeDiff=" << timeDiff.count() / 1000 << " millisec";
-										LOG(DEBUG) << LABELS{"proto"} << "playbackDiff=" << playbackDiff.count() / 1000 << " millisec";
+										if (playbackDriftBase.has_value())
+										{
+											auto playbackDrift{playbackDriftBase.value() - playbackDiff - timeDiff};
+											
+											LOG(DEBUG) << LABELS{"proto"} << "Client timing was calculated (client id=" << clientID
+												<< ", latency=" << meanProbe.latency.count() << " microsec"
+												<< ", playback drift=" << playbackDrift.count() << " microsec)";
+										}
+										else
+										{
+											playbackDriftBase = playbackDiff + timeDiff;
+										}
 									}
 
 									// clearing the buffer so it can be reused for collecting new probe values
@@ -619,8 +642,6 @@ namespace slim
 							{
 								// adding a new entry for ProbeValues to be collected
 								index = probes.pushBack(ProbeValues{});
-
-								LOG(DEBUG) << LABELS{"proto"} << "index added1=" << index;
 							}
 						}
 						else
@@ -649,11 +670,7 @@ namespace slim
 									pingTimer.reset();
 
 									// allocating an entry for ProbeValues to be collected
-
-									auto i{probes.pushBack(ProbeValues{})};
-									LOG(DEBUG) << LABELS{"proto"} << "index added2=" << i;
-
-									ping(i);
+									ping(probes.pushBack(ProbeValues{}));
 								}, std::chrono::seconds{5}));
 							}
 						}
@@ -712,12 +729,6 @@ namespace slim
 
 				inline void stateChangeToPlaying()
 				{
-					ts::with(lastProbe, [&](auto& lastProbe)
-					{
-						//latencyBase    = lastProbe.latency;
-						//timeOffsetBase = lastProbe.timeOffset;
-					});
-
 					send(server::CommandSTRM{CommandSelection::Unpause, streamer.get().getPlaybackStartTime() - timeOffsetBase});
 				}
 
@@ -734,16 +745,14 @@ namespace slim
 
 				inline void stateChangeToStopped()
 				{
-					samplingRate = 0;
-					measuringLatency = false;
+					samplingRate        = 0;
+					measuringLatency    = false;
 					clientBufferIsReady = false;
 
 					streamingSession.reset();
 					commandBuffer.clear();
 					probes.clear();
-					lastProbe.reset();
-					latencyDiffs.clear();
-					timeOffsetDiffs.clear();
+					playbackDriftBase.reset();
 
 					ts::with(pingTimer, [&](auto& timer)
 					{
@@ -772,20 +781,12 @@ namespace slim
 
 				// TODO: parametrize
 				util::RingBuffer<ProbeValues>                                    probes{13};
-
-				ts::optional<ProbeValues>                                        lastProbe;
 				util::Duration                                                   latencyBase;
 				util::Duration                                                   timeOffsetBase;
-				std::vector<util::Duration>                                      latencyDiffs;
-				std::vector<util::Duration>                                      timeOffsetDiffs;
+				ts::optional<util::Duration>                                     playbackDriftBase{ts::nullopt};
 				bool                                                             clientBufferIsReady{false};
-				util::Timestamp                                                  lastSyncCheckpoint;
-
 				util::Timestamp                                                  lastChunkTimestamp;
 				util::BigInteger                                                 lastChunkCapturedFrames{0};
-				bool                                                             measuringPlaybackDuration{false};
-				util::Timestamp                                                  lastClientSyncTime;
-				std::uint32_t                                                    lastPlaybackDuration{0};
 		};
 	}
 }
