@@ -239,8 +239,7 @@ namespace slim
 
 				inline auto getLatency()
 				{
-					// TODO: no need for that
-					return ts::optional<util::Duration>{latencyBase};
+					return latency;
 				}
 
 				inline auto isDraining()
@@ -260,7 +259,7 @@ namespace slim
 
 				inline auto isReadyToPlay()
 				{
-					return isReadyToPrepare() && isReadyToBuffer() && clientBufferIsReady;
+					return isReadyToPrepare() && isReadyToBuffer() && timeOffset.has_value() && clientBufferIsReady;
 				}
 
 				inline bool isRunning()
@@ -568,111 +567,107 @@ namespace slim
 
 				inline void onSTMt(client::CommandSTAT& commandSTAT, util::Timestamp receiveTimestamp)
 				{
-					// if request was originated by a server
-					if (commandSTAT.getBuffer()->serverTimestamp && commandSTAT.getBuffer()->serverTimestamp <= probes.getSize())
+					// processing guard: skipping any requests which were not originated by the server
+					if (!commandSTAT.getBuffer()->serverTimestamp || commandSTAT.getBuffer()->serverTimestamp > probes.getSize())
 					{
-						auto  index{commandSTAT.getBuffer()->serverTimestamp - 1};
-						auto& probe{probes[index]};
-						auto  moreProbesNeeded{true};
+						return;
+					}
+					
+					auto  index{commandSTAT.getBuffer()->serverTimestamp - 1};
+					auto& probe{probes[index]};
+					auto  moreProbesNeeded{true};
 
-						// latency is calculated assuming that it equals to network round-trip / 2
-						probe.clientTimestamp = util::Timestamp{util::Duration{((std::uint64_t)commandSTAT.getBuffer()->jiffies) * 1000}};
-						probe.clientDuration  = util::Duration{((std::uint64_t)commandSTAT.getBuffer()->elapsedMilliseconds) * 1000};
-						probe.latency         = (receiveTimestamp - probe.sendTimestamp) / 2;
+					// latency is calculated assuming that it equals to network round-trip / 2
+					probe.clientTimestamp = util::Timestamp{util::Duration{((std::uint64_t)commandSTAT.getBuffer()->jiffies) * 1000}};
+					probe.clientDuration  = util::Duration{((std::uint64_t)commandSTAT.getBuffer()->elapsedMilliseconds) * 1000};
+					probe.latency         = (receiveTimestamp - probe.sendTimestamp) / 2;
 
-						// if latency measurement was not interfered by other commands then probe once again
-						if (measuringLatency)
+					// if latency measurement was not interfered by other commands then probe once again
+					if (measuringLatency)
+					{
+						auto accurateDurationIndex{ts::optional<std::size_t>{ts::nullopt}};
+
+						// if there is enough samples to calculate mean values
+						if (probes.getSize() == probes.getCapacity())
 						{
-							// if there is enough samples to calculate mean values
-							if (probes.getSize() >= probes.getCapacity())
+							// checking if there is an 'accurate' client playback duration sample available
+							if (stateMachine.state == PlayingState)
 							{
-								// evaluate 'accurate' client playback duration proble only while playing
-								auto accurateDurationIndex{ts::optional<std::size_t>{ts::nullopt}};
-								if (stateMachine.state == PlayingState)
+								accurateDurationIndex = getAccurateDurationIndex();
+							}
+						}
+
+						// if required samples are available for that latency and time offset can be calculated
+						if ((stateMachine.state != PlayingState && probes.getSize() == probes.getCapacity())
+						||  (stateMachine.state == PlayingState && accurateDurationIndex.value_or(0) >= 3))
+						{
+							// adjusting latency and time offset values
+							auto meanProbe{getLatencyMeanProbe()};
+							auto meanProbeOffset{meanProbe.sendTimestamp - meanProbe.clientTimestamp};
+							timeOffset = (timeOffset.value_or(meanProbeOffset) * 8 + meanProbeOffset   * 2) / 10;
+							latency    = (latency.value_or(meanProbe.latency)  * 8 + meanProbe.latency * 2) / 10;
+
+							LOG(DEBUG) << LABELS{"proto"} << "Client latency was calculated (client id=" << clientID
+								<< ", latency=" << latency.value().count() << " microsec)";
+
+							if (accurateDurationIndex.value_or(0) >= 3)
+							{
+								// calculating timing at the point of send request event
+								auto& accurateDurationProbe{probes[accurateDurationIndex.value()]};
+								auto  playbackDiff{std::chrono::abs(accurateDurationProbe.clientDuration - accurateDurationProbe.latency - streamer.get().calculateDuration(lastChunkCapturedFrames, util::microseconds))};
+								auto  timeDiff{std::chrono::abs(accurateDurationProbe.sendTimestamp - lastChunkTimestamp)};
+
+								if (playbackDriftBase.has_value())
 								{
-									// evaluating if there is accurate client playback duration available among samples
-									accurateDurationIndex = getAccurateDurationIndex();
-								}
-
-								// if latency and time offset must be calculated
-								if (stateMachine.state != PlayingState || accurateDurationIndex.value_or(0) >= 3)
-								{
-									auto meanProbe{getLatencyMeanProbe()};
-									auto timeOffset{meanProbe.sendTimestamp - meanProbe.clientTimestamp};
-
-									// TODO: work in progress
-									latencyBase    = meanProbe.latency;
-									timeOffsetBase = timeOffset;
-
-									if (accurateDurationIndex.value_or(0) >= 3)
-									{
-										auto& accurateDurationProbe{probes[accurateDurationIndex.value()]};
-
-										// calculating timing
-										auto playbackDiff{std::chrono::abs(accurateDurationProbe.clientDuration + accurateDurationProbe.latency - streamer.get().calculateDuration(lastChunkCapturedFrames, util::microseconds))};
-										auto timeDiff{std::chrono::abs(accurateDurationProbe.sendTimestamp - lastChunkTimestamp)};
-
-										if (playbackDriftBase.has_value())
-										{
-											auto playbackDrift{playbackDriftBase.value() - playbackDiff - timeDiff};
-											
-											LOG(DEBUG) << LABELS{"proto"} << "Client timing was calculated (client id=" << clientID
-												<< ", latency=" << meanProbe.latency.count() << " microsec"
-												<< ", playback drift=" << playbackDrift.count() << " microsec)";
-										}
-										else
-										{
-											playbackDriftBase = playbackDiff + timeDiff;
-										}
-									}
-
-									// clearing the buffer so it can be reused for collecting new probe values
-									probes.clear();
-									moreProbesNeeded = false;
+									auto playbackDrift{playbackDriftBase.value() - playbackDiff - timeDiff};
+									
+									LOG(DEBUG) << LABELS{"proto"} << "Client playback drift was calculated (client id=" << clientID
+										<< ", drift=" << playbackDrift.count() << " microsec)";
 								}
 								else
 								{
-									if (stateMachine.state == PlayingState)
-									{
-										index = probes.pushBack(ProbeValues{});
-									}
+									playbackDriftBase = playbackDiff + timeDiff;
 								}
 							}
-							else
-							{
-								// adding a new entry for ProbeValues to be collected
-								index = probes.pushBack(ProbeValues{});
-							}
+
+							// clearing the buffer so it can be reused for collecting new probe values
+							probes.clear();
+							moreProbesNeeded = false;
 						}
 						else
 						{
-							LOG(DEBUG) << LABELS{"proto"} << "Latency probe was skipped";
+							// adding a new entry for ProbeValues to be collected
+							index = probes.pushBack(ProbeValues{});
 						}
+					}
+					else
+					{
+						LOG(DEBUG) << LABELS{"proto"} << "Latency probe was skipped due to interfering with other requests";
+					}
 
-						if (moreProbesNeeded)
+					if (moreProbesNeeded)
+					{
+						// capturing index by value
+						processorProxy.process([&, index{index}]
 						{
-							// capturing index by value
-							processorProxy.process([&, index{index}]
-							{
-								ping(index);
-							});
-						}
-						else
+							ping(index);
+						});
+					}
+					else
+					{
+						// TODO: make it configurable
+						// TODO: make it resistant to clients 'loosing' requests
+						// submitting a new ping request if there is no other pending request
+						if (!pingTimer.has_value())
 						{
-							// TODO: make it configurable
-							// TODO: make it resistant to clients 'loosing' requests
-							// submitting a new ping request if there is no other pending request
-							if (!pingTimer.has_value())
+							pingTimer = ts::ref(processorProxy.processWithDelay([&]
 							{
-								pingTimer = ts::ref(processorProxy.processWithDelay([&]
-								{
-									// releasing timer so a new 'delayed' request may be issued
-									pingTimer.reset();
+								// releasing timer so a new 'delayed' request may be issued
+								pingTimer.reset();
 
-									// allocating an entry for ProbeValues to be collected
-									ping(probes.pushBack(ProbeValues{}));
-								}, std::chrono::seconds{5}));
-							}
+								// allocating an entry for ProbeValues to be collected
+								ping(probes.pushBack(ProbeValues{}));
+							}, std::chrono::seconds{5}));
 						}
 					}
 				}
@@ -729,7 +724,8 @@ namespace slim
 
 				inline void stateChangeToPlaying()
 				{
-					send(server::CommandSTRM{CommandSelection::Unpause, streamer.get().getPlaybackStartTime() - timeOffsetBase});
+					// no need to account for latency here as Streamer class adds max latency per all session while evaluating playback start time
+					send(server::CommandSTRM{CommandSelection::Unpause, streamer.get().getPlaybackStartTime() - timeOffset.value_or(util::Duration{0})});
 				}
 
 				inline void stateChangeToPreparing()
@@ -740,24 +736,17 @@ namespace slim
 					// resetting reference to an old HTTP session as a new session will be created
 					streamingSession.reset();
 
+					// resetting the rest of the state
+					commandBuffer.clear();
+					playbackDriftBase.reset();
+
 					send(server::CommandSTRM{CommandSelection::Start, formatSelection, streamingPort, samplingRate, clientID});
 				}
 
 				inline void stateChangeToStopped()
 				{
-					samplingRate        = 0;
-					measuringLatency    = false;
-					clientBufferIsReady = false;
-
-					streamingSession.reset();
-					commandBuffer.clear();
-					probes.clear();
-					playbackDriftBase.reset();
-
-					ts::with(pingTimer, [&](auto& timer)
-					{
-						timer.cancel();
-					});
+					// resetting sampling rate which will be provided to prepare(...) method
+					samplingRate = 0;
 				}
 
 			private:
@@ -773,16 +762,16 @@ namespace slim
 				util::StateMachine<Event, State>                                 stateMachine;
 				unsigned int                                                     samplingRate{0};
 				ts::optional_ref<StreamingSession<ConnectionType, StreamerType>> streamingSession{ts::nullopt};
-				// TODO: parametrize
+				// TODO: parameterize
 				util::Buffer                                                     commandBuffer{2048};
 				ts::optional<client::CommandHELO>                                commandHELO{ts::nullopt};
 				ts::optional_ref<conwrap2::Timer>                                pingTimer{ts::nullopt};
 				bool                                                             measuringLatency{false};
+				ts::optional<util::Duration>                                     latency;
+				ts::optional<util::Duration>                                     timeOffset;
 
-				// TODO: parametrize
+				// TODO: parameterize
 				util::RingBuffer<ProbeValues>                                    probes{13};
-				util::Duration                                                   latencyBase;
-				util::Duration                                                   timeOffsetBase;
 				ts::optional<util::Duration>                                     playbackDriftBase{ts::nullopt};
 				bool                                                             clientBufferIsReady{false};
 				util::Timestamp                                                  lastChunkTimestamp;
