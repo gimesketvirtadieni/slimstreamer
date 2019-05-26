@@ -38,7 +38,14 @@ namespace slim
 		class Command
 		{
 			public:
-				// using Rule Of Zero
+
+				union AAA
+				{
+					std::uint8_t  ss[4];
+					std::uint32_t nn;
+				};
+
+ 				// using Rule Of Zero
 				virtual ~Command() = default;
 				Command(const Command&) = default;
 				Command& operator=(const Command&) = default;
@@ -47,6 +54,28 @@ namespace slim
 
 				virtual CommandType* getBuffer() = 0;
 				virtual std::size_t  getSize()   = 0;
+
+				template <typename BufferType>
+				inline static auto isEnoughData2(const BufferType& buffer)
+				{
+					auto result{false};
+					auto offset{typename BufferType::IndexType{4}};
+
+					// TODO: consider max length size
+					if (offset + sizeof(std::uint32_t) <= buffer.getSize())
+					{
+						AAA aaa;
+						aaa.ss[0] = buffer[offset + 0];
+						aaa.ss[1] = buffer[offset + 1];
+						aaa.ss[2] = buffer[offset + 2];
+						aaa.ss[3] = buffer[offset + 3];
+
+						// there is enough data in the buffer if provided length is less of equal of buffer size
+						result = (ntohl(aaa.nn) + offset + sizeof(std::uint32_t) <= buffer.getSize());
+					}
+
+					return result;
+				}
 
 				inline static auto isEnoughData(unsigned char* buffer, std::size_t size)
 				{

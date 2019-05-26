@@ -16,7 +16,7 @@
 #include <chrono>
 #include <conwrap2/ProcessorProxy.hpp>
 #include <conwrap2/Timer.hpp>
-#include <cstddef>  // std::size_t
+#include <cstddef>  // std::size_t, std::uint8_t
 #include <functional>
 #include <memory>
 #include <scope_guard.hpp>
@@ -42,7 +42,7 @@
 #include "slim/proto/StreamingSession.hpp"
 #include "slim/util/Buffer.hpp"
 #include "slim/util/Duration.hpp"
-#include "slim/util/RingBuffer.hpp"
+#include "slim/util/buffer/RingBuffer.hpp"
 #include "slim/util/StateMachine.hpp"
 #include "slim/util/Timestamp.hpp"
 
@@ -227,8 +227,8 @@ namespace slim
 							});
 						}
 
-						lastChunkTimestamp      = chunk.timestamp;
-						lastChunkCapturedFrames = chunk.capturedFrames;
+						lastChunkTimestamp      = chunk.getTimestamp();
+						lastChunkCapturedFrames = chunk.getCapturedFrames();
 					}
 				}
 
@@ -267,57 +267,77 @@ namespace slim
 					return stateMachine.state != StoppedState;
 				}
 
+				inline void addData(unsigned char* buffer, std::size_t size)
+				{
+					for (auto i{std::size_t{0}}; i < size; i++)
+					{
+						commandBuffer2.pushBack(buffer[i]);
+					}
+				}
+
 				inline void onRequest(unsigned char* buffer, std::size_t size, util::Timestamp timestamp)
 				{
-					if (!isRunning())
-					{
-						return;
-					}
-
 					// removing data from the buffer in case of an exception
 					::util::scope_guard_failure onException = [&]
 					{
 						commandBuffer.clear();
+						commandBuffer2.clear();
 					};
 
 					// adding data to the buffer
 					commandBuffer.addData(buffer, size);
+					addData(buffer, size);
 
+					// keep processing until there is anything to process in the buffer
 					std::size_t keySize{4};
 					std::size_t processedSize;
 					do
 					{
 						processedSize = 0;
+						auto label{ts::optional<std::string>{ts::nullopt}};
 
-						// searching for a SlimProto Command based on a label in the buffer
-						auto label{std::string{(char*)commandBuffer.getData(), commandBuffer.getDataSize() > keySize ? keySize : 0}};
-						auto found{commandHandlers.find(label)};
+						if (keySize <= commandBuffer2.getSize())
+						{
+							char labelCharacters[keySize] = {commandBuffer2[0], commandBuffer2[1], commandBuffer2[2], commandBuffer2[3]};
+							label = std::string{labelCharacters, keySize};
+						}
+
+						auto found{commandHandlers.end()};
+						ts::with(label, [&](auto& label)
+						{
+							// searching for a command handler based on provided label
+							found = commandHandlers.find(label);
+
+							// label is present in the buffer but no command handler was found
+							if (found == commandHandlers.end())
+							{
+								LOG(WARNING) << LABELS{"proto"} << "Unsupported SlimProto command received (header='" << label << "')";
+
+								commandBuffer.clear();
+								commandBuffer2.clear();
+							}
+						});
+
 						if (found != commandHandlers.end())
 						{
 							// if there is enough data to process this message
-							auto data{commandBuffer.getData()};
+							auto buffer{commandBuffer.getBuffer()};
 							auto size{commandBuffer.getDataSize()};
-							if (Command<char>::isEnoughData(data, size))
+							if (Command<char>::isEnoughData2(commandBuffer2))
 							{
 								// if this is not STAT command then reseting measuring flag
 								// TODO: consider proper usage of Command label
-								if (label.compare("STAT") != 0)
+								if (label.value().compare("STAT") != 0)
 								{
 									measuringLatency = false;
 								}
 
-								processedSize = (*found).second(data, size, timestamp);
+								processedSize = (*found).second(buffer, size, timestamp);
 
 								// removing processed data from the buffer
 								// TODO: shrinking memory means moving data towards the beginning of the buffer; RingBuffer should be used
 								shrinkBufferLeft(processedSize);
 							}
-						}
-						else if (label.length() > 0)
-						{
-							LOG(WARNING) << LABELS{"proto"} << "Unsupported SlimProto command received (header='" << label << "')";
-
-							commandBuffer.clear();
 						}
 					} while (processedSize > 0);
 				}
@@ -607,7 +627,8 @@ namespace slim
 							timeOffset = (timeOffset.value_or(meanProbeOffset) * 8 + meanProbeOffset   * 2) / 10;
 							latency    = (latency.value_or(meanProbe.latency)  * 8 + meanProbe.latency * 2) / 10;
 
-							LOG(DEBUG) << LABELS{"proto"} << "Client latency was calculated (client id=" << clientID
+							LOG(DEBUG) << LABELS{"proto"}
+								<< "Client latency was calculated (client id=" << clientID
 								<< ", latency=" << latency.value().count() << " microsec)";
 
 							if (accurateDurationIndex.value_or(0) >= 3)
@@ -718,7 +739,7 @@ namespace slim
 					else if (pos > 0)
 					{
 						commandBuffer.setDataSize(commandBuffer.getDataSize() - pos);
-						std::memcpy(commandBuffer.getData(), commandBuffer.getData() + pos, commandBuffer.getDataSize());
+						std::memcpy(commandBuffer.getBuffer(), commandBuffer.getBuffer() + pos, commandBuffer.getDataSize());
 					}
 				}
 
@@ -736,8 +757,7 @@ namespace slim
 					// resetting reference to an old HTTP session as a new session will be created
 					streamingSession.reset();
 
-					// resetting the rest of the state
-					commandBuffer.clear();
+					// resetting drift base value as it should be calculated for every new playback
 					playbackDriftBase.reset();
 
 					send(server::CommandSTRM{CommandSelection::Start, formatSelection, streamingPort, samplingRate, clientID});
@@ -764,12 +784,12 @@ namespace slim
 				ts::optional_ref<StreamingSession<ConnectionType, StreamerType>> streamingSession{ts::nullopt};
 				// TODO: parameterize
 				util::Buffer                                                     commandBuffer{2048};
+				util::RingBuffer<char>                                           commandBuffer2{2048};
 				ts::optional<client::CommandHELO>                                commandHELO{ts::nullopt};
 				ts::optional_ref<conwrap2::Timer>                                pingTimer{ts::nullopt};
 				bool                                                             measuringLatency{false};
 				ts::optional<util::Duration>                                     latency;
 				ts::optional<util::Duration>                                     timeOffset;
-
 				// TODO: parameterize
 				util::RingBuffer<ProbeValues>                                    probes{13};
 				ts::optional<util::Duration>                                     playbackDriftBase{ts::nullopt};

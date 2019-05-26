@@ -55,7 +55,7 @@ namespace slim
                         throw std::out_of_range{"Index is out of range"};
                     }
 
-                    return getData()[i];
+                    return getBuffer()[i];
                 }
 
 				inline void addData(const void* d, const size_type s)
@@ -72,7 +72,7 @@ namespace slim
                     setDataSize(0);
 				}
 
-				inline byte_type* getData() const
+				inline byte_type* getBuffer() const
                 {
                     return data.get();
                 }
@@ -103,7 +103,7 @@ namespace slim
 				inline byte_type& operator[] (size_type i) const
                 {
                     // No bounds checking is performed: https://en.cppreference.com/w/cpp/container/array/operator_at
-                    return getData()[i];
+                    return getBuffer()[i];
                 }
 
 			private:
@@ -114,7 +114,7 @@ namespace slim
 
 		inline bool operator== (const Buffer& a, const Buffer& b)
 		{
-            return a.getSize() == b.getSize() && std::memcmp (a.getData(), b.getData(), a.getSize()) == 0;
+            return a.getSize() == b.getSize() && std::memcmp (a.getBuffer(), b.getBuffer(), a.getSize()) == 0;
 		}
 
 		inline bool operator!= (const Buffer& a, const Buffer& b)

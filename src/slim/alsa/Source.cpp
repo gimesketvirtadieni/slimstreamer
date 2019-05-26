@@ -224,9 +224,9 @@ namespace slim
 								return copyData(sourcePtr + offset * bytesPerFrame, destinationPtr, static_cast<snd_pcm_uframes_t>(result - std::min(offset, result)));
 							});
 
-							capturedFrames      += chunk.getFrames();
-							chunk.timestamp      = timestamp;
-							chunk.capturedFrames = capturedFrames;
+							capturedFrames += chunk.getFrames();
+							chunk.setTimestamp(timestamp);
+							chunk.setCapturedFrames(capturedFrames);
 
 							// only the first chunk in stream is marked as Beginning-Of-Stream
 							isBeginningOfStream = false;
@@ -251,8 +251,8 @@ namespace slim
 							chunk.setEndOfStream(true);
 							chunk.clear();
 
-							chunk.timestamp      = timestamp;
-							chunk.capturedFrames = capturedFrames;
+							chunk.setTimestamp(timestamp);
+							chunk.setCapturedFrames(capturedFrames);
 
 							// the next chunk in stream will be marked as Beginning-Of-Stream
 							isBeginningOfStream = true;

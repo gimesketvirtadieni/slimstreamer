@@ -76,7 +76,7 @@ namespace slim
 							buffer = std::move(util::Buffer{data, size});
 						}
 
-						writer.get().writeAsync(buffer.getData(), buffer.getDataSize(), [c = callback, &b = buffer](auto error, auto written)
+						writer.get().writeAsync(buffer.getBuffer(), buffer.getDataSize(), [c = callback, &b = buffer](auto error, auto written)
 						{
 							// invoking callback
 							c(error, written);

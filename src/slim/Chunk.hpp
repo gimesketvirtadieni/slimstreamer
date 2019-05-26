@@ -53,7 +53,7 @@ namespace slim
 			inline void addData(FuncType func)
 			{
 				// TODO: introduce assert to make sure frames <= size / bytes per frame
-				buffer.setDataSize(func(buffer.getData(), buffer.getSize()) * channels * (bitsPerSample >> 3));
+				buffer.setDataSize(func(buffer.getBuffer(), buffer.getSize()) * channels * (bitsPerSample >> 3));
 			}
 
 			inline auto getBufferSize() const
@@ -61,14 +61,19 @@ namespace slim
 				return buffer.getSize();
 			}
 
+			inline auto getCapturedFrames() const
+			{
+				return capturedFrames;
+			}
+
 			inline auto getChannels() const
 			{
 				return channels;
 			}
 
-			inline auto* getData() const
+			inline auto* getBuffer() const
 			{
-				return buffer.getData();
+				return buffer.getBuffer();
 			}
 
 			inline std::size_t getDataSize() const
@@ -86,6 +91,11 @@ namespace slim
 				return samplingRate;
 			}
 
+			inline auto getTimestamp() const
+			{
+				return timestamp;
+			}
+
 			inline bool isEndOfStream() const
 			{
 				return endOfStream;
@@ -96,10 +106,18 @@ namespace slim
 				bitsPerSample = b;
 			}
 
-			inline void setBufferSize(std::size_t c)
+			inline void setBufferSize(std::size_t s)
 			{
-				// changing buffer size resets the whole content of this chunk, hence reseting amount of frames stored
-				buffer = std::move(util::Buffer{c});
+				if (buffer.getSize() != s)
+				{
+					// changing buffer size resets the whole content of this chunk, hence reseting amount of frames stored
+					buffer = std::move(util::Buffer{s});
+				}
+			}
+
+			inline void setCapturedFrames(util::BigInteger f)
+			{
+				capturedFrames = f;
 			}
 
 			inline void setChannels(unsigned int c)
@@ -117,16 +135,20 @@ namespace slim
 				samplingRate = r;
 			}
 
-		//protected:
+			inline void setTimestamp(util::Timestamp t)
+			{
+				timestamp = t;
+			}
+
+		protected:
 			Chunk() = default;
 
-		//private:
-			bool         endOfStream{false};
-			unsigned int samplingRate{0};
-			unsigned int channels{0};
-			unsigned int bitsPerSample{0};
-			util::Buffer buffer{0};
-
+		private:
+			bool             endOfStream{false};
+			unsigned int     samplingRate{0};
+			unsigned int     channels{0};
+			unsigned int     bitsPerSample{0};
+			util::Buffer     buffer{0};
 			util::Timestamp  timestamp;
 			util::BigInteger capturedFrames{0};
 		};
