@@ -16,7 +16,7 @@
 #include <cstring>  // memset, memcpy
 
 #include "slim/log/log.hpp"
-#include "slim/proto/Command.hpp"
+#include "slim/proto/OutboundCommand.hpp"
 #include "slim/util/Timestamp.hpp"
 
 
@@ -57,7 +57,7 @@ namespace slim
 			};
 			#pragma pack(pop)
 
-			class CommandSTRM : public Command<STRM>
+			class CommandSTRM : public OutboundCommand<STRM>
 			{
 				public:
 					// this constructor is used in case of CommandSelection::Time, CommandSelection::Stop, etc.

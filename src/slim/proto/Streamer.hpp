@@ -33,7 +33,6 @@
 #include "slim/EncoderBuilder.hpp"
 #include "slim/Exception.hpp"
 #include "slim/log/log.hpp"
-#include "slim/proto/Command.hpp"
 #include "slim/proto/CommandSession.hpp"
 #include "slim/proto/StreamingSession.hpp"
 #include "slim/util/BigInteger.hpp"

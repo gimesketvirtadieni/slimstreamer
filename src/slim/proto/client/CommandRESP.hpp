@@ -18,7 +18,7 @@
 #include <string>
 
 #include "slim/Exception.hpp"
-#include "slim/proto/Command.hpp"
+#include "slim/proto/InboundCommand.hpp"
 
 
 namespace slim
@@ -32,68 +32,18 @@ namespace slim
 			{
 				char          opcode[4];
 				std::uint32_t size;
+
+				inline void convert() {}
 			};
 			#pragma pack(pop)
 
 
-			class CommandRESP : public Command<RESP>
+			class CommandRESP : public InboundCommand<RESP>
 			{
 				public:
-					CommandRESP(unsigned char* buffer, std::size_t size)
-					{
-						// validating there is RESP label in place
-						std::string h{"RESP"};
-						std::string s{(char*)buffer, h.size()};
-						if (h.compare(s))
-						{
-							throw slim::Exception("Missing 'RESP' label in the header");
-						}
-
-						// validating provided data is sufficient for the fixed part of RESP command
-						if (size < sizeof(resp))
-						{
-							throw slim::Exception("Message is too small for the fixed part of RESP command");
-						}
-
-						// serializing fixed part of RESP command
-						memcpy(&resp, buffer, sizeof(resp));
-
-						// converting command size data
-						resp.size = ntohl(resp.size);
-
-						// TODO: work in progress
-						// validating length attribute from RESP command (last -1 accounts for tailing zero)
-						//if (resp.size > sizeof(resp) + sizeof(capabilities) - sizeof(resp.opcode) - sizeof(resp.size) - 1)
-						//{
-						//	throw slim::Exception("Length provided in RESP command is too big");
-						//}
-
-						// making sure there is enough data provided for the dynamic part of RESP command
-						if (!Command::isEnoughData(buffer, size))
-						{
-							throw slim::Exception("Message is too small for RESP command");
-						}
-					}
-
-					// using Rule Of Zero
-					virtual ~CommandRESP() = default;
-					CommandRESP(const CommandRESP&) = default;
-					CommandRESP& operator=(const CommandRESP&) = default;
-					CommandRESP(CommandRESP&& rhs) = default;
-					CommandRESP& operator=(CommandRESP&& rhs) = default;
-
-					virtual RESP* getBuffer() override
-					{
-						return &resp;
-					}
-
-					virtual std::size_t getSize() override
-					{
-						return sizeof(resp) + resp.size;
-					}
-
-				private:
-					RESP resp;
+					template<typename CommandBufferType>
+					CommandRESP(const CommandBufferType& commandBuffer)
+					: InboundCommand<RESP>{sizeof(RESP), commandBuffer, "RESP"} {}
 			};
 		}
 	}

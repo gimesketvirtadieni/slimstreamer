@@ -14,22 +14,31 @@
 
 #include <cstddef>  // std::size_t
 #include <memory>   // std::unique_ptr
-
+#include <utility>  // std::as_const
 
 namespace slim
 {
 	namespace util
 	{
-        template <typename ElementType>
-        class HeapStorage
+        class IgnoreStorageErrorsPolicy
         {
             public:
-                using CapacityType       = std::size_t;
-                using OffsetType         = std::size_t;
-                using ReferenceType      = ElementType&;
-                using ConstReferenceType = const ElementType&;
-                using PointerType        = ElementType*;
+                template<class StorageType>
+                void onOffsetOutOfBound(StorageType& storage, const typename StorageType::OffsetType& offset) const {}
+        };
 
+        template
+        <
+            typename ElementType,
+            class ErrorPolicyType
+        >
+        class HeapStorage : public ErrorPolicyType
+        {
+            public:
+                using CapacityType = std::size_t;
+                using OffsetType   = std::size_t;
+
+				HeapStorage() = default;
 				~HeapStorage() = default;
 				HeapStorage(const HeapStorage&) = delete;             // non-copyable
 				HeapStorage& operator=(const HeapStorage&) = delete;  // non-assignable
@@ -45,18 +54,31 @@ namespace slim
                     return capacity;
                 }
 
-                inline ReferenceType getElement(const OffsetType& offset)
+                inline auto* getElement(const OffsetType& offset)
                 {
-                    return bufferPtr.get()[offset];
+                    return this->getElementByOffset(offset);
                 }
 
-                inline ConstReferenceType getElement(const OffsetType& offset) const
+                inline auto* getElement(const OffsetType& offset) const
                 {
-                    return bufferPtr.get()[offset];
+                    return const_cast<HeapStorage<ElementType, ErrorPolicyType>*>(this)->getElementByOffset(offset);
                 }
 
             protected:
-                inline auto getBuffer() const
+                inline auto* getElementByOffset(const OffsetType& offset) const
+                {
+                    if (offset < capacity)
+                    {
+                        return (bufferPtr.get() + offset);
+                    }
+                    else
+                    {
+                        ErrorPolicyType::onOffsetOutOfBound(*this, offset);
+                        return (ElementType*)nullptr;
+                    }
+                }
+
+                inline auto* getBuffer() const
                 {
                     return bufferPtr.get();
                 }
@@ -66,16 +88,20 @@ namespace slim
                 std::unique_ptr<ElementType[]> bufferPtr;
         };
 
-        template <typename ElementType>
-        class ContinuousHeapStorage : public HeapStorage<ElementType>
+        template
+        <
+            typename ElementType,
+            class ErrorPolicyType
+        >
+        class ContinuousHeapStorage : public HeapStorage<ElementType, ErrorPolicyType>
         {
             public:
-                inline explicit ContinuousHeapStorage(const typename HeapStorage<ElementType>::CapacityType& s)
-                : HeapStorage<ElementType>{s} {}
+                inline explicit ContinuousHeapStorage(const typename HeapStorage<ElementType, ErrorPolicyType>::CapacityType& s)
+                : HeapStorage<ElementType, ErrorPolicyType>{s} {}
 
                 inline auto getBuffer() const
                 {
-                    return HeapStorage<ElementType>::getBuffer();
+                    return HeapStorage<ElementType, ErrorPolicyType>::getBuffer();
                 }
         };
     }

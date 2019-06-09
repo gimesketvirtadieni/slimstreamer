@@ -18,7 +18,7 @@
 #include <string>
 
 #include "slim/Exception.hpp"
-#include "slim/proto/Command.hpp"
+#include "slim/proto/InboundCommand.hpp"
 
 
 namespace slim
@@ -40,71 +40,23 @@ namespace slim
 				std::uint32_t bytesReceivedHigh;
 				std::uint32_t bytesReceivedLow;
 				char          language[2];
+
+				inline void convert()
+				{
+					wlanChannelList   = ntohs(wlanChannelList);
+					bytesReceivedHigh = ntohl(bytesReceivedHigh);
+					bytesReceivedLow  = ntohl(bytesReceivedLow);
+				}
 			};
 			#pragma pack(pop)
 
 
-			class CommandHELO : public Command<HELO>
+			class CommandHELO : public InboundCommand<HELO>
 			{
 				public:
-					CommandHELO(unsigned char* buffer, std::size_t size)
-					{
-						// validating there is HELO label in place
-						std::string h{"HELO"};
-						std::string s{(char*)buffer, h.size()};
-						if (h.compare(s))
-						{
-							throw slim::Exception("Missing 'HELO' label in the header");
-						}
-
-						// validating provided data is sufficient for the fixed part of HELO command
-						if (size < sizeof(helo))
-						{
-							throw slim::Exception("Message is too small for the fixed part of HELO command");
-						}
-
-						// serializing fixed part of HELO command
-						memcpy(&helo, buffer, sizeof(helo));
-
-						// converting command size data
-						helo.size = ntohl(helo.size);
-
-						// validating length attribute from HELO command (last -1 accounts for tailing zero)
-						if (helo.size > sizeof(helo) + sizeof(capabilities) - sizeof(helo.opcode) - sizeof(helo.size) - 1)
-						{
-							throw slim::Exception("Length provided in HELO command is too big");
-						}
-
-						// making sure there is enough data provided for the dynamic part of HELO command
-						if (!Command::isEnoughData(buffer, size))
-						{
-							throw slim::Exception("Message is too small for HELO command");
-						}
-
-						// serializing dynamic part of HELO command
-						memcpy(capabilities, buffer + sizeof(helo), helo.size + sizeof(helo.opcode) + sizeof(helo.size) - sizeof(helo));
-					}
-
-					// using Rule Of Zero
-					virtual ~CommandHELO() = default;
-					CommandHELO(const CommandHELO&) = default;
-					CommandHELO& operator=(const CommandHELO&) = default;
-					CommandHELO(CommandHELO&& rhs) = default;
-					CommandHELO& operator=(CommandHELO&& rhs) = default;
-
-					virtual HELO* getBuffer() override
-					{
-						return &helo;
-					}
-
-					virtual std::size_t getSize() override
-					{
-						return sizeof(helo) + std::strlen(capabilities);
-					}
-
-				private:
-					HELO helo;
-					char capabilities[2048]{0};
+					template<typename CommandBufferType>
+					CommandHELO(const CommandBufferType& commandBuffer)
+					: InboundCommand<HELO>{sizeof(HELO) + 2048, commandBuffer, "HELO"} {}
 			};
 		}
 	}

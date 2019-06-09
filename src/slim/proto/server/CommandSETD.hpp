@@ -15,7 +15,7 @@
 #include <cstdint>  // std::u..._t types
 #include <cstring>  // memset, memcpy
 
-#include "slim/proto/Command.hpp"
+#include "slim/proto/OutboundCommand.hpp"
 
 
 namespace slim
@@ -47,7 +47,7 @@ namespace slim
 			};
 
 
-			class CommandSETD : public Command<SETD>
+			class CommandSETD : public OutboundCommand<SETD>
 			{
 				public:
 					CommandSETD(DeviceID deviceID)

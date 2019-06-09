@@ -56,43 +56,53 @@ namespace slim
 		template<typename ConnectionType, typename StreamerType>
 		class CommandSession
 		{
-			using CommandHandlersMap = std::unordered_map<std::string, std::function<std::size_t(unsigned char*, std::size_t, util::Timestamp)>>;
-			using EventHandlersMap   = std::unordered_map<std::string, std::function<void(client::CommandSTAT&, util::Timestamp)>>;
+			protected:
+				using CommandBufferType  = util::RingBuffer<char>;
+				using CommandHandlersMap = std::unordered_map<std::string, std::function<std::size_t(util::Timestamp)>>;
+				using EventHandlersMap   = std::unordered_map<std::string, std::function<void(client::CommandSTAT&, util::Timestamp)>>;
 
-			enum Event
-			{
-				StartEvent,
-				HandshakeEvent,
-				PrepareEvent,
-				BufferEvent,
-				PlayEvent,
-				DrainEvent,
-				FlushedEvent,
-				StopEvent,
-			};
-
-			enum State
-			{
-				StartedState,
-				PreparingState,
-				BufferingState,
-				PlayingState,
-				DrainingState,
-				StoppedState,
-			};
-
-			struct ProbeValues
-			{
-				util::Timestamp sendTimestamp;
-				util::Duration  latency;
-				util::Timestamp clientTimestamp;
-				util::Duration  clientDuration;
-
-				inline auto operator<(const ProbeValues& rhs) const
+				enum Event
 				{
-					return latency < rhs.latency;
-				}
-			};
+					StartEvent,
+					HandshakeEvent,
+					PrepareEvent,
+					BufferEvent,
+					PlayEvent,
+					DrainEvent,
+					FlushedEvent,
+					StopEvent,
+				};
+
+				enum State
+				{
+					StartedState,
+					PreparingState,
+					BufferingState,
+					PlayingState,
+					DrainingState,
+					StoppedState,
+				};
+
+				struct ProbeValues
+				{
+					util::Timestamp sendTimestamp;
+					util::Duration  latency;
+					util::Timestamp clientTimestamp;
+					util::Duration  clientDuration;
+				};
+
+				class BufferErrorsPolicy
+				{
+					public:
+						template<typename BufferType>
+						void onIndexOutOfRange(BufferType& buffer, const typename BufferType::IndexType& i) const
+						{
+							LOG(DEBUG) << LABELS{"proto"}
+								<< "onIndexOutOfRange"
+								<< " buffer.getSize()=" << buffer.getSize()
+								<< " i=" << i;
+						}
+				};
 
 			public:
 				CommandSession(conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>> pp, std::reference_wrapper<ConnectionType> co, std::reference_wrapper<StreamerType> st, std::string id, unsigned int po, FormatSelection fo, ts::optional<unsigned int> ga)
@@ -105,11 +115,11 @@ namespace slim
 				, gain{ga}
 				, commandHandlers
 				{
-					{"DSCO", [&](auto* buffer, auto size, auto timestamp) {return onDSCO(buffer, size);}},
-					{"HELO", [&](auto* buffer, auto size, auto timestamp) {return onHELO(buffer, size);}},
-					{"RESP", [&](auto* buffer, auto size, auto timestamp) {return onRESP(buffer, size);}},
-					{"SETD", [&](auto* buffer, auto size, auto timestamp) {return onSETD(buffer, size);}},
-					{"STAT", [&](auto* buffer, auto size, auto timestamp) {return onSTAT(buffer, size, timestamp);}},
+					{"DSCO", [&](auto timestamp) {return onDSCO();}},
+					{"HELO", [&](auto timestamp) {return onHELO();}},
+					{"RESP", [&](auto timestamp) {return onRESP();}},
+					{"SETD", [&](auto timestamp) {return onSETD();}},
+					{"STAT", [&](auto timestamp) {return onSTAT(timestamp);}},
 				}
 				, eventHandlers
 				{
@@ -267,26 +277,28 @@ namespace slim
 					return stateMachine.state != StoppedState;
 				}
 
-				inline void addData(unsigned char* buffer, std::size_t size)
-				{
-					for (auto i{std::size_t{0}}; i < size; i++)
-					{
-						commandBuffer2.pushBack(buffer[i]);
-					}
-				}
-
 				inline void onRequest(unsigned char* buffer, std::size_t size, util::Timestamp timestamp)
 				{
 					// removing data from the buffer in case of an exception
 					::util::scope_guard_failure onException = [&]
 					{
 						commandBuffer.clear();
-						commandBuffer2.clear();
 					};
 
+					LOG(DEBUG) << LABELS{"proto"} << "HERE1";
+
 					// adding data to the buffer
-					commandBuffer.addData(buffer, size);
-					addData(buffer, size);
+					for (auto i{std::size_t{0}}; i < size; i++)
+					{
+						commandBuffer.pushBack(buffer[i]);
+					}
+
+					LOG(DEBUG) << LABELS{"proto"} << "HERE2 size=" << size;
+					LOG(DEBUG) << LABELS{"proto"} << "HERE2 commandBuffer.getSize()=" << commandBuffer.getSize();
+					LOG(DEBUG) << LABELS{"proto"} << "HERE2 " << commandBuffer[0];
+					LOG(DEBUG) << LABELS{"proto"} << "HERE2 " << commandBuffer[1];
+					LOG(DEBUG) << LABELS{"proto"} << "HERE2 " << commandBuffer[2];
+					LOG(DEBUG) << LABELS{"proto"} << "HERE2 " << commandBuffer[3];
 
 					// keep processing until there is anything to process in the buffer
 					std::size_t keySize{4};
@@ -296,9 +308,9 @@ namespace slim
 						processedSize = 0;
 						auto label{ts::optional<std::string>{ts::nullopt}};
 
-						if (keySize <= commandBuffer2.getSize())
+						if (keySize <= commandBuffer.getSize())
 						{
-							char labelCharacters[keySize] = {commandBuffer2[0], commandBuffer2[1], commandBuffer2[2], commandBuffer2[3]};
+							char labelCharacters[keySize] = {commandBuffer[0], commandBuffer[1], commandBuffer[2], commandBuffer[3]};
 							label = std::string{labelCharacters, keySize};
 						}
 
@@ -311,19 +323,16 @@ namespace slim
 							// label is present in the buffer but no command handler was found
 							if (found == commandHandlers.end())
 							{
-								LOG(WARNING) << LABELS{"proto"} << "Unsupported SlimProto command received (header='" << label << "')";
+								LOG(WARNING) << LABELS{"proto"} << "Unsupported SlimProto command received, skipping one character (header='" << label << "')";
 
-								commandBuffer.clear();
-								commandBuffer2.clear();
+								commandBuffer.popFront();
 							}
 						});
 
 						if (found != commandHandlers.end())
 						{
 							// if there is enough data to process this message
-							auto buffer{commandBuffer.getBuffer()};
-							auto size{commandBuffer.getDataSize()};
-							if (Command<char>::isEnoughData2(commandBuffer2))
+							if (InboundCommand<char>::isEnoughData(commandBuffer))
 							{
 								// if this is not STAT command then reseting measuring flag
 								// TODO: consider proper usage of Command label
@@ -332,11 +341,13 @@ namespace slim
 									measuringLatency = false;
 								}
 
-								processedSize = (*found).second(buffer, size, timestamp);
+								processedSize = (*found).second(timestamp);
 
 								// removing processed data from the buffer
-								// TODO: shrinking memory means moving data towards the beginning of the buffer; RingBuffer should be used
-								shrinkBufferLeft(processedSize);
+								for (auto i{processedSize}; i > 0; i--)
+								{
+									commandBuffer.popFront();
+								}
 							}
 						}
 					} while (processedSize > 0);
@@ -428,9 +439,12 @@ namespace slim
 					}
 
 					// sorting samples if needed
-					if (samples.size() > 1)
+					if (3 <= samples.size())
 					{
-						std::sort(samples.begin(), samples.end());
+						std::sort(samples.begin(), samples.end(), [](auto& lhs, auto& rhs)
+						{
+							return lhs.latency < rhs.latency;
+						});
 					}
 
 					// picking mean value
@@ -442,29 +456,29 @@ namespace slim
 					return result;
 				}
 
-				inline auto onDSCO(unsigned char* buffer, std::size_t size)
+				inline auto onDSCO()
 				{
 					std::size_t result{0};
 
 					LOG(INFO) << LABELS{"proto"} << "DSCO command received";
 
 					// deserializing DSCO command
-					result = client::CommandDSCO{buffer, size}.getSize();
+					result = client::CommandDSCO{commandBuffer}.getSize();
 
 					return result;
 				}
 
-				inline auto onHELO(unsigned char* buffer, std::size_t size)
+				inline auto onHELO()
 				{
 					// deserializing HELO command
-					auto h{client::CommandHELO{buffer, size}};
+					auto h{client::CommandHELO{commandBuffer}};
 					auto result{h.getSize()};
 
 					if (!commandHELO.has_value())
 					{
 						LOG(INFO) << LABELS{"proto"} << "HELO command received";
 
-						commandHELO = h;
+						commandHELO = std::move(h);
 
 						send(server::CommandSETD{server::DeviceID::RequestName});
 						send(server::CommandSETD{server::DeviceID::Squeezebox3});
@@ -502,36 +516,36 @@ namespace slim
 					return result;
 				}
 
-				inline auto onRESP(unsigned char* buffer, std::size_t size)
+				inline auto onRESP()
 				{
 					std::size_t result{0};
 
 					LOG(INFO) << LABELS{"proto"} << "RESP command received";
 
 					// deserializing RESP command
-					result = client::CommandRESP{buffer, size}.getSize();
+					result = client::CommandRESP{commandBuffer}.getSize();
 
 					return result;
 				}
 
-				inline auto onSETD(unsigned char* buffer, std::size_t size)
+				inline auto onSETD()
 				{
 					std::size_t result{0};
 
 					LOG(INFO) << LABELS{"proto"} << "SETD command received";
 
 					// deserializing SETD command
-					result = client::CommandSETD{buffer, size}.getSize();
+					result = client::CommandSETD{commandBuffer}.getSize();
 
 					return result;
 				}
 
-				inline auto onSTAT(unsigned char* buffer, std::size_t size, util::Timestamp receiveTimestamp)
+				inline auto onSTAT(util::Timestamp receiveTimestamp)
 				{
-					client::CommandSTAT commandSTAT{buffer, size};
+					client::CommandSTAT commandSTAT{commandBuffer};
 					std::size_t         result{commandSTAT.getSize()};
 
-					auto event{commandSTAT.getEvent()};
+					auto event{std::string{commandSTAT.getData()->event, 4}};
 					auto found{eventHandlers.find(event)};
 					if (found != eventHandlers.end())
 					{
@@ -567,8 +581,8 @@ namespace slim
 				{
 					clientBufferIsReady = true;
 
-					auto bufferSize{commandSTAT.getBuffer()->streamBufferSize};
-					auto fullness{commandSTAT.getBuffer()->streamBufferFullness};
+					auto bufferSize{commandSTAT.getData()->streamBufferSize};
+					auto fullness{commandSTAT.getData()->streamBufferFullness};
 
 					LOG(DEBUG) << LABELS{"proto"}
 							<<  "bufferSize=" << bufferSize
@@ -577,8 +591,8 @@ namespace slim
 
 				inline void onSTMs(client::CommandSTAT& commandSTAT)
 				{
-					auto bufferSize{commandSTAT.getBuffer()->streamBufferSize};
-					auto fullness{commandSTAT.getBuffer()->streamBufferFullness};
+					auto bufferSize{commandSTAT.getData()->streamBufferSize};
+					auto fullness{commandSTAT.getData()->streamBufferFullness};
 
 					LOG(DEBUG) << LABELS{"proto"}
 							<<  "bufferSize=" << bufferSize
@@ -588,18 +602,18 @@ namespace slim
 				inline void onSTMt(client::CommandSTAT& commandSTAT, util::Timestamp receiveTimestamp)
 				{
 					// processing guard: skipping any requests which were not originated by the server
-					if (!commandSTAT.getBuffer()->serverTimestamp || commandSTAT.getBuffer()->serverTimestamp > probes.getSize())
+					if (!commandSTAT.getData()->serverTimestamp || commandSTAT.getData()->serverTimestamp > probes.getSize())
 					{
 						return;
 					}
 					
-					auto  index{commandSTAT.getBuffer()->serverTimestamp - 1};
+					auto  index{commandSTAT.getData()->serverTimestamp - 1};
 					auto& probe{probes[index]};
 					auto  moreProbesNeeded{true};
 
 					// latency is calculated assuming that it equals to network round-trip / 2
-					probe.clientTimestamp = util::Timestamp{util::Duration{((std::uint64_t)commandSTAT.getBuffer()->jiffies) * 1000}};
-					probe.clientDuration  = util::Duration{((std::uint64_t)commandSTAT.getBuffer()->elapsedMilliseconds) * 1000};
+					probe.clientTimestamp = util::Timestamp{util::Duration{((std::uint64_t)commandSTAT.getData()->jiffies) * 1000}};
+					probe.clientDuration  = util::Duration{((std::uint64_t)commandSTAT.getData()->elapsedMilliseconds) * 1000};
 					probe.latency         = (receiveTimestamp - probe.sendTimestamp) / 2;
 
 					// if latency measurement was not interfered by other commands then probe once again
@@ -642,7 +656,8 @@ namespace slim
 								{
 									auto playbackDrift{playbackDriftBase.value() - playbackDiff - timeDiff};
 									
-									LOG(DEBUG) << LABELS{"proto"} << "Client playback drift was calculated (client id=" << clientID
+									LOG(DEBUG) << LABELS{"proto"}
+										<< "Client playback drift was calculated (client id=" << clientID
 										<< ", drift=" << playbackDrift.count() << " microsec)";
 								}
 								else
@@ -730,19 +745,6 @@ namespace slim
 					connection.get().write(command.getBuffer(), command.getSize());
 				}
 
-				inline void shrinkBufferLeft(std::size_t pos)
-				{
-					if (pos >= commandBuffer.getDataSize())
-					{
-						commandBuffer.clear();
-					}
-					else if (pos > 0)
-					{
-						commandBuffer.setDataSize(commandBuffer.getDataSize() - pos);
-						std::memcpy(commandBuffer.getBuffer(), commandBuffer.getBuffer() + pos, commandBuffer.getDataSize());
-					}
-				}
-
 				inline void stateChangeToPlaying()
 				{
 					// no need to account for latency here as Streamer class adds max latency per all session while evaluating playback start time
@@ -783,8 +785,7 @@ namespace slim
 				unsigned int                                                     samplingRate{0};
 				ts::optional_ref<StreamingSession<ConnectionType, StreamerType>> streamingSession{ts::nullopt};
 				// TODO: parameterize
-				util::Buffer                                                     commandBuffer{2048};
-				util::RingBuffer<char>                                           commandBuffer2{2048};
+				util::RingBuffer<char, BufferErrorsPolicy>                       commandBuffer{2048};
 				ts::optional<client::CommandHELO>                                commandHELO{ts::nullopt};
 				ts::optional_ref<conwrap2::Timer>                                pingTimer{ts::nullopt};
 				bool                                                             measuringLatency{false};

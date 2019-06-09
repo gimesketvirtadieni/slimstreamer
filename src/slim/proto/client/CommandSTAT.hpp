@@ -16,7 +16,7 @@
 #include <cstdint>  // std::u..._t types
 #include <string>
 
-#include "slim/proto/Command.hpp"
+#include "slim/proto/InboundCommand.hpp"
 
 
 namespace slim
@@ -47,74 +47,33 @@ namespace slim
 				std::uint32_t elapsedMilliseconds;
 				std::uint32_t serverTimestamp;
 				std::uint16_t errorCode;
+
+				inline void convert()
+				{
+					streamBufferSize     = ntohl(streamBufferSize);
+					streamBufferFullness = ntohl(streamBufferFullness);
+					bytesReceived1       = ntohl(bytesReceived1);
+					bytesReceived2       = ntohl(bytesReceived2);
+					signalStrength       = ntohs(signalStrength);
+					jiffies              = ntohl(jiffies);
+					outputBufferSize     = ntohl(outputBufferSize);
+					outputBufferFullness = ntohl(outputBufferFullness);
+					elapsedSeconds       = ntohl(elapsedSeconds);
+					voltage              = ntohs(voltage);
+					elapsedMilliseconds  = ntohl(elapsedMilliseconds);
+					serverTimestamp      = ntohl(serverTimestamp);
+					errorCode            = ntohs(errorCode);
+				}
 			};
 			#pragma pack(pop)
 
 
-			class CommandSTAT : public Command<STAT>
+			class CommandSTAT : public InboundCommand<STAT>
 			{
 				public:
-					CommandSTAT(unsigned char* buffer, std::size_t size)
-					{
-						std::string h{"STAT"};
-						std::string s{(char*)buffer, h.size()};
-						if (h.compare(s))
-						{
-							throw slim::Exception("Missing 'STAT' label in the header");
-						}
-
-						// copying buffer content
-						if (size < sizeof(STAT))
-						{
-							throw slim::Exception("Message is too small");
-						}
-						memcpy(&stat, buffer, sizeof(STAT));
-
-						// converting command size data
-						stat.size = ntohl(stat.size);
-
-						// validating length attribute from STAT command
-						if (stat.size > sizeof(stat) - sizeof(stat.opcode) - sizeof(stat.size))
-						{
-							throw slim::Exception("Length provided in STAT command is too big");
-						}
-
-						// converting used fields
-						stat.streamBufferSize     = ntohl(stat.streamBufferSize);
-						stat.streamBufferFullness = ntohl(stat.streamBufferFullness);
-						stat.jiffies              = ntohl(stat.jiffies);
-						stat.elapsedMilliseconds  = ntohl(stat.elapsedMilliseconds);
-					}
-
-					// using Rule Of Zero
-					virtual ~CommandSTAT() = default;
-					CommandSTAT(const CommandSTAT&) = default;
-					CommandSTAT& operator=(const CommandSTAT&) = default;
-					CommandSTAT(CommandSTAT&& rhs) = default;
-					CommandSTAT& operator=(CommandSTAT&& rhs) = default;
-
-					virtual STAT* getBuffer() override
-					{
-						return &stat;
-					}
-
-					inline auto getElapsed()
-					{
-						return stat.elapsedMilliseconds;
-					}
-
-					inline auto getEvent()
-					{
-						return std::string{stat.event, sizeof(stat.event)};
-					}
-
-					virtual std::size_t getSize() override
-					{
-						return sizeof(STAT);
-					}
-
-				private:
-					STAT stat;
+					template<typename CommandBufferType>
+					CommandSTAT(const CommandBufferType& commandBuffer)
+					: InboundCommand<STAT>{sizeof(STAT), commandBuffer, "STAT"} {}
 			};
 		}
 	}

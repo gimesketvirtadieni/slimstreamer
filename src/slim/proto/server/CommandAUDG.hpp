@@ -16,7 +16,7 @@
 #include <cstring>  // memset, memcpy
 #include <type_safe/optional.hpp>
 
-#include "slim/proto/Command.hpp"
+#include "slim/proto/OutboundCommand.hpp"
 
 
 namespace slim
@@ -51,7 +51,7 @@ namespace slim
 			#pragma pack(pop)
 
 
-			class CommandAUDG : public Command<AUDG>
+			class CommandAUDG : public OutboundCommand<AUDG>
 			{
 				public:
 					CommandAUDG(ts::optional<unsigned int> gain = ts::nullopt)

@@ -15,7 +15,7 @@
 #include <cstdint>  // std::u..._t types
 #include <cstring>  // memset, memcpy
 
-#include "slim/proto/Command.hpp"
+#include "slim/proto/OutboundCommand.hpp"
 
 
 namespace slim
@@ -41,7 +41,7 @@ namespace slim
 			#pragma pack(pop)
 
 
-			class CommandAUDE : public Command<AUDE>
+			class CommandAUDE : public OutboundCommand<AUDE>
 			{
 				public:
 					CommandAUDE(bool spdif, bool dac)

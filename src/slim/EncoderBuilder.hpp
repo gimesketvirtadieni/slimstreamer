@@ -20,7 +20,7 @@
 
 #include "slim/EncoderBase.hpp"
 #include "slim/Exception.hpp"
-#include "slim/proto/Command.hpp"
+#include "slim/proto/OutboundCommand.hpp"
 
 
 namespace slim

@@ -22,12 +22,12 @@ namespace slim
         template
         <
             typename ElementType,
-            template <typename> class StorageType
+            template <typename, class> class StorageType = HeapStorage
         >
         class RawBufferAccessPolicy
         {
             public:
-                inline explicit RawBufferAccessPolicy(StorageType<ElementType>& s)
+                inline explicit RawBufferAccessPolicy(StorageType<ElementType, IgnoreStorageErrorsPolicy>& s)
                 : storage{s} {}
 
                 inline auto getSize() const
@@ -36,30 +36,30 @@ namespace slim
                 }
 
             protected:
-                StorageType<ElementType>& storage;
+                StorageType<ElementType, IgnoreStorageErrorsPolicy>& storage;
         };
 
         template
         <
-            typename ElementType = std::uint8_t,
-            template <typename> class StorageType = ContinuousHeapStorage,
-            template <typename, template <typename> class> class BufferAccessPolicyType = RawBufferAccessPolicy
+            typename ElementType,
+            template <typename, class> class StorageType = ContinuousHeapStorage,
+            template <typename, template <typename, class> class> class BufferAccessPolicyType = RawBufferAccessPolicy
         >
-        class RawBuffer : protected StorageType<ElementType>, public BufferAccessPolicyType<ElementType, StorageType>
+        class RawBuffer : public StorageType<ElementType, IgnoreStorageErrorsPolicy>, public BufferAccessPolicyType<ElementType, StorageType>
         {
             public:
-                inline explicit RawBuffer(const typename StorageType<ElementType>::CapacityType& c)
-                : StorageType<ElementType>{c}
-                , BufferAccessPolicyType<ElementType, StorageType>{(StorageType<ElementType>&)*this} {}
+                inline explicit RawBuffer(const typename StorageType<ElementType, IgnoreStorageErrorsPolicy>::CapacityType& c)
+                : StorageType<ElementType, IgnoreStorageErrorsPolicy>{c}
+                , BufferAccessPolicyType<ElementType, StorageType>{(StorageType<ElementType, IgnoreStorageErrorsPolicy>&)*this} {}
 
                 inline auto getCapacity() const
                 {
-                    return StorageType<ElementType>::getCapacity();
+                    return StorageType<ElementType, IgnoreStorageErrorsPolicy>::getCapacity();
                 }
 
-                inline auto getBuffer() const
+                inline auto* getBuffer() const
                 {
-                    return StorageType<ElementType>::getBuffer();
+                    return StorageType<ElementType, IgnoreStorageErrorsPolicy>::getBuffer();
                 }
         };
     }

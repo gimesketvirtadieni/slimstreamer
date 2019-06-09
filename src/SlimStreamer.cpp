@@ -44,7 +44,7 @@
 #include "slim/log/ConsoleSink.hpp"
 #include "slim/log/log.hpp"
 #include "slim/Multiplexor.hpp"
-#include "slim/proto/Command.hpp"
+#include "slim/proto/OutboundCommand.hpp"
 #include "slim/proto/Streamer.hpp"
 #include "slim/Scheduler.hpp"
 #include "slim/util/StreamAsyncWriter.hpp"

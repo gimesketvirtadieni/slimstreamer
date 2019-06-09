@@ -18,7 +18,8 @@
 #include <string>
 
 #include "slim/Exception.hpp"
-#include "slim/proto/Command.hpp"
+#include "slim/proto/InboundCommand.hpp"
+#include "slim/util/buffer/RingBuffer.hpp"
 
 
 namespace slim
@@ -33,67 +34,18 @@ namespace slim
 				char          opcode[4];
 				std::uint32_t size;
 				std::uint8_t  reason;
+
+				inline void convert() {}
 			};
 			#pragma pack(pop)
 
 
-			class CommandDSCO : public Command<DSCO>
+			class CommandDSCO : public InboundCommand<DSCO>
 			{
 				public:
-					CommandDSCO(unsigned char* buffer, std::size_t size)
-					{
-						// validating there is DSCO label in place
-						std::string h{"DSCO"};
-						std::string s{(char*)buffer, h.size()};
-						if (h.compare(s))
-						{
-							throw slim::Exception("Missing 'DSCO' label in the header");
-						}
-
-						// validating provided data is sufficient for the fixed part of DSCO command
-						if (size < sizeof(dsco))
-						{
-							throw slim::Exception("Message is too small for DSCO command");
-						}
-
-						// serializing fixed part of DSCO command
-						memcpy(&dsco, buffer, sizeof(dsco));
-
-						// converting command size data
-						dsco.size = ntohl(dsco.size);
-
-						// validating length attribute from DSCO command
-						if (dsco.size > sizeof(dsco) - sizeof(dsco.opcode) - sizeof(dsco.size))
-						{
-							throw slim::Exception("Length provided in DSCO command is too big");
-						}
-
-						// making sure there is enough data provided for the dynamic part of DSCO command
-						if (!Command::isEnoughData(buffer, size))
-						{
-							throw slim::Exception("Message is too small for DSCO command");
-						}
-					}
-
-					// using Rule Of Zero
-					virtual ~CommandDSCO() = default;
-					CommandDSCO(const CommandDSCO&) = default;
-					CommandDSCO& operator=(const CommandDSCO&) = default;
-					CommandDSCO(CommandDSCO&& rhs) = default;
-					CommandDSCO& operator=(CommandDSCO&& rhs) = default;
-
-					virtual DSCO* getBuffer() override
-					{
-						return &dsco;
-					}
-
-					virtual std::size_t getSize() override
-					{
-						return sizeof(DSCO);
-					}
-
-				private:
-					DSCO dsco;
+					template<typename CommandBufferType>
+					CommandDSCO(const CommandBufferType& commandBuffer)
+					: InboundCommand<DSCO>{sizeof(DSCO), commandBuffer, "DSCO"} {}
 			};
 		}
 	}
