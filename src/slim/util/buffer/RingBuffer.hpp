@@ -12,6 +12,8 @@
 
 #pragma once
 
+#include <utility>  // std::as_const
+
 #include "slim/util/buffer/ArrayBuffer.hpp"
 
 
@@ -25,7 +27,7 @@ namespace slim
             class ErrorPolicyType = IgnoreArrayErrorsPolicy,
             template <typename, class> class StorageType = HeapStorage
         >
-        class RingBufferAccessPolicy : public ArrayAccessPolicy<ElementType, ErrorPolicyType, StorageType>
+        class RingBufferAccessPolicy : protected ArrayAccessPolicy<ElementType, ErrorPolicyType, StorageType>
         {
             public:
                 using SizeType  = typename ArrayAccessPolicy<ElementType, ErrorPolicyType, StorageType>::SizeType;
@@ -34,59 +36,44 @@ namespace slim
                 inline explicit RingBufferAccessPolicy(StorageType<ElementType, IgnoreStorageErrorsPolicy>& s)
                 : ArrayAccessPolicy<ElementType, ErrorPolicyType, StorageType>{s} {}
 
-                inline auto& operator[](const IndexType& i)
-                {
-                    return *(const_cast<ElementType*>(static_cast<const RingBufferAccessPolicy<ElementType, ErrorPolicyType, StorageType>&>(*this).getElementByIndex(normalizeIndex(firstOccupied + i), getSize())));
-                }
-
                 inline auto& operator[](const IndexType& i) const
                 {
-                    return *this->getElementByIndex(normalizeIndex(firstOccupied + i), getSize());
+                    return *this->getElementByIndex(getAbsoluteIndex(i), this->isIndexOutOfRange(i, getSize()));
+                }
+
+                inline auto& operator[](const IndexType& i)
+                {
+                    return const_cast<ElementType&>(*std::as_const(*this).getElementByIndex(getAbsoluteIndex(i), this->isIndexOutOfRange(i, getSize())));
                 }
 
                 inline void clear()
                 {
-                    empty = true;
-                    firstOccupied = firstVacant = 0;
+                    size = 0;
                 }
 
                 inline SizeType getSize() const
                 {
-                    if (!empty)
-                    {
-                        LOG(DEBUG) << LABELS{"proto"} << "HERE 21"
-                            << " getSize="       << (firstOccupied < firstVacant ? 0 : this->storage.getCapacity()) + firstVacant - firstOccupied
-                            << " firstVacant="   << firstVacant
-                            << " firstOccupied=" << firstOccupied;
-
-                        // adding capacity is needed to make sure that index of first vacant element is always greater than index first occupied element
-                        return (firstOccupied < firstVacant ? 0 : this->storage.getCapacity()) + firstVacant - firstOccupied;
-                    }
-                    else
-                    {
-                        return 0;
-                    }
+                    return size;
                 }
 
                 inline auto isEmpty() const
                 {
-                    return empty;
+                    return size == 0;
                 }
 
                 inline auto isFull() const
                 {
-                    return !empty && firstOccupied == firstVacant;
+                    return size == this->storage.getCapacity();
                 }
 
                 inline auto popBack()
                 {
                     auto result{false};
 
-                    if (!empty)
+                    if (0 < size)
                     {
-                        firstVacant = normalizeIndex(firstVacant - 1);
-                        empty       = (firstOccupied == firstVacant);
-                        result      = true;
+                        size--;
+                        result = true;
                     }
 
                     return result;
@@ -96,11 +83,11 @@ namespace slim
                 {
                     auto result{false};
 
-                    if (!empty)
+                    if (0 < size)
                     {
-                        firstOccupied = normalizeIndex(firstOccupied + 1);
-                        empty         = (firstOccupied == firstVacant);
-                        result        = true;
+                        size--;
+                        head   = normalizeIndex(++head);
+                        result = true;
                     }
 
                     return result;
@@ -109,23 +96,17 @@ namespace slim
                 inline auto pushFront(const ElementType& item)
                 {
                     auto result{false};
-                    auto f{normalizeIndex(firstOccupied - 1)};
 
-                    if (!empty)
+                    head = (0 < head ? head : *this->storage.getCapacity()) - 1;
+                    if (!isFull())
                     {
-                        if (f == firstVacant)
-                        {
-                            result      = true;
-                            firstVacant = normalizeIndex(firstVacant - 1);
-                        }
+                        size++;
                     }
                     else
                     {
-                        empty = false;
+                        result = true;
                     }
-
-                    *this->storage.getElement(firstOccupied) = item;
-                    firstOccupied                            = f;
+                    *this->storage.getElement(head) = item;
 
                     return result;
                 }
@@ -133,38 +114,35 @@ namespace slim
                 inline auto pushBack(const ElementType& item)
                 {
                     auto result{false};
-                    auto f{normalizeIndex(firstVacant + 1)};
 
-                    if (!empty)
+                    if (!isFull())
                     {
-                        // if wrap around
-                        if (f == firstOccupied)
-                        {
-                            result        = true;
-                            firstOccupied = normalizeIndex(firstOccupied + 1);
-                        }
+                        size++;
                     }
                     else
                     {
-                        empty = false;
+                        head   = normalizeIndex(head + 1);
+                        result = true;
                     }
-
-                    *this->storage.getElement(firstVacant) = item;
-                    firstVacant                            = f;
+                    *this->storage.getElement(normalizeIndex(head + size - 1)) = item;
 
                     return result;
                 }
 
             protected:
-                inline auto normalizeIndex(const typename ArrayAccessPolicy<ElementType, ErrorPolicyType, StorageType>::SizeType& i) const
+                inline auto getAbsoluteIndex(const IndexType& i) const
                 {
-                    return i < this->storage.getCapacity() ? i : i - this->storage.getCapacity();
+                    return i < this->storage.getCapacity() ? normalizeIndex(head + i) : i;
+                }
+
+                inline auto normalizeIndex(const IndexType& i) const
+                {
+                    return i >= this->storage.getCapacity() ? i - this->storage.getCapacity() : i;
                 }
 
             private:
-                bool      empty{true};
-                IndexType firstOccupied{0};
-                IndexType firstVacant{0};
+                IndexType head{0};
+                SizeType  size{0};
         };
 
         template

@@ -45,12 +45,12 @@ namespace slim
 
                 inline auto& operator[](const typename ArrayAccessPolicy<ElementType, ErrorPolicyType, StorageType>::IndexType& i)
                 {
-                    return *(const_cast<ElementType*>(static_cast<const ArrayAccessPolicy<ElementType, ErrorPolicyType, StorageType>&>(*this).getElementByIndex(i, getSize())));
+                    return *(const_cast<ElementType*>(static_cast<const ArrayAccessPolicy<ElementType, ErrorPolicyType, StorageType>&>(*this).getElementByIndex(i, isIndexOutOfRange(i, getSize()))));
                 }
 
                 inline auto& operator[](const typename ArrayAccessPolicy<ElementType, ErrorPolicyType, StorageType>::IndexType& i) const
                 {
-                    return *this->getElementByIndex(i, getSize());
+                    return *this->getElementByIndex(i, isIndexOutOfRange(i, getSize()));
                 }
 
                 inline auto getSize() const
@@ -59,29 +59,34 @@ namespace slim
                 }
 
             protected:
-                inline auto* getElementByIndex(const IndexType& i, const SizeType& size) const
+                inline auto* getElementByIndex(const IndexType& i, bool indexOutOfRange) const
                 {
-                    auto indexOutOfRange{false};
-
-                    if constexpr(std::is_signed<IndexType>::value)
-                    {
-                        if (i < 0)
-                        {
-                            indexOutOfRange = true;
-                        }
-                    }
-
-                    if (!indexOutOfRange && i >= size)
-                    {
-                        indexOutOfRange = true;
-                    }
-
                     if (indexOutOfRange)
                     {
                         ErrorPolicyType::onIndexOutOfRange(*this, i);
                     }
 
                     return storage.getElement(i);
+                }
+
+                inline auto isIndexOutOfRange(const IndexType& i, const SizeType& size) const
+                {
+                    auto result{false};
+
+                    if constexpr(std::is_signed<IndexType>::value)
+                    {
+                        if (i < 0)
+                        {
+                            result = true;
+                        }
+                    }
+
+                    if (!result)
+                    {
+                        result = (i >= size);
+                    }
+
+                    return result;
                 }
 
                 StorageType<ElementType, IgnoreStorageErrorsPolicy>& storage;

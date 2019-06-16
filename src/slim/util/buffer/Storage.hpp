@@ -14,7 +14,6 @@
 
 #include <cstddef>  // std::size_t
 #include <memory>   // std::unique_ptr
-#include <utility>  // std::as_const
 
 namespace slim
 {

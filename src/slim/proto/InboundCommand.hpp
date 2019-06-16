@@ -35,7 +35,8 @@ namespace slim
 			public:
 				template<typename CommandBufferType>
 				InboundCommand(const BufferType::CapacityType& bufferSize, const CommandBufferType& commandBuffer, const std::string& label)
-				: buffer{bufferSize}
+				// TODO: buffer size must be calculated based on size provided in the command
+				: buffer{commandBuffer.getSize()}
 				{
 					// validating provided data is sufficient for the fixed part of the command
 					if (sizeof(CommandType) > commandBuffer.getSize())
@@ -63,7 +64,7 @@ namespace slim
 
 					// validating length attribute from the command (last byte accounts for tailing zero)
 					auto messageSize{commandPtr->size + sizeof(commandPtr->opcode) + sizeof(commandPtr->size)};
-					if (messageSize >= buffer.getSize())
+					if (messageSize > buffer.getSize())
 					{
 						throw slim::Exception("Length provided in CommandType command is too big");
 					}
@@ -73,7 +74,6 @@ namespace slim
 					{
 						buffer.getBuffer()[i] = commandBuffer[i];
 					}
-					buffer.getBuffer()[messageSize] = 0;
 
 					// validating there is command label present
 					std::string s{commandPtr->opcode, sizeof(commandPtr->opcode)};
@@ -99,7 +99,8 @@ namespace slim
 
 				auto getSize()
 				{
-					return getData()->size;
+					// TODO: refactor
+					return getData()->size + sizeof(SizeElement) + 4;
 				}
 
 				template <typename BufferType>
@@ -108,37 +109,22 @@ namespace slim
 					auto result{false};
 
 					// TODO: consider max length size
-					auto indexOffset{typename BufferType::IndexType{4}};
-					if (indexOffset + sizeof(SizeElement) <= buffer.getSize())
+					auto labelOffset{typename BufferType::IndexType{4}};
+					if (labelOffset + sizeof(SizeElement) <= buffer.getSize())
 					{
 						SizeElement sizeElement;
-						for (auto i{indexOffset}; i < sizeof(SizeElement); i++)
+						for (auto i{std::size_t{0}}; i < sizeof(SizeElement); i++)
 						{
-							sizeElement.array[i] = buffer[i];
+							sizeElement.array[i] = buffer[i + labelOffset];
 						}
 
 						// there is enough data in the buffer if provided length is less of equal to the buffer size
-						result = (indexOffset + sizeof(SizeElement) + ntohl(sizeElement.size) <= buffer.getSize());
+						result = (labelOffset + sizeof(sizeElement.size) + ntohl(sizeElement.size) <= buffer.getSize());
 					}
 
 					return result;
 				}
-/*
-				inline static auto isEnoughData(unsigned char* buffer, std::size_t size)
-				{
-					auto        result{false};
-					std::size_t offset{4};
 
-					// TODO: consider max length size
-					if (size >= offset + sizeof(std::uint32_t))
-					{
-						std::uint32_t length{ntohl(*(std::uint32_t*)(buffer + offset))};
-						result = (size >= (length + offset + sizeof(std::uint32_t)));
-					}
-
-					return result;
-				}
-*/
 			protected:
 				InboundCommand() = default;
 

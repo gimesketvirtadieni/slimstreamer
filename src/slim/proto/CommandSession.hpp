@@ -285,20 +285,11 @@ namespace slim
 						commandBuffer.clear();
 					};
 
-					LOG(DEBUG) << LABELS{"proto"} << "HERE1";
-
 					// adding data to the buffer
 					for (auto i{std::size_t{0}}; i < size; i++)
 					{
 						commandBuffer.pushBack(buffer[i]);
 					}
-
-					LOG(DEBUG) << LABELS{"proto"} << "HERE2 size=" << size;
-					LOG(DEBUG) << LABELS{"proto"} << "HERE2 commandBuffer.getSize()=" << commandBuffer.getSize();
-					LOG(DEBUG) << LABELS{"proto"} << "HERE2 " << commandBuffer[0];
-					LOG(DEBUG) << LABELS{"proto"} << "HERE2 " << commandBuffer[1];
-					LOG(DEBUG) << LABELS{"proto"} << "HERE2 " << commandBuffer[2];
-					LOG(DEBUG) << LABELS{"proto"} << "HERE2 " << commandBuffer[3];
 
 					// keep processing until there is anything to process in the buffer
 					std::size_t keySize{4};
@@ -310,7 +301,7 @@ namespace slim
 
 						if (keySize <= commandBuffer.getSize())
 						{
-							char labelCharacters[keySize] = {commandBuffer[0], commandBuffer[1], commandBuffer[2], commandBuffer[3]};
+							char labelCharacters[keySize] = {(char)commandBuffer[0], (char)commandBuffer[1], (char)commandBuffer[2], (char)commandBuffer[3]};
 							label = std::string{labelCharacters, keySize};
 						}
 
@@ -341,10 +332,11 @@ namespace slim
 									measuringLatency = false;
 								}
 
+								// processing data
 								processedSize = (*found).second(timestamp);
 
 								// removing processed data from the buffer
-								for (auto i{processedSize}; i > 0; i--)
+								for (auto i{std::size_t{0}}; i < processedSize; i++)
 								{
 									commandBuffer.popFront();
 								}
@@ -785,7 +777,7 @@ namespace slim
 				unsigned int                                                     samplingRate{0};
 				ts::optional_ref<StreamingSession<ConnectionType, StreamerType>> streamingSession{ts::nullopt};
 				// TODO: parameterize
-				util::RingBuffer<char, BufferErrorsPolicy>                       commandBuffer{2048};
+				util::RingBuffer<std::uint8_t, BufferErrorsPolicy>               commandBuffer{2048};
 				ts::optional<client::CommandHELO>                                commandHELO{ts::nullopt};
 				ts::optional_ref<conwrap2::Timer>                                pingTimer{ts::nullopt};
 				bool                                                             measuringLatency{false};
