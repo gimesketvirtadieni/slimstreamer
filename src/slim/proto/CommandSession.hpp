@@ -368,7 +368,7 @@ namespace slim
 
 				inline void start()
 				{
-					// changing state to Running if needed
+					// changing state to Started if needed
 					stateMachine.processEvent(StartEvent, [&](auto event, auto state)
 					{
 						LOG(WARNING) << LABELS{"proto"} << "Invalid SlimProto session state while processing Start event - closing the connection";
@@ -486,11 +486,12 @@ namespace slim
 								pingTimer.reset();
 
 								// allocating an entry for ProbeValues to be collected
-								ping(probes.pushBack(ProbeValues{}));
+								probes.pushBack(ProbeValues{});
+								ping(probes.getSize() - 1);
 							}, std::chrono::seconds{1}));
 						}
 
-						// sending SlimProto Stop command, which will flush client's buffer and will respond with initiate STAT/STMf message, which will change state to Running
+						// sending SlimProto Stop command, which will flush client's buffer and will respond with initiate STAT/STMf message, which will change state to Started
 						send(server::CommandSTRM{CommandSelection::Stop});
 
 						// changing state to Draining
@@ -534,11 +535,12 @@ namespace slim
 
 				inline auto onSTAT(util::Timestamp receiveTimestamp)
 				{
-					client::CommandSTAT commandSTAT{commandBuffer};
-					std::size_t         result{commandSTAT.getSize()};
+					auto commandSTAT{client::CommandSTAT{commandBuffer}};
+					auto result{commandSTAT.getSize()};
 
 					auto event{std::string{commandSTAT.getData()->event, 4}};
 					auto found{eventHandlers.find(event)};
+
 					if (found != eventHandlers.end())
 					{
 						// if this is not STMt event then reseting measuring flag
@@ -562,7 +564,7 @@ namespace slim
 
 				inline void onSTMf(client::CommandSTAT& commandSTAT)
 				{
-					// change state to Running
+					// change state to Started
 					stateMachine.processEvent(FlushedEvent, [&](auto event, auto state)
 					{
 						LOG(WARNING) << LABELS{"proto"} << "Invalid SlimProto session state while processing Flushed event";
@@ -598,7 +600,7 @@ namespace slim
 					{
 						return;
 					}
-					
+
 					auto  index{commandSTAT.getData()->serverTimestamp - 1};
 					auto& probe{probes[index]};
 					auto  moreProbesNeeded{true};
@@ -665,7 +667,8 @@ namespace slim
 						else
 						{
 							// adding a new entry for ProbeValues to be collected
-							index = probes.pushBack(ProbeValues{});
+							probes.pushBack(ProbeValues{});
+							index = probes.getSize() - 1;
 						}
 					}
 					else
@@ -694,7 +697,8 @@ namespace slim
 								pingTimer.reset();
 
 								// allocating an entry for ProbeValues to be collected
-								ping(probes.pushBack(ProbeValues{}));
+								probes.pushBack(ProbeValues{});
+								ping(probes.getSize() - 1);
 							}, std::chrono::seconds{5}));
 						}
 					}

@@ -61,7 +61,6 @@ namespace slim
 					elapsedSeconds       = ntohl(elapsedSeconds);
 					voltage              = ntohs(voltage);
 					elapsedMilliseconds  = ntohl(elapsedMilliseconds);
-					serverTimestamp      = ntohl(serverTimestamp);
 					errorCode            = ntohs(errorCode);
 				}
 			};
