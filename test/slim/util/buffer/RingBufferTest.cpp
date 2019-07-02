@@ -8,8 +8,17 @@
 #include "slim/util/buffer/RingBuffer.hpp"
 
 
-// keeping 
+// keeping it outside of the RingBufferErrorsPolicyTest so onIndexOutOfRange can be const
 unsigned int onIndexOutOfRangeCounter{0};
+
+struct RingBufferErrorsPolicyTest
+{
+	template<typename BufferType>
+	void onIndexOutOfRange(BufferType& buffer, const typename BufferType::IndexType& i) const
+	{
+		onIndexOutOfRangeCounter++;
+	}
+};
 
 struct RingBufferErrorsPolicyTest
 {
@@ -68,8 +77,8 @@ TEST(RingBuffer, PopFront1)
 	std::size_t capacity{3};
 	slim::util::RingBuffer<int, RingBufferErrorsPolicyTest> ringBuffer{capacity};
 
-	ringBuffer.pushBack(1);
-	auto result{ringBuffer.popFront()};
+	ringBuffer.addBack(1);
+	auto result{ringBuffer.shrinkFront()};
 
 	EXPECT_TRUE(result);
 	validateState(ringBuffer, capacity, {});
@@ -80,7 +89,7 @@ TEST(RingBuffer, PopFront2)
 	std::size_t capacity{1};
 	slim::util::RingBuffer<int, RingBufferErrorsPolicyTest> ringBuffer{capacity};
 
-	auto result{ringBuffer.popFront()};
+	auto result{ringBuffer.shrinkFront()};
 
 	EXPECT_FALSE(result);
 	validateState(ringBuffer, capacity, {});
@@ -92,7 +101,7 @@ TEST(RingBuffer, PushBack1)
 	samples.push_back(1);
 	slim::util::RingBuffer<int, RingBufferErrorsPolicyTest> ringBuffer{samples.size()};
 
-	auto result{ringBuffer.pushBack(samples[0])};
+	auto result{ringBuffer.addBack(samples[0])};
 
 	EXPECT_FALSE(result);
 	validateState(ringBuffer, samples.size(), samples);
@@ -112,16 +121,16 @@ TEST(RingBuffer, PushBack2)
 		{
 			for (unsigned i{0}; i < samples.size(); i++)
 			{
-				EXPECT_FALSE(ringBuffer.pushBack(samples[i]));
+				EXPECT_FALSE(ringBuffer.addBack(samples[i]));
 			}
 			validateState(ringBuffer, samples.size(), samples);
 
-			EXPECT_TRUE(ringBuffer.pushBack(++counter));
+			EXPECT_TRUE(ringBuffer.addBack(++counter));
 			EXPECT_EQ(ringBuffer[ringBuffer.getSize() - 1], counter);
 
 			for (unsigned i{0}; i < samples.size(); i++)
 			{
-				EXPECT_TRUE(ringBuffer.popFront());
+				EXPECT_TRUE(ringBuffer.shrinkFront());
 			}
 			validateState(ringBuffer, samples.size(), std::vector<int>{});
 		}

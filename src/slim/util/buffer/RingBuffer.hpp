@@ -66,7 +66,7 @@ namespace slim
                     return size == this->storage.getCapacity();
                 }
 
-                inline auto popBack()
+                inline auto shrinkBack()
                 {
                     auto result{false};
 
@@ -79,7 +79,7 @@ namespace slim
                     return result;
                 }
 
-                inline auto popFront()
+                inline auto shrinkFront()
                 {
                     auto result{false};
 
@@ -93,40 +93,31 @@ namespace slim
                     return result;
                 }
 
-                inline auto pushFront(const ElementType& item)
+                inline auto addFront(const ElementType& item)
                 {
-                    auto result{false};
-
                     head = (0 < head ? head : *this->storage.getCapacity()) - 1;
                     if (!isFull())
                     {
                         size++;
                     }
-                    else
-                    {
-                        result = true;
-                    }
                     *this->storage.getElement(head) = item;
 
-                    return result;
+                    return IndexType{size - 1};
                 }
 
-                inline auto pushBack(const ElementType& item)
+                inline auto addBack(const ElementType& item)
                 {
-                    auto result{false};
-
                     if (!isFull())
                     {
                         size++;
                     }
                     else
                     {
-                        head   = normalizeIndex(head + 1);
-                        result = true;
+                        head = normalizeIndex(head + 1);
                     }
                     *this->storage.getElement(normalizeIndex(head + size - 1)) = item;
 
-                    return result;
+                    return IndexType{size - 1};
                 }
 
             protected:

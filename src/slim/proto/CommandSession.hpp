@@ -288,7 +288,7 @@ namespace slim
 					// adding data to the buffer
 					for (auto i{std::size_t{0}}; i < size; i++)
 					{
-						commandBuffer.pushBack(buffer[i]);
+						commandBuffer.addBack(buffer[i]);
 					}
 
 					// keep processing until there is anything to process in the buffer
@@ -316,7 +316,7 @@ namespace slim
 							{
 								LOG(WARNING) << LABELS{"proto"} << "Unsupported SlimProto command received, skipping one character (header='" << label << "')";
 
-								commandBuffer.popFront();
+								commandBuffer.shrinkFront();
 							}
 						});
 
@@ -338,7 +338,7 @@ namespace slim
 								// removing processed data from the buffer
 								for (auto i{std::size_t{0}}; i < processedSize; i++)
 								{
-									commandBuffer.popFront();
+									commandBuffer.shrinkFront();
 								}
 							}
 						}
@@ -486,8 +486,7 @@ namespace slim
 								pingTimer.reset();
 
 								// allocating an entry for ProbeValues to be collected
-								probes.pushBack(ProbeValues{});
-								ping(probes.getSize() - 1);
+								ping(probes.addBack(ProbeValues{}));
 							}, std::chrono::seconds{1}));
 						}
 
@@ -635,8 +634,8 @@ namespace slim
 							timeOffset = (timeOffset.value_or(meanProbeOffset) * 8 + meanProbeOffset   * 2) / 10;
 							latency    = (latency.value_or(meanProbe.latency)  * 8 + meanProbe.latency * 2) / 10;
 
-							LOG(DEBUG) << LABELS{"proto"}
-								<< "Client latency was calculated (client id=" << clientID
+							LOG(DEBUG) << LABELS{"proto"} << "Client latency was calculated"
+								<< " (client id=" << clientID
 								<< ", latency=" << latency.value().count() << " microsec)";
 
 							if (accurateDurationIndex.value_or(0) >= 3)
@@ -660,15 +659,14 @@ namespace slim
 								}
 							}
 
-							// clearing the buffer so it can be reused for collecting new probe values
+							// clearing the buffer so samples from previous probing do not impact the result
 							probes.clear();
 							moreProbesNeeded = false;
 						}
 						else
 						{
 							// adding a new entry for ProbeValues to be collected
-							probes.pushBack(ProbeValues{});
-							index = probes.getSize() - 1;
+							index = probes.addBack(ProbeValues{});
 						}
 					}
 					else
@@ -697,8 +695,7 @@ namespace slim
 								pingTimer.reset();
 
 								// allocating an entry for ProbeValues to be collected
-								probes.pushBack(ProbeValues{});
-								ping(probes.getSize() - 1);
+								ping(probes.addBack(ProbeValues{}));
 							}, std::chrono::seconds{5}));
 						}
 					}
