@@ -3,5 +3,6 @@ syntax: glob
 Debug/
 Release/
 Test/
+build/
 *.wav
 
