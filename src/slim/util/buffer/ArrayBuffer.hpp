@@ -28,27 +28,30 @@ namespace slim
                 void onIndexOutOfRange(BufferType& buffer, const typename BufferType::IndexType& i) const {}
         };
 
+        template<typename ElementType>
+        using DefaultStorage = HeapStorage<ElementType, IgnoreStorageErrorsPolicy>;
+
         template
         <
             typename ElementType,
-            class ErrorPolicyType = IgnoreArrayErrorsPolicy,
-            template <typename, class> class StorageType = HeapStorage
+            class BufferErrorsPolicyType = IgnoreArrayErrorsPolicy,
+            template <typename> class StorageType = DefaultStorage
         >
-        class ArrayAccessPolicy : public ErrorPolicyType
+        class ArrayAccessPolicy : public BufferErrorsPolicyType
         {
             public:
-                using SizeType  = typename StorageType<ElementType, IgnoreStorageErrorsPolicy>::CapacityType;
-                using IndexType = typename StorageType<ElementType, IgnoreStorageErrorsPolicy>::OffsetType;
+                using SizeType  = typename StorageType<ElementType>::CapacityType;
+                using IndexType = typename StorageType<ElementType>::OffsetType;
 
-                inline explicit ArrayAccessPolicy(StorageType<ElementType, IgnoreStorageErrorsPolicy>& s)
+                inline explicit ArrayAccessPolicy(StorageType<ElementType>& s)
                 : storage{s} {}
 
-                inline auto& operator[](const typename ArrayAccessPolicy<ElementType, ErrorPolicyType, StorageType>::IndexType& i)
+                inline auto& operator[](const typename ArrayAccessPolicy<ElementType, BufferErrorsPolicyType, StorageType>::IndexType& i)
                 {
-                    return *(const_cast<ElementType*>(static_cast<const ArrayAccessPolicy<ElementType, ErrorPolicyType, StorageType>&>(*this).getElementByIndex(i, isIndexOutOfRange(i, getSize()))));
+                    return *(const_cast<ElementType*>(static_cast<const ArrayAccessPolicy<ElementType, BufferErrorsPolicyType, StorageType>&>(*this).getElementByIndex(i, isIndexOutOfRange(i, getSize()))));
                 }
 
-                inline auto& operator[](const typename ArrayAccessPolicy<ElementType, ErrorPolicyType, StorageType>::IndexType& i) const
+                inline auto& operator[](const typename ArrayAccessPolicy<ElementType, BufferErrorsPolicyType, StorageType>::IndexType& i) const
                 {
                     return *this->getElementByIndex(i, isIndexOutOfRange(i, getSize()));
                 }
@@ -61,12 +64,15 @@ namespace slim
             protected:
                 inline auto* getElementByIndex(const IndexType& i, bool indexOutOfRange) const
                 {
-                    if (indexOutOfRange)
+                    if (!indexOutOfRange)
                     {
-                        ErrorPolicyType::onIndexOutOfRange(*this, i);
+                        return storage.getElement(i);
                     }
-
-                    return storage.getElement(i);
+                    else
+                    {
+                        BufferErrorsPolicyType::onIndexOutOfRange(*this, i);
+                        return (ElementType*)nullptr;
+                    }
                 }
 
                 inline auto isIndexOutOfRange(const IndexType& i, const SizeType& size) const
@@ -89,22 +95,22 @@ namespace slim
                     return result;
                 }
 
-                StorageType<ElementType, IgnoreStorageErrorsPolicy>& storage;
+                StorageType<ElementType>& storage;
         };
 
         template
         <
             typename ElementType,
-            class ErrorPolicyType = IgnoreArrayErrorsPolicy,
-            template <typename, class> class StorageType = HeapStorage,
-            template <typename, class, template <typename, class> class> class BufferAccessPolicyType = ArrayAccessPolicy
+            class BufferErrorsPolicyType = IgnoreArrayErrorsPolicy,
+            template <typename> class StorageType = DefaultStorage,
+            template <typename, class, template <typename> class> class BufferAccessPolicyType = ArrayAccessPolicy
         >
-        class ArrayBuffer : protected StorageType<ElementType, IgnoreStorageErrorsPolicy>, public BufferAccessPolicyType<ElementType, ErrorPolicyType, StorageType>
+        class ArrayBuffer : protected StorageType<ElementType>, public BufferAccessPolicyType<ElementType, BufferErrorsPolicyType, StorageType>
         {
             public:
-                inline explicit ArrayBuffer(const typename StorageType<ElementType, IgnoreStorageErrorsPolicy>::CapacityType& c)
-                : StorageType<ElementType, IgnoreStorageErrorsPolicy>{c}
-                , BufferAccessPolicyType<ElementType, ErrorPolicyType, StorageType>{(StorageType<ElementType, IgnoreStorageErrorsPolicy>&)*this} {}
+                inline explicit ArrayBuffer(const typename StorageType<ElementType>::CapacityType& c)
+                : StorageType<ElementType>{c}
+                , BufferAccessPolicyType<ElementType, BufferErrorsPolicyType, StorageType>{(StorageType<ElementType>&)*this} {}
         };
     }
 }
