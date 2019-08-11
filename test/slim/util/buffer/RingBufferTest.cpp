@@ -8,10 +8,11 @@
 #include "slim/util/buffer/RingBuffer.hpp"
 
 
-// keeping it outside of the RingBufferErrorsPolicyTest so onIndexOutOfRange can be const
+// keeping counters outside of the errors policies so that methods can be const
+unsigned int onOffsetOutOfBoundCounter{0};
 unsigned int onIndexOutOfRangeCounter{0};
 
-struct RingBufferErrorsPolicyTest
+struct BufferErrorsPolicyTest
 {
 	template<typename BufferType>
 	void onIndexOutOfRange(BufferType& buffer, const typename BufferType::IndexType& i) const
@@ -20,17 +21,30 @@ struct RingBufferErrorsPolicyTest
 	}
 };
 
-struct RingBufferErrorsPolicyTest
+struct StorageErrorsPolicyTest
 {
-	template<typename BufferType>
-	void onIndexOutOfRange(BufferType& buffer, const typename BufferType::IndexType& i) const
+	template<class StorageType>
+	void onOffsetOutOfBound(StorageType& storage, const typename StorageType::OffsetType& offset) const
 	{
-		onIndexOutOfRangeCounter++;
+		onOffsetOutOfBoundCounter++;
 	}
 };
+
+template<typename ElementType>
+using DefaultStorageTest = slim::util::HeapStorage<ElementType, StorageErrorsPolicyTest>;
+
+template
+<
+	typename ElementType,
+	class BufferErrorsPolicyType = BufferErrorsPolicyTest,
+	template <typename> class StorageType = DefaultStorageTest,
+	template <typename, class, template <typename> class> class BufferAccessPolicyType = slim::util::RingBufferAccessPolicy
+>
+using RingBufferTest = slim::util::RingBuffer<ElementType, BufferErrorsPolicyType, StorageType, BufferAccessPolicyType>;
+
 
 template<typename RingBufferType>
-void validateState(RingBufferType& ringBuffer, const std::size_t& capacity, const std::vector<int>& samples)
+void validateState(RingBufferType& ringBuffer, const std::size_t& capacity, const std::vector<int>& samples, unsigned int t1, unsigned int t2)
 {
 	EXPECT_EQ(ringBuffer.getCapacity(), capacity);
 	EXPECT_EQ(ringBuffer.getSize(), samples.size());
@@ -58,81 +72,102 @@ void validateState(RingBufferType& ringBuffer, const std::size_t& capacity, cons
 		EXPECT_TRUE(ringBuffer.isFull());
 	}
 
-	auto t{onIndexOutOfRangeCounter + 1};
-	ringBuffer[capacity];
-	EXPECT_EQ(onIndexOutOfRangeCounter, t);
+	EXPECT_EQ(onIndexOutOfRangeCounter, t1);
+	EXPECT_EQ(onOffsetOutOfBoundCounter, t2);
 }
 
 TEST(RingBuffer, Constructor1)
 {
+	auto t1{onIndexOutOfRangeCounter};
+	auto t2{onOffsetOutOfBoundCounter};
 	std::size_t capacity{3};
 
-	slim::util::RingBuffer<int, RingBufferErrorsPolicyTest> ringBuffer{capacity};
+	RingBufferTest<int> ringBuffer{capacity};
 
-	validateState(ringBuffer, capacity, {});
+	validateState(ringBuffer, capacity, {}, t1, t2);
 }
 
 TEST(RingBuffer, PopFront1)
 {
+	auto t1{onIndexOutOfRangeCounter};
+	auto t2{onOffsetOutOfBoundCounter};
 	std::size_t capacity{3};
-	slim::util::RingBuffer<int, RingBufferErrorsPolicyTest> ringBuffer{capacity};
+	RingBufferTest<int> ringBuffer{capacity};
 
 	ringBuffer.addBack(1);
 	auto result{ringBuffer.shrinkFront()};
 
 	EXPECT_TRUE(result);
-	validateState(ringBuffer, capacity, {});
+	validateState(ringBuffer, capacity, {}, t1, t2);
 }
 
 TEST(RingBuffer, PopFront2)
 {
+	auto t1{onIndexOutOfRangeCounter};
+	auto t2{onOffsetOutOfBoundCounter};
 	std::size_t capacity{1};
-	slim::util::RingBuffer<int, RingBufferErrorsPolicyTest> ringBuffer{capacity};
+	RingBufferTest<int> ringBuffer{capacity};
 
 	auto result{ringBuffer.shrinkFront()};
 
 	EXPECT_FALSE(result);
-	validateState(ringBuffer, capacity, {});
+	validateState(ringBuffer, capacity, {}, t1, t2);
 }
 
 TEST(RingBuffer, PushBack1)
 {
+	auto t1{onIndexOutOfRangeCounter};
+	auto t2{onOffsetOutOfBoundCounter};
 	std::vector<int> samples;
 	samples.push_back(1);
-	slim::util::RingBuffer<int, RingBufferErrorsPolicyTest> ringBuffer{samples.size()};
+	RingBufferTest<int> ringBuffer{samples.size()};
 
 	auto result{ringBuffer.addBack(samples[0])};
 
-	EXPECT_FALSE(result);
-	validateState(ringBuffer, samples.size(), samples);
+	EXPECT_EQ(0, result);
+	validateState(ringBuffer, samples.size(), samples, t1, t2);
 }
 
 TEST(RingBuffer, PushBack2)
 {
-	long counter{0};
+	auto t1{onIndexOutOfRangeCounter};
+	auto t2{onOffsetOutOfBoundCounter};
+	auto counter{0ul};
 	std::vector<int> samples;
 
-	for (unsigned s{0}; s < 100; s++)
+	// preparing sample data
+	for (auto i{0u}; i < 10; i++)
 	{
 		samples.push_back(++counter);
-
-		slim::util::RingBuffer<int, RingBufferErrorsPolicyTest> ringBuffer{samples.size()};
-		for (unsigned j{0}; j <= ringBuffer.getCapacity(); j++)
-		{
-			for (unsigned i{0}; i < samples.size(); i++)
-			{
-				EXPECT_FALSE(ringBuffer.addBack(samples[i]));
-			}
-			validateState(ringBuffer, samples.size(), samples);
-
-			EXPECT_TRUE(ringBuffer.addBack(++counter));
-			EXPECT_EQ(ringBuffer[ringBuffer.getSize() - 1], counter);
-
-			for (unsigned i{0}; i < samples.size(); i++)
-			{
-				EXPECT_TRUE(ringBuffer.shrinkFront());
-			}
-			validateState(ringBuffer, samples.size(), std::vector<int>{});
-		}
 	}
+
+	// storing sample data in a ring buffer and validating its content
+	RingBufferTest<int> ringBuffer{samples.size()};
+	for (auto i{0u}; i < ringBuffer.getCapacity(); i++)
+	{
+		EXPECT_EQ(i, ringBuffer.addBack(samples[i]));
+	}
+	validateState(ringBuffer, samples.size(), samples, t1, t2);
+
+	// validating ring buffer 'shifts' as expected
+	EXPECT_EQ(samples.size() - 1, ringBuffer.addBack(++counter));
+	EXPECT_EQ(counter, ringBuffer[samples.size() - 1]);
 }
+
+// TODO: this should be part of ArrayBufferTest
+/*
+TEST(RingBuffer, IndexOutOfRange)
+{
+	auto t1{onIndexOutOfRangeCounter};
+	auto t2{onOffsetOutOfBoundCounter};
+	
+	RingBufferTest<int> ringBuffer{1};
+	EXPECT_EQ(0, ringBuffer.addBack(1));
+
+	// accessing the second element which is out of range
+	ringBuffer[1];
+
+	EXPECT_EQ(onIndexOutOfRangeCounter, t1 + 1);
+	EXPECT_EQ(onOffsetOutOfBoundCounter, t2);
+}
+*/

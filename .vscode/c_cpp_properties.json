@@ -13,7 +13,8 @@
                 "${workspaceFolder}/dependencies/type_safe/external/debug_assert",
                 "${workspaceFolder}/dependencies/networking-ts-impl/include",
                 "${workspaceFolder}/dependencies/googletest/googlemock/include",
-                "${workspaceFolder}/dependencies/googletest/googletest/include"
+                "${workspaceFolder}/dependencies/googletest/googletest/include",
+                "${workspaceFolder}/build/dependencies/g3log/include"
             ],
             "defines": [
                 "_DEBUG",
