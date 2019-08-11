@@ -91,19 +91,6 @@ namespace slim
 					util::Duration  clientDuration;
 				};
 
-				class BufferErrorsPolicy
-				{
-					public:
-						template<typename BufferType>
-						void onIndexOutOfRange(BufferType& buffer, const typename BufferType::IndexType& i) const
-						{
-							LOG(DEBUG) << LABELS{"proto"}
-								<< "onIndexOutOfRange"
-								<< " buffer.getSize()=" << buffer.getSize()
-								<< " i=" << i;
-						}
-				};
-
 			public:
 				CommandSession(conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>> pp, std::reference_wrapper<ConnectionType> co, std::reference_wrapper<StreamerType> st, std::string id, unsigned int po, FormatSelection fo, ts::optional<unsigned int> ga)
 				: processorProxy{pp}
@@ -778,7 +765,7 @@ namespace slim
 				unsigned int                                                     samplingRate{0};
 				ts::optional_ref<StreamingSession<ConnectionType, StreamerType>> streamingSession{ts::nullopt};
 				// TODO: parameterize
-				util::RingBuffer<std::uint8_t, BufferErrorsPolicy>               commandBuffer{2048};
+				util::RingBuffer<std::uint8_t>                                   commandBuffer{2048};
 				ts::optional<client::CommandHELO>                                commandHELO{ts::nullopt};
 				ts::optional_ref<conwrap2::Timer>                                pingTimer{ts::nullopt};
 				bool                                                             measuringLatency{false};
