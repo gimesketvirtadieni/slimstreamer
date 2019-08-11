@@ -236,6 +236,10 @@ int main(int argc, char *argv[])
 	g3::only_change_at_initialization::addLogLevel(ERROR);
     logWorkerPtr->addSink(std::make_unique<ConsoleSink>(), &ConsoleSink::print);
 
+	// this flag is used to wait for streamer to stop
+	// it is updated by the processor's thread so it has to be in a 'outer' scope so that it can 'out-live' the processor
+	auto schedulerRunning{true};
+
     try
 	{
 		// defining supported options
@@ -415,13 +419,14 @@ int main(int argc, char *argv[])
 			});
 
 			// waiting for stop to complete
-			for (auto running{true}; running;)
+			while (schedulerRunning)
 			{
-				std::this_thread::sleep_for(std::chrono::milliseconds{500});
+				// TODO: processWithDelay should be used instead, however memory sanitizer claims a problem
+				std::this_thread::sleep_for(std::chrono::milliseconds{50});
 
 				processor.process([&](auto& context)
 				{
-					running = context.getResource()->isSchedulerRunning();
+					schedulerRunning = context.getResource()->isSchedulerRunning();
 				});
 			}
 			LOG(INFO) << "SlimStreamer was stopped";
