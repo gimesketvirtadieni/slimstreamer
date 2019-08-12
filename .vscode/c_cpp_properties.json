@@ -14,7 +14,8 @@
                 "${workspaceFolder}/dependencies/networking-ts-impl/include",
                 "${workspaceFolder}/dependencies/googletest/googlemock/include",
                 "${workspaceFolder}/dependencies/googletest/googletest/include",
-                "${workspaceFolder}/build/dependencies/g3log/include"
+                "${workspaceFolder}/build/dependencies/g3log/include",
+                "${workspaceFolder}/test"
             ],
             "defines": [
                 "_DEBUG",

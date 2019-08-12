@@ -17,6 +17,11 @@ set_target_properties(
         FOLDER test
 )
 
+target_include_directories(
+    SlimStreamerTest
+    PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
 target_link_libraries(
     SlimStreamerTest
     SlimStreamerLib
