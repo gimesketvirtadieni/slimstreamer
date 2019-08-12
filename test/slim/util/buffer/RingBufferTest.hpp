@@ -1,9 +1,5 @@
-
-#include <cstddef>  // std::size_t
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
-#include <iostream>
-#include <vector>
 
 #include "slim/util/buffer/RingBuffer.hpp"
 

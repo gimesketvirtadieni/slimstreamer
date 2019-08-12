@@ -1,8 +1,3 @@
-
-#include <cstddef>  // std::size_t
-#include <gmock/gmock.h>
-#include <gtest/gtest.h>
-#include <iostream>
 #include <vector>
 
 #include "slim/util/buffer/RingBufferTest.hpp"
@@ -118,21 +113,3 @@ TEST(RingBuffer, PushBack2)
 	EXPECT_EQ(samples.size() - 1, ringBuffer.addBack(++counter));
 	EXPECT_EQ(counter, ringBuffer[samples.size() - 1]);
 }
-
-// TODO: this should be part of ArrayBufferTest
-/*
-TEST(RingBuffer, IndexOutOfRange)
-{
-	auto t1{onIndexOutOfRangeCounter};
-	auto t2{onOffsetOutOfBoundCounter};
-	
-	RingBufferTest<int> ringBuffer{1};
-	EXPECT_EQ(0, ringBuffer.addBack(1));
-
-	// accessing the second element which is out of range
-	ringBuffer[1];
-
-	EXPECT_EQ(onIndexOutOfRangeCounter, t1 + 1);
-	EXPECT_EQ(onOffsetOutOfBoundCounter, t2);
-}
-*/
