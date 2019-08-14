@@ -37,21 +37,21 @@ namespace slim
             class BufferErrorsPolicyType = IgnoreArrayErrorsPolicy,
             template <typename> class StorageType = DefaultStorage
         >
-        class ArrayAccessPolicy : public BufferErrorsPolicyType
+        class ArrayBufferAccessPolicy : public BufferErrorsPolicyType
         {
             public:
                 using SizeType  = typename StorageType<ElementType>::CapacityType;
                 using IndexType = typename StorageType<ElementType>::OffsetType;
 
-                inline explicit ArrayAccessPolicy(StorageType<ElementType>& s)
+                inline explicit ArrayBufferAccessPolicy(StorageType<ElementType>& s)
                 : storage{s} {}
 
-                inline auto& operator[](const typename ArrayAccessPolicy<ElementType, BufferErrorsPolicyType, StorageType>::IndexType& i)
+                inline auto& operator[](const typename ArrayBufferAccessPolicy<ElementType, BufferErrorsPolicyType, StorageType>::IndexType& i)
                 {
-                    return *(const_cast<ElementType*>(static_cast<const ArrayAccessPolicy<ElementType, BufferErrorsPolicyType, StorageType>&>(*this).getElementByIndex(i, isIndexOutOfRange(i, getSize()))));
+                    return *(const_cast<ElementType*>(static_cast<const ArrayBufferAccessPolicy<ElementType, BufferErrorsPolicyType, StorageType>&>(*this).getElementByIndex(i, isIndexOutOfRange(i, getSize()))));
                 }
 
-                inline auto& operator[](const typename ArrayAccessPolicy<ElementType, BufferErrorsPolicyType, StorageType>::IndexType& i) const
+                inline auto& operator[](const typename ArrayBufferAccessPolicy<ElementType, BufferErrorsPolicyType, StorageType>::IndexType& i) const
                 {
                     return *this->getElementByIndex(i, isIndexOutOfRange(i, getSize()));
                 }
@@ -103,7 +103,7 @@ namespace slim
             typename ElementType,
             class BufferErrorsPolicyType = IgnoreArrayErrorsPolicy,
             template <typename> class StorageType = DefaultStorage,
-            template <typename, class, template <typename> class> class BufferAccessPolicyType = ArrayAccessPolicy
+            template <typename, class, template <typename> class> class BufferAccessPolicyType = ArrayBufferAccessPolicy
         >
         class ArrayBuffer : protected StorageType<ElementType>, public BufferAccessPolicyType<ElementType, BufferErrorsPolicyType, StorageType>
         {

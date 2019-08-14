@@ -27,14 +27,14 @@ namespace slim
             class BufferErrorsPolicyType = IgnoreArrayErrorsPolicy,
             template <typename> class StorageType = DefaultStorage
         >
-        class RingBufferAccessPolicy : protected ArrayAccessPolicy<ElementType, BufferErrorsPolicyType, StorageType>
+        class RingBufferAccessPolicy : protected ArrayBufferAccessPolicy<ElementType, BufferErrorsPolicyType, StorageType>
         {
             public:
-                using SizeType  = typename ArrayAccessPolicy<ElementType, BufferErrorsPolicyType, StorageType>::SizeType;
-                using IndexType = typename ArrayAccessPolicy<ElementType, BufferErrorsPolicyType, StorageType>::IndexType;
+                using SizeType  = typename ArrayBufferAccessPolicy<ElementType, BufferErrorsPolicyType, StorageType>::SizeType;
+                using IndexType = typename ArrayBufferAccessPolicy<ElementType, BufferErrorsPolicyType, StorageType>::IndexType;
 
                 inline explicit RingBufferAccessPolicy(StorageType<ElementType>& s)
-                : ArrayAccessPolicy<ElementType, BufferErrorsPolicyType, StorageType>{s} {}
+                : ArrayBufferAccessPolicy<ElementType, BufferErrorsPolicyType, StorageType>{s} {}
 
                 inline auto& operator[](const IndexType& i) const
                 {
