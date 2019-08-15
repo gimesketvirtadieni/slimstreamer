@@ -16,20 +16,24 @@ TEST(ArrayBuffer, Constructor1)
 	ArrayBufferTestContext::validateState(arrayBuffer, {});
 }
 
-// TODO: this should be part of ArrayBufferTest
-/*
-TEST(RingBuffer, IndexOutOfRange)
+TEST(ArrayBuffer, getElementByIndex1)
 {
-	auto t1{onIndexOutOfRangeCounter};
-	auto t2{onOffsetOutOfBoundCounter};
-	
-	RingBufferTest<int> ringBuffer{1};
-	EXPECT_EQ(0, ringBuffer.addBack(1));
+	ArrayBufferTestContext::ArrayBufferTest<int> arrayBuffer{1};
+	auto value{11u};
+	arrayBuffer[0] = value;
 
-	// accessing the second element which is out of range
-	ringBuffer[1];
-
-	EXPECT_EQ(onIndexOutOfRangeCounter, t1 + 1);
-	EXPECT_EQ(onOffsetOutOfBoundCounter, t2);
+	EXPECT_EQ(*arrayBuffer.getElementByIndex(0), value);
+	EXPECT_EQ(ArrayBufferTestContext::onIndexOutOfRangeCounter, 0);
+	EXPECT_EQ(ArrayBufferTestContext::onOffsetOutOfBoundCounter, 0);
 }
-*/
+
+TEST(ArrayBuffer, getElementByIndex2)
+{
+	ArrayBufferTestContext::ArrayBufferTest<int> arrayBuffer{1};
+	auto value{11u};
+	arrayBuffer[0] = value;
+
+	EXPECT_EQ(arrayBuffer.getElementByIndex(0), nullptr);
+	EXPECT_EQ(ArrayBufferTestContext::onIndexOutOfRangeCounter, 1);
+	EXPECT_EQ(ArrayBufferTestContext::onOffsetOutOfBoundCounter, 0);
+}

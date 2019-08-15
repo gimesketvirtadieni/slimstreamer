@@ -39,7 +39,16 @@ struct ArrayBufferTestContext
 		template <typename> class StorageType = DefaultStorageTest,
 		template <typename, class, template <typename> class> class BufferAccessPolicyType = slim::util::ArrayBufferAccessPolicy
 	>
-	using ArrayBufferTest = slim::util::ArrayBuffer<ElementType, BufferErrorsPolicyType, StorageType, BufferAccessPolicyType>;
+	class ArrayBufferTest : public slim::util::ArrayBuffer<ElementType, BufferErrorsPolicyType, StorageType, BufferAccessPolicyType>
+	{
+		public:
+			inline explicit ArrayBufferTest(const typename StorageType<ElementType>::CapacityType& c)
+			: slim::util::ArrayBuffer<ElementType, BufferErrorsPolicyType, StorageType, BufferAccessPolicyType>{c} {}
+
+			// overwriting visibility to make it public
+			using BufferAccessPolicyType<ElementType, BufferErrorsPolicyType, StorageType>::getElementByIndex;
+			using BufferAccessPolicyType<ElementType, BufferErrorsPolicyType, StorageType>::isIndexOutOfRange;
+	};
 
 	template<typename ArrayBufferType>
 	static void validateState(ArrayBufferType& arrayBuffer, const std::vector<int>& samples)
