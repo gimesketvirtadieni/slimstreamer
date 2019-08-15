@@ -46,14 +46,14 @@ namespace slim
                 inline explicit ArrayBufferAccessPolicy(StorageType<ElementType>& s)
                 : storage{s} {}
 
-                inline auto& operator[](const typename ArrayBufferAccessPolicy<ElementType, BufferErrorsPolicyType, StorageType>::IndexType& i)
-                {
-                    return *(const_cast<ElementType*>(static_cast<const ArrayBufferAccessPolicy<ElementType, BufferErrorsPolicyType, StorageType>&>(*this).getElementByIndex(i, isIndexOutOfRange(i, getSize()))));
-                }
-
                 inline auto& operator[](const typename ArrayBufferAccessPolicy<ElementType, BufferErrorsPolicyType, StorageType>::IndexType& i) const
                 {
-                    return *this->getElementByIndex(i, isIndexOutOfRange(i, getSize()));
+                    return *getElementByIndex(i);
+                }
+
+                inline auto& operator[](const typename ArrayBufferAccessPolicy<ElementType, BufferErrorsPolicyType, StorageType>::IndexType& i)
+                {
+                    return const_cast<ElementType&>(*std::as_const(*this).getElementByIndex(i));
                 }
 
                 inline auto getSize() const
@@ -62,17 +62,16 @@ namespace slim
                 }
 
             protected:
-                inline auto* getElementByIndex(const IndexType& i, bool indexOutOfRange) const
+                inline auto* getElementByIndex(const IndexType& i) const
                 {
-                    if (!indexOutOfRange)
-                    {
-                        return storage.getElement(i);
-                    }
-                    else
+                    // guarding against index-out-of-range
+                    if (isIndexOutOfRange(i, getSize()))
                     {
                         BufferErrorsPolicyType::onIndexOutOfRange(*this, i);
                         return (ElementType*)nullptr;
                     }
+
+                    return storage.getElement(i);
                 }
 
                 inline auto isIndexOutOfRange(const IndexType& i, const SizeType& size) const

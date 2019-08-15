@@ -38,12 +38,12 @@ namespace slim
 
                 inline auto& operator[](const IndexType& i) const
                 {
-                    return *this->getElementByIndex(getAbsoluteIndex(i), this->isIndexOutOfRange(i, getSize()));
+                    return *this->getElementByIndex(getAbsoluteIndex(i));
                 }
 
                 inline auto& operator[](const IndexType& i)
                 {
-                    return const_cast<ElementType&>(*std::as_const(*this).getElementByIndex(getAbsoluteIndex(i), this->isIndexOutOfRange(i, getSize())));
+                    return const_cast<ElementType&>(*std::as_const(*this).getElementByIndex(getAbsoluteIndex(i)));
                 }
 
                 inline void clear()
