@@ -60,7 +60,7 @@ namespace slim
 
 				inline void addData(const void* d, const size_type s)
 				{
-                    if (0 <= s && s + dataSize <= size)
+                    if (0 < s && s + dataSize <= size)
                     {
                         std::memcpy(data.get() + dataSize, d, s);
                         dataSize += s;
