@@ -30,10 +30,8 @@ TEST(ArrayBuffer, getElementByIndex1)
 TEST(ArrayBuffer, getElementByIndex2)
 {
 	ArrayBufferTestContext::ArrayBufferTest<int> arrayBuffer{1};
-	auto value{11u};
-	arrayBuffer[0] = value;
 
-	EXPECT_EQ(arrayBuffer.getElementByIndex(0), nullptr);
+	EXPECT_EQ(arrayBuffer.getElementByIndex(1), nullptr);
 	EXPECT_EQ(ArrayBufferTestContext::onIndexOutOfRangeCounter, 1);
 	EXPECT_EQ(ArrayBufferTestContext::onOffsetOutOfBoundCounter, 0);
 }

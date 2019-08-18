@@ -29,7 +29,7 @@ namespace slim
         template
         <
             typename ElementType,
-            class ErrorPolicyType
+            class ErrorPolicyType = IgnoreStorageErrorsPolicy
         >
         class HeapStorage : public ErrorPolicyType
         {
@@ -90,7 +90,7 @@ namespace slim
         template
         <
             typename ElementType,
-            class ErrorPolicyType
+            class ErrorPolicyType = IgnoreStorageErrorsPolicy
         >
         class ContinuousHeapStorage : public HeapStorage<ElementType, ErrorPolicyType>
         {

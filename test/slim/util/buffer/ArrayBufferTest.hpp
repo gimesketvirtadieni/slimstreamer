@@ -11,15 +11,6 @@ struct ArrayBufferTestContext
 	static unsigned int onOffsetOutOfBoundCounter;
 	static unsigned int onIndexOutOfRangeCounter;
 
-	struct BufferErrorsPolicyTest
-	{
-		template<typename BufferType>
-		void onIndexOutOfRange(BufferType& buffer, const typename BufferType::IndexType& i) const
-		{
-			onIndexOutOfRangeCounter++;
-		}
-	};
-
 	struct StorageErrorsPolicyTest
 	{
 		template<class StorageType>
@@ -32,22 +23,37 @@ struct ArrayBufferTestContext
 	template<typename ElementType>
 	using DefaultStorageTest = slim::util::HeapStorage<ElementType, StorageErrorsPolicyTest>;
 
+	struct BufferErrorsPolicyTest
+	{
+		template<typename BufferType>
+		void onIndexOutOfRange(BufferType& buffer, const typename BufferType::IndexType& i) const
+		{
+			onIndexOutOfRangeCounter++;
+		}
+	};
+
 	template
 	<
 		typename ElementType,
-		class BufferErrorsPolicyType = BufferErrorsPolicyTest,
-		template <typename> class StorageType = DefaultStorageTest,
-		template <typename, class, template <typename> class> class BufferAccessPolicyType = slim::util::ArrayBufferAccessPolicy
+		template <typename> class StorageType = DefaultStorageTest
 	>
-	class ArrayBufferTest : public slim::util::ArrayBuffer<ElementType, BufferErrorsPolicyType, StorageType, BufferAccessPolicyType>
+	using ArrayBufferAccessPolicyType = slim::util::ArrayBufferAccessPolicy<ElementType, BufferErrorsPolicyTest, StorageType>;
+
+	template
+	<
+		typename ElementType,
+		template <typename> class StorageType = DefaultStorageTest,
+		template <typename, template <typename> class> class BufferAccessPolicyType = ArrayBufferAccessPolicyType
+	>
+	class ArrayBufferTest : public slim::util::ArrayBuffer<ElementType, StorageType, BufferAccessPolicyType>
 	{
 		public:
 			inline explicit ArrayBufferTest(const typename StorageType<ElementType>::CapacityType& c)
-			: slim::util::ArrayBuffer<ElementType, BufferErrorsPolicyType, StorageType, BufferAccessPolicyType>{c} {}
+			: slim::util::ArrayBuffer<ElementType, StorageType, BufferAccessPolicyType>{c} {}
 
 			// overwriting visibility to make it public
-			using BufferAccessPolicyType<ElementType, BufferErrorsPolicyType, StorageType>::getElementByIndex;
-			using BufferAccessPolicyType<ElementType, BufferErrorsPolicyType, StorageType>::isIndexOutOfRange;
+			using BufferAccessPolicyType<ElementType, StorageType>::getElementByIndex;
+			using BufferAccessPolicyType<ElementType, StorageType>::isIndexOutOfRange;
 	};
 
 	template<typename ArrayBufferType>

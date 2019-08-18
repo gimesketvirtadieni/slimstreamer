@@ -139,18 +139,24 @@ namespace slim
         template
         <
             typename ElementType,
-            class BufferErrorsPolicyType = IgnoreArrayErrorsPolicy,
-            template <typename> class StorageType = DefaultStorage,
-            template <typename, class, template <typename> class> class BufferAccessPolicyType = RingBufferAccessPolicy
+            template <typename> class StorageType = DefaultStorage
         >
-        class RingBuffer : public ArrayBuffer<ElementType, BufferErrorsPolicyType, StorageType, BufferAccessPolicyType>
+        using DefaultRingBufferAccessPolicyType = RingBufferAccessPolicy<ElementType, IgnoreArrayErrorsPolicy, StorageType>;
+
+        template
+        <
+            typename ElementType,
+            template <typename> class StorageType = DefaultStorage,
+            template <typename, template <typename> class> class BufferAccessPolicyType = DefaultRingBufferAccessPolicyType
+        >
+        class RingBuffer : public ArrayBuffer<ElementType, StorageType, BufferAccessPolicyType>
         {
             public:
                 inline explicit RingBuffer(const typename StorageType<ElementType>::CapacityType& c)
-                : ArrayBuffer<ElementType, BufferErrorsPolicyType, StorageType, BufferAccessPolicyType>{c} {}
+                : ArrayBuffer<ElementType, StorageType, BufferAccessPolicyType>{c} {}
 
                 inline auto getCapacity() const
-                { 
+                {
                     return StorageType<ElementType>::getCapacity();
                 }
         };

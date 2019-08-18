@@ -21,15 +21,15 @@ namespace slim
 {
 	namespace util
 	{
+        template<typename ElementType>
+        using DefaultStorage = HeapStorage<ElementType, IgnoreStorageErrorsPolicy>;
+
         class IgnoreArrayErrorsPolicy
         {
             public:
                 template<typename BufferType>
                 void onIndexOutOfRange(BufferType& buffer, const typename BufferType::IndexType& i) const {}
         };
-
-        template<typename ElementType>
-        using DefaultStorage = HeapStorage<ElementType, IgnoreStorageErrorsPolicy>;
 
         template
         <
@@ -100,16 +100,22 @@ namespace slim
         template
         <
             typename ElementType,
-            class BufferErrorsPolicyType = IgnoreArrayErrorsPolicy,
-            template <typename> class StorageType = DefaultStorage,
-            template <typename, class, template <typename> class> class BufferAccessPolicyType = ArrayBufferAccessPolicy
+            template <typename> class StorageType = DefaultStorage
         >
-        class ArrayBuffer : protected StorageType<ElementType>, public BufferAccessPolicyType<ElementType, BufferErrorsPolicyType, StorageType>
+        using DefaultArrayBufferAccessPolicyType = ArrayBufferAccessPolicy<ElementType, IgnoreArrayErrorsPolicy, StorageType>;
+
+        template
+        <
+            typename ElementType,
+            template <typename> class StorageType = DefaultStorage,
+            template <typename, template <typename> class> class BufferAccessPolicyType = DefaultArrayBufferAccessPolicyType
+        >
+        class ArrayBuffer : protected StorageType<ElementType>, public BufferAccessPolicyType<ElementType, StorageType>
         {
             public:
                 inline explicit ArrayBuffer(const typename StorageType<ElementType>::CapacityType& c)
                 : StorageType<ElementType>{c}
-                , BufferAccessPolicyType<ElementType, BufferErrorsPolicyType, StorageType>{(StorageType<ElementType>&)*this} {}
+                , BufferAccessPolicyType<ElementType, StorageType>{(StorageType<ElementType>&)*this} {}
         };
     }
 }

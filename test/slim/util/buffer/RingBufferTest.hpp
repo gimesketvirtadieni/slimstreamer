@@ -10,15 +10,6 @@ struct RingBufferTestContext
 	static unsigned int onOffsetOutOfBoundCounter;
 	static unsigned int onIndexOutOfRangeCounter;
 
-	struct BufferErrorsPolicyTest
-	{
-		template<typename BufferType>
-		void onIndexOutOfRange(BufferType& buffer, const typename BufferType::IndexType& i) const
-		{
-			onIndexOutOfRangeCounter++;
-		}
-	};
-
 	struct StorageErrorsPolicyTest
 	{
 		template<class StorageType>
@@ -31,14 +22,29 @@ struct RingBufferTestContext
 	template<typename ElementType>
 	using DefaultStorageTest = slim::util::HeapStorage<ElementType, RingBufferTestContext::StorageErrorsPolicyTest>;
 
+	struct BufferErrorsPolicyTest
+	{
+		template<typename BufferType>
+		void onIndexOutOfRange(BufferType& buffer, const typename BufferType::IndexType& i) const
+		{
+			onIndexOutOfRangeCounter++;
+		}
+	};
+
 	template
 	<
 		typename ElementType,
-		class BufferErrorsPolicyType = RingBufferTestContext::BufferErrorsPolicyTest,
-		template <typename> class StorageType = DefaultStorageTest,
-		template <typename, class, template <typename> class> class BufferAccessPolicyType = slim::util::RingBufferAccessPolicy
+		template <typename> class StorageType = DefaultStorageTest
 	>
-	using RingBufferTest = slim::util::RingBuffer<ElementType, BufferErrorsPolicyType, StorageType, BufferAccessPolicyType>;
+	using RingBufferAccessPolicyType = slim::util::RingBufferAccessPolicy<ElementType, BufferErrorsPolicyTest, StorageType>;
+
+	template
+	<
+		typename ElementType,
+		template <typename> class StorageType = DefaultStorageTest,
+		template <typename, template <typename> class> class BufferAccessPolicyType = RingBufferAccessPolicyType
+	>
+	using RingBufferTest = slim::util::RingBuffer<ElementType, StorageType, BufferAccessPolicyType>;
 
 	template<typename RingBufferType>
 	static void validateState(RingBufferType& ringBuffer, const std::size_t& capacity, const std::vector<int>& samples)
