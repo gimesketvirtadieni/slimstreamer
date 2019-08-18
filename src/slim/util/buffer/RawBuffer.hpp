@@ -19,48 +19,51 @@ namespace slim
 {
 	namespace util
 	{
-        template
-        <
-            typename ElementType,
-            template <typename, class> class StorageType = HeapStorage
-        >
-        class RawBufferAccessPolicy
+        namespace buffer
         {
-            public:
-                inline explicit RawBufferAccessPolicy(StorageType<ElementType, IgnoreStorageErrorsPolicy>& s)
-                : storage{s} {}
+            template
+            <
+                typename ElementType,
+                template <typename, class> class StorageType = HeapStorage
+            >
+            class RawBufferAccessPolicy
+            {
+                public:
+                    inline explicit RawBufferAccessPolicy(StorageType<ElementType, IgnoreStorageErrorsPolicy>& s)
+                    : storage{s} {}
 
-                inline auto getSize() const
-                {
-                    return storage.getCapacity();
-                }
+                    inline auto getSize() const
+                    {
+                        return storage.getCapacity();
+                    }
 
-            protected:
-                StorageType<ElementType, IgnoreStorageErrorsPolicy>& storage;
-        };
+                protected:
+                    StorageType<ElementType, IgnoreStorageErrorsPolicy>& storage;
+            };
 
-        template
-        <
-            typename ElementType,
-            template <typename, class> class StorageType = ContinuousHeapStorage,
-            template <typename, template <typename, class> class> class BufferAccessPolicyType = RawBufferAccessPolicy
-        >
-        class RawBuffer : public StorageType<ElementType, IgnoreStorageErrorsPolicy>, public BufferAccessPolicyType<ElementType, StorageType>
-        {
-            public:
-                inline explicit RawBuffer(const typename StorageType<ElementType, IgnoreStorageErrorsPolicy>::CapacityType& c)
-                : StorageType<ElementType, IgnoreStorageErrorsPolicy>{c}
-                , BufferAccessPolicyType<ElementType, StorageType>{(StorageType<ElementType, IgnoreStorageErrorsPolicy>&)*this} {}
+            template
+            <
+                typename ElementType,
+                template <typename, class> class StorageType = ContinuousHeapStorage,
+                template <typename, template <typename, class> class> class BufferAccessPolicyType = RawBufferAccessPolicy
+            >
+            class RawBuffer : public StorageType<ElementType, IgnoreStorageErrorsPolicy>, public BufferAccessPolicyType<ElementType, StorageType>
+            {
+                public:
+                    inline explicit RawBuffer(const typename StorageType<ElementType, IgnoreStorageErrorsPolicy>::CapacityType& c)
+                    : StorageType<ElementType, IgnoreStorageErrorsPolicy>{c}
+                    , BufferAccessPolicyType<ElementType, StorageType>{(StorageType<ElementType, IgnoreStorageErrorsPolicy>&)*this} {}
 
-                inline auto getCapacity() const
-                {
-                    return StorageType<ElementType, IgnoreStorageErrorsPolicy>::getCapacity();
-                }
+                    inline auto getCapacity() const
+                    {
+                        return StorageType<ElementType, IgnoreStorageErrorsPolicy>::getCapacity();
+                    }
 
-                inline auto* getBuffer() const
-                {
-                    return StorageType<ElementType, IgnoreStorageErrorsPolicy>::getBuffer();
-                }
-        };
+                    inline auto* getBuffer() const
+                    {
+                        return StorageType<ElementType, IgnoreStorageErrorsPolicy>::getBuffer();
+                    }
+            };
+        }
     }
 }

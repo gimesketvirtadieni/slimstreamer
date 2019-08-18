@@ -21,144 +21,147 @@ namespace slim
 {
 	namespace util
 	{
-        template
-        <
-            typename ElementType,
-            class BufferErrorsPolicyType = IgnoreArrayErrorsPolicy,
-            template <typename> class StorageType = DefaultStorage
-        >
-        class RingBufferAccessPolicy : protected ArrayBufferAccessPolicy<ElementType, BufferErrorsPolicyType, StorageType>
+        namespace buffer
         {
-            public:
-                using SizeType  = typename ArrayBufferAccessPolicy<ElementType, BufferErrorsPolicyType, StorageType>::SizeType;
-                using IndexType = typename ArrayBufferAccessPolicy<ElementType, BufferErrorsPolicyType, StorageType>::IndexType;
+            template
+            <
+                typename ElementType,
+                class BufferErrorsPolicyType = IgnoreArrayErrorsPolicy,
+                template <typename> class StorageType = DefaultStorage
+            >
+            class RingBufferAccessPolicy : protected ArrayBufferAccessPolicy<ElementType, BufferErrorsPolicyType, StorageType>
+            {
+                public:
+                    using SizeType  = typename ArrayBufferAccessPolicy<ElementType, BufferErrorsPolicyType, StorageType>::SizeType;
+                    using IndexType = typename ArrayBufferAccessPolicy<ElementType, BufferErrorsPolicyType, StorageType>::IndexType;
 
-                inline explicit RingBufferAccessPolicy(StorageType<ElementType>& s)
-                : ArrayBufferAccessPolicy<ElementType, BufferErrorsPolicyType, StorageType>{s} {}
+                    inline explicit RingBufferAccessPolicy(StorageType<ElementType>& s)
+                    : ArrayBufferAccessPolicy<ElementType, BufferErrorsPolicyType, StorageType>{s} {}
 
-                inline auto& operator[](const IndexType& i) const
-                {
-                    return *this->getElementByIndex(getAbsoluteIndex(i));
-                }
-
-                inline auto& operator[](const IndexType& i)
-                {
-                    return const_cast<ElementType&>(*std::as_const(*this).getElementByIndex(getAbsoluteIndex(i)));
-                }
-
-                inline void clear()
-                {
-                    size = 0;
-                }
-
-                inline SizeType getSize() const
-                {
-                    return size;
-                }
-
-                inline auto isEmpty() const
-                {
-                    return size == 0;
-                }
-
-                inline auto isFull() const
-                {
-                    return size == this->storage.getCapacity();
-                }
-
-                inline auto shrinkBack()
-                {
-                    auto result{false};
-
-                    if (0 < size)
+                    inline auto& operator[](const IndexType& i) const
                     {
-                        size--;
-                        result = true;
+                        return *this->getElementByIndex(getAbsoluteIndex(i));
                     }
 
-                    return result;
-                }
-
-                inline auto shrinkFront()
-                {
-                    auto result{false};
-
-                    if (0 < size)
+                    inline auto& operator[](const IndexType& i)
                     {
-                        size--;
-                        head   = normalizeIndex(++head);
-                        result = true;
+                        return const_cast<ElementType&>(*std::as_const(*this).getElementByIndex(getAbsoluteIndex(i)));
                     }
 
-                    return result;
-                }
-
-                inline auto addFront(const ElementType& item)
-                {
-                    head = (0 < head ? head : *this->storage.getCapacity()) - 1;
-                    if (!isFull())
+                    inline void clear()
                     {
-                        size++;
+                        size = 0;
                     }
-                    *this->storage.getElement(head) = item;
 
-                    return IndexType{size - 1};
-                }
-
-                inline auto addBack(const ElementType& item)
-                {
-                    if (!isFull())
+                    inline SizeType getSize() const
                     {
-                        size++;
+                        return size;
                     }
-                    else
+
+                    inline auto isEmpty() const
                     {
-                        head = normalizeIndex(head + 1);
+                        return size == 0;
                     }
-                    *this->storage.getElement(normalizeIndex(head + size - 1)) = item;
 
-                    return IndexType{size - 1};
-                }
+                    inline auto isFull() const
+                    {
+                        return size == this->storage.getCapacity();
+                    }
 
-            protected:
-                inline auto getAbsoluteIndex(const IndexType& i) const
-                {
-                    return i < this->storage.getCapacity() ? normalizeIndex(head + i) : i;
-                }
+                    inline auto shrinkBack()
+                    {
+                        auto result{false};
 
-                inline auto normalizeIndex(const IndexType& i) const
-                {
-                    return i >= this->storage.getCapacity() ? i - this->storage.getCapacity() : i;
-                }
+                        if (0 < size)
+                        {
+                            size--;
+                            result = true;
+                        }
 
-            private:
-                IndexType head{0};
-                SizeType  size{0};
-        };
+                        return result;
+                    }
 
-        template
-        <
-            typename ElementType,
-            template <typename> class StorageType = DefaultStorage
-        >
-        using DefaultRingBufferAccessPolicyType = RingBufferAccessPolicy<ElementType, IgnoreArrayErrorsPolicy, StorageType>;
+                    inline auto shrinkFront()
+                    {
+                        auto result{false};
 
-        template
-        <
-            typename ElementType,
-            template <typename> class StorageType = DefaultStorage,
-            template <typename, template <typename> class> class BufferAccessPolicyType = DefaultRingBufferAccessPolicyType
-        >
-        class RingBuffer : public ArrayBuffer<ElementType, StorageType, BufferAccessPolicyType>
-        {
-            public:
-                inline explicit RingBuffer(const typename StorageType<ElementType>::CapacityType& c)
-                : ArrayBuffer<ElementType, StorageType, BufferAccessPolicyType>{c} {}
+                        if (0 < size)
+                        {
+                            size--;
+                            head   = normalizeIndex(++head);
+                            result = true;
+                        }
 
-                inline auto getCapacity() const
-                {
-                    return StorageType<ElementType>::getCapacity();
-                }
-        };
+                        return result;
+                    }
+
+                    inline auto addFront(const ElementType& item)
+                    {
+                        head = (0 < head ? head : *this->storage.getCapacity()) - 1;
+                        if (!isFull())
+                        {
+                            size++;
+                        }
+                        *this->storage.getElement(head) = item;
+
+                        return IndexType{size - 1};
+                    }
+
+                    inline auto addBack(const ElementType& item)
+                    {
+                        if (!isFull())
+                        {
+                            size++;
+                        }
+                        else
+                        {
+                            head = normalizeIndex(head + 1);
+                        }
+                        *this->storage.getElement(normalizeIndex(head + size - 1)) = item;
+
+                        return IndexType{size - 1};
+                    }
+
+                protected:
+                    inline auto getAbsoluteIndex(const IndexType& i) const
+                    {
+                        return i < this->storage.getCapacity() ? normalizeIndex(head + i) : i;
+                    }
+
+                    inline auto normalizeIndex(const IndexType& i) const
+                    {
+                        return i >= this->storage.getCapacity() ? i - this->storage.getCapacity() : i;
+                    }
+
+                private:
+                    IndexType head{0};
+                    SizeType  size{0};
+            };
+
+            template
+            <
+                typename ElementType,
+                template <typename> class StorageType = DefaultStorage
+            >
+            using DefaultRingBufferAccessPolicyType = RingBufferAccessPolicy<ElementType, IgnoreArrayErrorsPolicy, StorageType>;
+
+            template
+            <
+                typename ElementType,
+                template <typename> class StorageType = DefaultStorage,
+                template <typename, template <typename> class> class BufferAccessPolicyType = DefaultRingBufferAccessPolicyType
+            >
+            class RingBuffer : public ArrayBuffer<ElementType, StorageType, BufferAccessPolicyType>
+            {
+                public:
+                    inline explicit RingBuffer(const typename StorageType<ElementType>::CapacityType& c)
+                    : ArrayBuffer<ElementType, StorageType, BufferAccessPolicyType>{c} {}
+
+                    inline auto getCapacity() const
+                    {
+                        return StorageType<ElementType>::getCapacity();
+                    }
+            };
+        }
     }
 }

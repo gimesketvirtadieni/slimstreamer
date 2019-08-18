@@ -256,7 +256,7 @@ namespace slim
 					std::experimental::net::ip::tcp::socket                  nativeSocket;
 					bool                                                     opened;
 					// TODO: parametrize
-					util::RawBuffer<std::uint8_t>                            buffer{1024};
+					util::buffer::RawBuffer<std::uint8_t>                    buffer{1024};
 			};
 		}
 	}

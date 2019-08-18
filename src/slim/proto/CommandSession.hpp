@@ -57,7 +57,7 @@ namespace slim
 		class CommandSession
 		{
 			protected:
-				using CommandBufferType  = util::RingBuffer<char>;
+				using CommandBufferType  = util::buffer::RingBuffer<char>;
 				using CommandHandlersMap = std::unordered_map<std::string, std::function<std::size_t(util::Timestamp)>>;
 				using EventHandlersMap   = std::unordered_map<std::string, std::function<void(client::CommandSTAT&, util::Timestamp)>>;
 
@@ -765,14 +765,14 @@ namespace slim
 				unsigned int                                                     samplingRate{0};
 				ts::optional_ref<StreamingSession<ConnectionType, StreamerType>> streamingSession{ts::nullopt};
 				// TODO: parameterize
-				util::RingBuffer<std::uint8_t>                                   commandBuffer{2048};
+				util::buffer::RingBuffer<std::uint8_t>                           commandBuffer{2048};
 				ts::optional<client::CommandHELO>                                commandHELO{ts::nullopt};
 				ts::optional_ref<conwrap2::Timer>                                pingTimer{ts::nullopt};
 				bool                                                             measuringLatency{false};
 				ts::optional<util::Duration>                                     latency;
 				ts::optional<util::Duration>                                     timeOffset;
 				// TODO: parameterize
-				util::RingBuffer<ProbeValues>                                    probes{13};
+				util::buffer::RingBuffer<ProbeValues>                            probes{13};
 				ts::optional<util::Duration>                                     playbackDriftBase{ts::nullopt};
 				bool                                                             clientBufferIsReady{false};
 				util::Timestamp                                                  lastChunkTimestamp;

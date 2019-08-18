@@ -20,7 +20,7 @@ struct RingBufferTestContext
 	};
 
 	template<typename ElementType>
-	using DefaultStorageTest = slim::util::HeapStorage<ElementType, RingBufferTestContext::StorageErrorsPolicyTest>;
+	using DefaultStorageTest = slim::util::buffer::HeapStorage<ElementType, RingBufferTestContext::StorageErrorsPolicyTest>;
 
 	struct BufferErrorsPolicyTest
 	{
@@ -36,7 +36,7 @@ struct RingBufferTestContext
 		typename ElementType,
 		template <typename> class StorageType = DefaultStorageTest
 	>
-	using RingBufferAccessPolicyType = slim::util::RingBufferAccessPolicy<ElementType, BufferErrorsPolicyTest, StorageType>;
+	using RingBufferAccessPolicyType = slim::util::buffer::RingBufferAccessPolicy<ElementType, BufferErrorsPolicyTest, StorageType>;
 
 	template
 	<
@@ -44,7 +44,7 @@ struct RingBufferTestContext
 		template <typename> class StorageType = DefaultStorageTest,
 		template <typename, template <typename> class> class BufferAccessPolicyType = RingBufferAccessPolicyType
 	>
-	using RingBufferTest = slim::util::RingBuffer<ElementType, StorageType, BufferAccessPolicyType>;
+	using RingBufferTest = slim::util::buffer::RingBuffer<ElementType, StorageType, BufferAccessPolicyType>;
 
 	template<typename RingBufferType>
 	static void validateState(RingBufferType& ringBuffer, const std::size_t& capacity, const std::vector<int>& samples)

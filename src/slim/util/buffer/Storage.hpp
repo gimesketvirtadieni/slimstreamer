@@ -19,89 +19,92 @@ namespace slim
 {
 	namespace util
 	{
-        class IgnoreStorageErrorsPolicy
+        namespace buffer
         {
-            public:
-                template<class StorageType>
-                void onOffsetOutOfBound(StorageType& storage, const typename StorageType::OffsetType& offset) const {}
-        };
+            class IgnoreStorageErrorsPolicy
+            {
+                public:
+                    template<class StorageType>
+                    void onOffsetOutOfBound(StorageType& storage, const typename StorageType::OffsetType& offset) const {}
+            };
 
-        template
-        <
-            typename ElementType,
-            class ErrorPolicyType = IgnoreStorageErrorsPolicy
-        >
-        class HeapStorage : public ErrorPolicyType
-        {
-            public:
-                using CapacityType = std::size_t;
-                using OffsetType   = std::size_t;
+            template
+            <
+                typename ElementType,
+                class ErrorPolicyType = IgnoreStorageErrorsPolicy
+            >
+            class HeapStorage : public ErrorPolicyType
+            {
+                public:
+                    using CapacityType = std::size_t;
+                    using OffsetType   = std::size_t;
 
-				HeapStorage() = default;
-				~HeapStorage() = default;
-				HeapStorage(const HeapStorage&) = delete;             // non-copyable
-				HeapStorage& operator=(const HeapStorage&) = delete;  // non-assignable
-				HeapStorage(HeapStorage&&) = default;
-				HeapStorage& operator=(HeapStorage&&) = default;
+                    HeapStorage() = default;
+                    ~HeapStorage() = default;
+                    HeapStorage(const HeapStorage&) = delete;             // non-copyable
+                    HeapStorage& operator=(const HeapStorage&) = delete;  // non-assignable
+                    HeapStorage(HeapStorage&&) = default;
+                    HeapStorage& operator=(HeapStorage&&) = default;
 
-                inline explicit HeapStorage(const CapacityType& c)
-                : capacity{c}
-                , bufferPtr{std::make_unique<ElementType[]>(capacity)} {}
+                    inline explicit HeapStorage(const CapacityType& c)
+                    : capacity{c}
+                    , bufferPtr{std::make_unique<ElementType[]>(capacity)} {}
 
-                inline auto getCapacity() const
-                {
-                    return capacity;
-                }
-
-                inline auto* getElement(const OffsetType& offset)
-                {
-                    return this->getElementByOffset(offset);
-                }
-
-                inline auto* getElement(const OffsetType& offset) const
-                {
-                    return const_cast<HeapStorage<ElementType, ErrorPolicyType>*>(this)->getElementByOffset(offset);
-                }
-
-            protected:
-                inline auto* getElementByOffset(const OffsetType& offset) const
-                {
-                    if (offset < capacity)
+                    inline auto getCapacity() const
                     {
-                        return (bufferPtr.get() + offset);
+                        return capacity;
                     }
-                    else
+
+                    inline auto* getElement(const OffsetType& offset)
                     {
-                        ErrorPolicyType::onOffsetOutOfBound(*this, offset);
-                        return (ElementType*)nullptr;
+                        return this->getElementByOffset(offset);
                     }
-                }
 
-                inline auto* getBuffer() const
-                {
-                    return bufferPtr.get();
-                }
+                    inline auto* getElement(const OffsetType& offset) const
+                    {
+                        return const_cast<HeapStorage<ElementType, ErrorPolicyType>*>(this)->getElementByOffset(offset);
+                    }
 
-            private:
-                CapacityType                   capacity;
-                std::unique_ptr<ElementType[]> bufferPtr;
-        };
+                protected:
+                    inline auto* getElementByOffset(const OffsetType& offset) const
+                    {
+                        if (offset < capacity)
+                        {
+                            return (bufferPtr.get() + offset);
+                        }
+                        else
+                        {
+                            ErrorPolicyType::onOffsetOutOfBound(*this, offset);
+                            return (ElementType*)nullptr;
+                        }
+                    }
 
-        template
-        <
-            typename ElementType,
-            class ErrorPolicyType = IgnoreStorageErrorsPolicy
-        >
-        class ContinuousHeapStorage : public HeapStorage<ElementType, ErrorPolicyType>
-        {
-            public:
-                inline explicit ContinuousHeapStorage(const typename HeapStorage<ElementType, ErrorPolicyType>::CapacityType& s)
-                : HeapStorage<ElementType, ErrorPolicyType>{s} {}
+                    inline auto* getBuffer() const
+                    {
+                        return bufferPtr.get();
+                    }
 
-                inline auto getBuffer() const
-                {
-                    return HeapStorage<ElementType, ErrorPolicyType>::getBuffer();
-                }
-        };
+                private:
+                    CapacityType                   capacity;
+                    std::unique_ptr<ElementType[]> bufferPtr;
+            };
+
+            template
+            <
+                typename ElementType,
+                class ErrorPolicyType = IgnoreStorageErrorsPolicy
+            >
+            class ContinuousHeapStorage : public HeapStorage<ElementType, ErrorPolicyType>
+            {
+                public:
+                    inline explicit ContinuousHeapStorage(const typename HeapStorage<ElementType, ErrorPolicyType>::CapacityType& s)
+                    : HeapStorage<ElementType, ErrorPolicyType>{s} {}
+
+                    inline auto getBuffer() const
+                    {
+                        return HeapStorage<ElementType, ErrorPolicyType>::getBuffer();
+                    }
+            };
+        }
     }
 }

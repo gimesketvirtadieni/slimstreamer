@@ -24,7 +24,7 @@ namespace slim
 		class InboundCommand
 		{
 			protected:
-				using BufferType = util::RawBuffer<std::uint8_t>;
+				using BufferType = util::buffer::RawBuffer<std::uint8_t>;
 
 				union SizeElement
 				{

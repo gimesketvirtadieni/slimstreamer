@@ -21,7 +21,7 @@ struct ArrayBufferTestContext
 	};
 
 	template<typename ElementType>
-	using DefaultStorageTest = slim::util::HeapStorage<ElementType, StorageErrorsPolicyTest>;
+	using DefaultStorageTest = slim::util::buffer::HeapStorage<ElementType, StorageErrorsPolicyTest>;
 
 	struct BufferErrorsPolicyTest
 	{
@@ -37,7 +37,7 @@ struct ArrayBufferTestContext
 		typename ElementType,
 		template <typename> class StorageType = DefaultStorageTest
 	>
-	using ArrayBufferAccessPolicyType = slim::util::ArrayBufferAccessPolicy<ElementType, BufferErrorsPolicyTest, StorageType>;
+	using ArrayBufferAccessPolicyType = slim::util::buffer::ArrayBufferAccessPolicy<ElementType, BufferErrorsPolicyTest, StorageType>;
 
 	template
 	<
@@ -45,11 +45,11 @@ struct ArrayBufferTestContext
 		template <typename> class StorageType = DefaultStorageTest,
 		template <typename, template <typename> class> class BufferAccessPolicyType = ArrayBufferAccessPolicyType
 	>
-	class ArrayBufferTest : public slim::util::ArrayBuffer<ElementType, StorageType, BufferAccessPolicyType>
+	class ArrayBufferTest : public slim::util::buffer::ArrayBuffer<ElementType, StorageType, BufferAccessPolicyType>
 	{
 		public:
 			inline explicit ArrayBufferTest(const typename StorageType<ElementType>::CapacityType& c)
-			: slim::util::ArrayBuffer<ElementType, StorageType, BufferAccessPolicyType>{c} {}
+			: slim::util::buffer::ArrayBuffer<ElementType, StorageType, BufferAccessPolicyType>{c} {}
 
 			// overwriting visibility to make it public
 			using BufferAccessPolicyType<ElementType, StorageType>::getElementByIndex;
