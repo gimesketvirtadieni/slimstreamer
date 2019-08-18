@@ -64,7 +64,7 @@ namespace slim
 
 					// validating length attribute from the command (last byte accounts for tailing zero)
 					auto messageSize{commandPtr->size + sizeof(commandPtr->opcode) + sizeof(commandPtr->size)};
-					if (messageSize > buffer.getSize())
+					if (messageSize > buffer.getCapacity())
 					{
 						throw slim::Exception("Length provided in CommandType command is too big");
 					}

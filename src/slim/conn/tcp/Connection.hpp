@@ -199,7 +199,7 @@ namespace slim
 
 							// keep receiving data
 							nativeSocket.async_read_some(
-								std::experimental::net::mutable_buffer(buffer.getBuffer(), buffer.getSize()),
+								std::experimental::net::mutable_buffer(buffer.getBuffer(), buffer.getCapacity()),
 								[&](const std::error_code error, std::size_t bytes_transferred)
 								{
 									onData(error, bytes_transferred, util::Timestamp());

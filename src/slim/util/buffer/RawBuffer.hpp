@@ -32,11 +32,6 @@ namespace slim
                     inline explicit RawBufferAccessPolicy(StorageType<ElementType, IgnoreStorageErrorsPolicy>& s)
                     : storage{s} {}
 
-                    inline auto getSize() const
-                    {
-                        return storage.getCapacity();
-                    }
-
                 protected:
                     StorageType<ElementType, IgnoreStorageErrorsPolicy>& storage;
             };
@@ -54,15 +49,9 @@ namespace slim
                     : StorageType<ElementType, IgnoreStorageErrorsPolicy>{c}
                     , BufferAccessPolicyType<ElementType, StorageType>{(StorageType<ElementType, IgnoreStorageErrorsPolicy>&)*this} {}
 
-                    inline auto getCapacity() const
-                    {
-                        return StorageType<ElementType, IgnoreStorageErrorsPolicy>::getCapacity();
-                    }
-
-                    inline auto* getBuffer() const
-                    {
-                        return StorageType<ElementType, IgnoreStorageErrorsPolicy>::getBuffer();
-                    }
+                    // overwriting visibility to make it public
+                    using StorageType<ElementType, IgnoreStorageErrorsPolicy>::getCapacity;
+                    using StorageType<ElementType, IgnoreStorageErrorsPolicy>::getBuffer;
             };
         }
     }
