@@ -117,7 +117,7 @@ namespace slim
                         {
                             head = normalizeIndex(head + 1);
                         }
-                        *this->storage.getElement(normalizeIndex(head + size - 1)) = item;
+                        *(this->storage.getBuffer() + normalizeIndex(head + size - 1)) = item;
 
                         return IndexType{size - 1};
                     }

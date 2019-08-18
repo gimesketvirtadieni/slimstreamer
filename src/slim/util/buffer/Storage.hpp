@@ -21,23 +21,14 @@ namespace slim
 	{
         namespace buffer
         {
-            class IgnoreStorageErrorsPolicy
-            {
-                public:
-                    template<class StorageType>
-                    void onOffsetOutOfBound(StorageType& storage, const typename StorageType::OffsetType& offset) const {}
-            };
-
             template
             <
-                typename ElementType,
-                class ErrorPolicyType = IgnoreStorageErrorsPolicy
+                typename ElementType
             >
-            class HeapStorage : public ErrorPolicyType
+            class HeapStorage
             {
                 public:
                     using CapacityType = std::size_t;
-                    using OffsetType   = std::size_t;
 
                     HeapStorage() = default;
                     ~HeapStorage() = default;
@@ -55,30 +46,6 @@ namespace slim
                         return capacity;
                     }
 
-                    inline auto* getElement(const OffsetType& offset)
-                    {
-                        return this->getElementByOffset(offset);
-                    }
-
-                    inline auto* getElement(const OffsetType& offset) const
-                    {
-                        return const_cast<HeapStorage<ElementType, ErrorPolicyType>*>(this)->getElementByOffset(offset);
-                    }
-
-                protected:
-                    inline auto* getElementByOffset(const OffsetType& offset) const
-                    {
-                        if (offset < capacity)
-                        {
-                            return (bufferPtr.get() + offset);
-                        }
-                        else
-                        {
-                            ErrorPolicyType::onOffsetOutOfBound(*this, offset);
-                            return (ElementType*)nullptr;
-                        }
-                    }
-
                     inline auto* getBuffer() const
                     {
                         return bufferPtr.get();
@@ -91,18 +58,17 @@ namespace slim
 
             template
             <
-                typename ElementType,
-                class ErrorPolicyType = IgnoreStorageErrorsPolicy
+                typename ElementType
             >
-            class ContinuousHeapStorage : public HeapStorage<ElementType, ErrorPolicyType>
+            class ContinuousHeapStorage : public HeapStorage<ElementType>
             {
                 public:
-                    inline explicit ContinuousHeapStorage(const typename HeapStorage<ElementType, ErrorPolicyType>::CapacityType& s)
-                    : HeapStorage<ElementType, ErrorPolicyType>{s} {}
+                    inline explicit ContinuousHeapStorage(const typename HeapStorage<ElementType>::CapacityType& s)
+                    : HeapStorage<ElementType>{s} {}
 
                     inline auto getBuffer() const
                     {
-                        return HeapStorage<ElementType, ErrorPolicyType>::getBuffer();
+                        return HeapStorage<ElementType>::getBuffer();
                     }
             };
         }

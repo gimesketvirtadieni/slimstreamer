@@ -24,7 +24,7 @@ namespace slim
         namespace buffer
         {
             template<typename ElementType>
-            using DefaultStorage = HeapStorage<ElementType, IgnoreStorageErrorsPolicy>;
+            using DefaultStorage = HeapStorage<ElementType>;
 
             class IgnoreArrayErrorsPolicy
             {
@@ -43,7 +43,7 @@ namespace slim
             {
                 public:
                     using SizeType  = typename StorageType<ElementType>::CapacityType;
-                    using IndexType = typename StorageType<ElementType>::OffsetType;
+                    using IndexType = std::size_t;
 
                     inline explicit ArrayAccessPolicy(StorageType<ElementType>& s)
                     : storage{s} {}
@@ -73,7 +73,7 @@ namespace slim
                             return (ElementType*)nullptr;
                         }
 
-                        return storage.getElement(i);
+                        return storage.getBuffer() + i;
                     }
 
                     inline auto isIndexOutOfRange(const IndexType& i, const SizeType& size) const

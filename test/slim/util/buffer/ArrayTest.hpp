@@ -8,20 +8,10 @@
 struct ArrayTestContext
 {
 	// keeping counters outside of the errors policies so that methods can be const
-	static unsigned int onOffsetOutOfBoundCounter;
 	static unsigned int onIndexOutOfRangeCounter;
 
-	struct StorageErrorsPolicyTest
-	{
-		template<class StorageType>
-		void onOffsetOutOfBound(StorageType& storage, const typename StorageType::OffsetType& offset) const
-		{
-			onOffsetOutOfBoundCounter++;
-		}
-	};
-
 	template<typename ElementType>
-	using DefaultStorageTest = slim::util::buffer::HeapStorage<ElementType, StorageErrorsPolicyTest>;
+	using DefaultStorageTest = slim::util::buffer::HeapStorage<ElementType>;
 
 	struct BufferErrorsPolicyTest
 	{
@@ -67,6 +57,5 @@ struct ArrayTestContext
 		}
 
 		EXPECT_EQ(ArrayTestContext::onIndexOutOfRangeCounter, 0);
-		EXPECT_EQ(ArrayTestContext::onOffsetOutOfBoundCounter, 0);
 	}
 };

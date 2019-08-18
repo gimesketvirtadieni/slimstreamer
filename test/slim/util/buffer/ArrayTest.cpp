@@ -1,14 +1,12 @@
 #include "slim/util/buffer/ArrayTest.hpp"
 
 
-unsigned int ArrayTestContext::onOffsetOutOfBoundCounter;
 unsigned int ArrayTestContext::onIndexOutOfRangeCounter;
 
 
 TEST(Array, Constructor1)
 {
 	ArrayTestContext::onIndexOutOfRangeCounter = 0;
-	ArrayTestContext::onOffsetOutOfBoundCounter = 0;
 	std::size_t capacity{0};
 
 	ArrayTestContext::ArrayTest<int> arrayBuffer{capacity};
@@ -24,7 +22,6 @@ TEST(Array, getElementByIndex1)
 
 	EXPECT_EQ(*array.getElementByIndex(0), value);
 	EXPECT_EQ(ArrayTestContext::onIndexOutOfRangeCounter, 0);
-	EXPECT_EQ(ArrayTestContext::onOffsetOutOfBoundCounter, 0);
 }
 
 TEST(Array, getElementByIndex2)
@@ -33,5 +30,4 @@ TEST(Array, getElementByIndex2)
 
 	EXPECT_EQ(array.getElementByIndex(1), nullptr);
 	EXPECT_EQ(ArrayTestContext::onIndexOutOfRangeCounter, 1);
-	EXPECT_EQ(ArrayTestContext::onOffsetOutOfBoundCounter, 0);
 }

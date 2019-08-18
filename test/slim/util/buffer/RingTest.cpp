@@ -2,15 +2,11 @@
 
 #include "slim/util/buffer/RingTest.hpp"
 
-
-unsigned int RingTestContext::onOffsetOutOfBoundCounter;
 unsigned int RingTestContext::onIndexOutOfRangeCounter;
-
 
 TEST(Ring, Constructor1)
 {
 	RingTestContext::onIndexOutOfRangeCounter = 0;
-	RingTestContext::onOffsetOutOfBoundCounter = 0;
 	std::size_t capacity{3};
 
 	RingTestContext::RingTest<int> ring{capacity};
@@ -21,7 +17,6 @@ TEST(Ring, Constructor1)
 TEST(Ring, PopFront1)
 {
 	RingTestContext::onIndexOutOfRangeCounter = 0;
-	RingTestContext::onOffsetOutOfBoundCounter = 0;
 	std::size_t capacity{3};
 	RingTestContext::RingTest<int> ring{capacity};
 
@@ -35,7 +30,6 @@ TEST(Ring, PopFront1)
 TEST(Ring, PopFront2)
 {
 	RingTestContext::onIndexOutOfRangeCounter = 0;
-	RingTestContext::onOffsetOutOfBoundCounter = 0;
 	std::size_t capacity{1};
 	RingTestContext::RingTest<int> ring{capacity};
 
@@ -48,7 +42,6 @@ TEST(Ring, PopFront2)
 TEST(Ring, PushBack1)
 {
 	RingTestContext::onIndexOutOfRangeCounter = 0;
-	RingTestContext::onOffsetOutOfBoundCounter = 0;
 	std::vector<int> samples;
 	samples.push_back(1);
 	RingTestContext::RingTest<int> ring{samples.size()};
@@ -62,7 +55,6 @@ TEST(Ring, PushBack1)
 TEST(Ring, PushBack2)
 {
 	RingTestContext::onIndexOutOfRangeCounter = 0;
-	RingTestContext::onOffsetOutOfBoundCounter = 0;
 	auto counter{0ul};
 	std::vector<int> samples;
 

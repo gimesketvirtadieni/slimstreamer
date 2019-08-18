@@ -24,34 +24,34 @@ namespace slim
             template
             <
                 typename ElementType,
-                template <typename, class> class StorageType = HeapStorage
+                template <typename> class StorageType = HeapStorage
             >
             class RawBufferAccessPolicy
             {
                 public:
-                    inline explicit RawBufferAccessPolicy(StorageType<ElementType, IgnoreStorageErrorsPolicy>& s)
+                    inline explicit RawBufferAccessPolicy(StorageType<ElementType>& s)
                     : storage{s} {}
 
                 protected:
-                    StorageType<ElementType, IgnoreStorageErrorsPolicy>& storage;
+                    StorageType<ElementType>& storage;
             };
 
             template
             <
                 typename ElementType,
-                template <typename, class> class StorageType = ContinuousHeapStorage,
-                template <typename, template <typename, class> class> class BufferAccessPolicyType = RawBufferAccessPolicy
+                template <typename> class StorageType = ContinuousHeapStorage,
+                template <typename, template <typename> class> class BufferAccessPolicyType = RawBufferAccessPolicy
             >
-            class RawBuffer : public StorageType<ElementType, IgnoreStorageErrorsPolicy>, public BufferAccessPolicyType<ElementType, StorageType>
+            class RawBuffer : public StorageType<ElementType>, public BufferAccessPolicyType<ElementType, StorageType>
             {
                 public:
-                    inline explicit RawBuffer(const typename StorageType<ElementType, IgnoreStorageErrorsPolicy>::CapacityType& c)
-                    : StorageType<ElementType, IgnoreStorageErrorsPolicy>{c}
-                    , BufferAccessPolicyType<ElementType, StorageType>{(StorageType<ElementType, IgnoreStorageErrorsPolicy>&)*this} {}
+                    inline explicit RawBuffer(const typename StorageType<ElementType>::CapacityType& c)
+                    : StorageType<ElementType>{c}
+                    , BufferAccessPolicyType<ElementType, StorageType>{(StorageType<ElementType>&)*this} {}
 
                     // overwriting visibility to make it public
-                    using StorageType<ElementType, IgnoreStorageErrorsPolicy>::getCapacity;
-                    using StorageType<ElementType, IgnoreStorageErrorsPolicy>::getBuffer;
+                    using StorageType<ElementType>::getCapacity;
+                    using StorageType<ElementType>::getBuffer;
             };
         }
     }
