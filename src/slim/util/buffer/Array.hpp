@@ -39,21 +39,21 @@ namespace slim
                 class BufferErrorsPolicyType = IgnoreArrayErrorsPolicy,
                 template <typename> class StorageType = DefaultStorage
             >
-            class ArrayBufferAccessPolicy : public BufferErrorsPolicyType
+            class ArrayAccessPolicy : public BufferErrorsPolicyType
             {
                 public:
                     using SizeType  = typename StorageType<ElementType>::CapacityType;
                     using IndexType = typename StorageType<ElementType>::OffsetType;
 
-                    inline explicit ArrayBufferAccessPolicy(StorageType<ElementType>& s)
+                    inline explicit ArrayAccessPolicy(StorageType<ElementType>& s)
                     : storage{s} {}
 
-                    inline auto& operator[](const typename ArrayBufferAccessPolicy<ElementType, BufferErrorsPolicyType, StorageType>::IndexType& i) const
+                    inline auto& operator[](const typename ArrayAccessPolicy<ElementType, BufferErrorsPolicyType, StorageType>::IndexType& i) const
                     {
                         return *getElementByIndex(i);
                     }
 
-                    inline auto& operator[](const typename ArrayBufferAccessPolicy<ElementType, BufferErrorsPolicyType, StorageType>::IndexType& i)
+                    inline auto& operator[](const typename ArrayAccessPolicy<ElementType, BufferErrorsPolicyType, StorageType>::IndexType& i)
                     {
                         return const_cast<ElementType&>(*std::as_const(*this).getElementByIndex(i));
                     }
@@ -104,18 +104,18 @@ namespace slim
                 typename ElementType,
                 template <typename> class StorageType = DefaultStorage
             >
-            using DefaultArrayBufferAccessPolicyType = ArrayBufferAccessPolicy<ElementType, IgnoreArrayErrorsPolicy, StorageType>;
+            using DefaultArrayAccessPolicyType = ArrayAccessPolicy<ElementType, IgnoreArrayErrorsPolicy, StorageType>;
 
             template
             <
                 typename ElementType,
                 template <typename> class StorageType = DefaultStorage,
-                template <typename, template <typename> class> class BufferAccessPolicyType = DefaultArrayBufferAccessPolicyType
+                template <typename, template <typename> class> class BufferAccessPolicyType = DefaultArrayAccessPolicyType
             >
-            class ArrayBuffer : protected StorageType<ElementType>, public BufferAccessPolicyType<ElementType, StorageType>
+            class Array : protected StorageType<ElementType>, public BufferAccessPolicyType<ElementType, StorageType>
             {
                 public:
-                    inline explicit ArrayBuffer(const typename StorageType<ElementType>::CapacityType& c)
+                    inline explicit Array(const typename StorageType<ElementType>::CapacityType& c)
                     : StorageType<ElementType>{c}
                     , BufferAccessPolicyType<ElementType, StorageType>{(StorageType<ElementType>&)*this} {}
             };

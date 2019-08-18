@@ -19,7 +19,6 @@
 
 #include "slim/Exception.hpp"
 #include "slim/proto/InboundCommand.hpp"
-#include "slim/util/buffer/RingBuffer.hpp"
 
 
 namespace slim

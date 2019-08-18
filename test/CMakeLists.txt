@@ -8,8 +8,8 @@
 add_executable(
     SlimStreamerTest
     ${CMAKE_CURRENT_SOURCE_DIR}/SlimStreamerTest.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/slim/util/buffer/ArrayBufferTest.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/slim/util/buffer/RingBufferTest.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/slim/util/buffer/ArrayTest.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/slim/util/buffer/RingTest.cpp
 )
 
 set_target_properties(

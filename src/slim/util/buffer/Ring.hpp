@@ -14,7 +14,7 @@
 
 #include <utility>  // std::as_const
 
-#include "slim/util/buffer/ArrayBuffer.hpp"
+#include "slim/util/buffer/Array.hpp"
 
 
 namespace slim
@@ -29,14 +29,14 @@ namespace slim
                 class BufferErrorsPolicyType = IgnoreArrayErrorsPolicy,
                 template <typename> class StorageType = DefaultStorage
             >
-            class RingBufferAccessPolicy : protected ArrayBufferAccessPolicy<ElementType, BufferErrorsPolicyType, StorageType>
+            class RingAccessPolicy : protected ArrayAccessPolicy<ElementType, BufferErrorsPolicyType, StorageType>
             {
                 public:
-                    using SizeType  = typename ArrayBufferAccessPolicy<ElementType, BufferErrorsPolicyType, StorageType>::SizeType;
-                    using IndexType = typename ArrayBufferAccessPolicy<ElementType, BufferErrorsPolicyType, StorageType>::IndexType;
+                    using SizeType  = typename ArrayAccessPolicy<ElementType, BufferErrorsPolicyType, StorageType>::SizeType;
+                    using IndexType = typename ArrayAccessPolicy<ElementType, BufferErrorsPolicyType, StorageType>::IndexType;
 
-                    inline explicit RingBufferAccessPolicy(StorageType<ElementType>& s)
-                    : ArrayBufferAccessPolicy<ElementType, BufferErrorsPolicyType, StorageType>{s} {}
+                    inline explicit RingAccessPolicy(StorageType<ElementType>& s)
+                    : ArrayAccessPolicy<ElementType, BufferErrorsPolicyType, StorageType>{s} {}
 
                     inline auto& operator[](const IndexType& i) const
                     {
@@ -143,19 +143,19 @@ namespace slim
                 typename ElementType,
                 template <typename> class StorageType = DefaultStorage
             >
-            using DefaultRingBufferAccessPolicyType = RingBufferAccessPolicy<ElementType, IgnoreArrayErrorsPolicy, StorageType>;
+            using DefaultRingAccessPolicyType = RingAccessPolicy<ElementType, IgnoreArrayErrorsPolicy, StorageType>;
 
             template
             <
                 typename ElementType,
                 template <typename> class StorageType = DefaultStorage,
-                template <typename, template <typename> class> class BufferAccessPolicyType = DefaultRingBufferAccessPolicyType
+                template <typename, template <typename> class> class BufferAccessPolicyType = DefaultRingAccessPolicyType
             >
-            class RingBuffer : public ArrayBuffer<ElementType, StorageType, BufferAccessPolicyType>
+            class Ring : public Array<ElementType, StorageType, BufferAccessPolicyType>
             {
                 public:
-                    inline explicit RingBuffer(const typename StorageType<ElementType>::CapacityType& c)
-                    : ArrayBuffer<ElementType, StorageType, BufferAccessPolicyType>{c} {}
+                    inline explicit Ring(const typename StorageType<ElementType>::CapacityType& c)
+                    : Array<ElementType, StorageType, BufferAccessPolicyType>{c} {}
 
                     inline auto getCapacity() const
                     {

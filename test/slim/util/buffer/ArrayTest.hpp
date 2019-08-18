@@ -2,10 +2,10 @@
 #include <gtest/gtest.h>
 #include <vector>
 
-#include "slim/util/buffer/ArrayBuffer.hpp"
+#include "slim/util/buffer/Array.hpp"
 
 
-struct ArrayBufferTestContext
+struct ArrayTestContext
 {
 	// keeping counters outside of the errors policies so that methods can be const
 	static unsigned int onOffsetOutOfBoundCounter;
@@ -37,27 +37,27 @@ struct ArrayBufferTestContext
 		typename ElementType,
 		template <typename> class StorageType = DefaultStorageTest
 	>
-	using ArrayBufferAccessPolicyType = slim::util::buffer::ArrayBufferAccessPolicy<ElementType, BufferErrorsPolicyTest, StorageType>;
+	using ArrayAccessPolicyType = slim::util::buffer::ArrayAccessPolicy<ElementType, BufferErrorsPolicyTest, StorageType>;
 
 	template
 	<
 		typename ElementType,
 		template <typename> class StorageType = DefaultStorageTest,
-		template <typename, template <typename> class> class BufferAccessPolicyType = ArrayBufferAccessPolicyType
+		template <typename, template <typename> class> class BufferAccessPolicyType = ArrayAccessPolicyType
 	>
-	class ArrayBufferTest : public slim::util::buffer::ArrayBuffer<ElementType, StorageType, BufferAccessPolicyType>
+	class ArrayTest : public slim::util::buffer::Array<ElementType, StorageType, BufferAccessPolicyType>
 	{
 		public:
-			inline explicit ArrayBufferTest(const typename StorageType<ElementType>::CapacityType& c)
-			: slim::util::buffer::ArrayBuffer<ElementType, StorageType, BufferAccessPolicyType>{c} {}
+			inline explicit ArrayTest(const typename StorageType<ElementType>::CapacityType& c)
+			: slim::util::buffer::Array<ElementType, StorageType, BufferAccessPolicyType>{c} {}
 
 			// overwriting visibility to make it public
 			using BufferAccessPolicyType<ElementType, StorageType>::getElementByIndex;
 			using BufferAccessPolicyType<ElementType, StorageType>::isIndexOutOfRange;
 	};
 
-	template<typename ArrayBufferType>
-	static void validateState(ArrayBufferType& arrayBuffer, const std::vector<int>& samples)
+	template<typename ArrayType>
+	static void validateState(ArrayType& arrayBuffer, const std::vector<int>& samples)
 	{
 		EXPECT_EQ(arrayBuffer.getSize(), samples.size());
 
@@ -66,7 +66,7 @@ struct ArrayBufferTestContext
 			EXPECT_EQ(arrayBuffer[i], samples[i]);
 		}
 
-		EXPECT_EQ(ArrayBufferTestContext::onIndexOutOfRangeCounter, 0);
-		EXPECT_EQ(ArrayBufferTestContext::onOffsetOutOfBoundCounter, 0);
+		EXPECT_EQ(ArrayTestContext::onIndexOutOfRangeCounter, 0);
+		EXPECT_EQ(ArrayTestContext::onOffsetOutOfBoundCounter, 0);
 	}
 };
