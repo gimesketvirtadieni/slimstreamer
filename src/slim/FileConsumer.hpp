@@ -70,10 +70,9 @@ namespace slim
 
 			virtual bool consumeChunk(Chunk& chunk) override
 			{
-				auto* buffer{chunk.getBuffer()};
-				auto  size{chunk.getDataSize()};
+				auto size{chunk.getFrames() * chunk.getBytesPerFrame()};
 
-				encoderPtr->encode(buffer, size);
+				encoderPtr->encode(chunk.getData(), size);
 				bytesWritten += size;
 
 				LOG(DEBUG) << LABELS{"slim"} << "Written " << chunk.getFrames() << " frames";

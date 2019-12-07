@@ -213,19 +213,20 @@ namespace slim
 						queue.enqueue([&](Chunk& chunk)
 						{
 							// setting chunk 'meta' data
+							chunk.setTimestamp(timestamp);
 							chunk.setSamplingRate(parameters.getSamplingRate());
 							chunk.setChannels(parameters.getLogicalChannels());
 							chunk.setBitsPerSample(parameters.getBitsPerSample());
 							chunk.setEndOfStream(false);
 
-							// copying data which will set chunk's payload size in bytes
-							chunk.addData([&, sourcePtr = (unsigned char*)srcBuffer](auto* destinationPtr, auto capacity)
-							{
-								return copyData(sourcePtr + offset * bytesPerFrame, destinationPtr, static_cast<snd_pcm_uframes_t>(result - std::min(offset, result)));
-							});
+							// copying PCM data and setting chunk's payload size in frames
+							auto copiedFrames = copyData(
+								srcBuffer + offset * bytesPerFrame,
+								chunk.getData(),
+								static_cast<snd_pcm_uframes_t>(result - std::min(offset, result)));
 
-							capturedFrames += chunk.getFrames();
-							chunk.setTimestamp(timestamp);
+							capturedFrames += copiedFrames;
+							chunk.setFrames(copiedFrames);
 							chunk.setCapturedFrames(capturedFrames);
 
 							// only the first chunk in stream is marked as Beginning-Of-Stream
@@ -245,13 +246,13 @@ namespace slim
 						queue.enqueue([&](Chunk& chunk)
 						{
 							// setting chunk 'meta' data
+							chunk.setTimestamp(timestamp);
 							chunk.setSamplingRate(parameters.getSamplingRate());
 							chunk.setChannels(parameters.getLogicalChannels());
 							chunk.setBitsPerSample(parameters.getBitsPerSample());
 							chunk.setEndOfStream(true);
 							chunk.clear();
 
-							chunk.setTimestamp(timestamp);
 							chunk.setCapturedFrames(capturedFrames);
 
 							// the next chunk in stream will be marked as Beginning-Of-Stream

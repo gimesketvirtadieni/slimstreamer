@@ -70,9 +70,8 @@ namespace slim
 			class CommandSTAT : public InboundCommand<STAT>
 			{
 				public:
-					template<typename CommandBufferType>
-					CommandSTAT(const CommandBufferType& commandBuffer)
-					: InboundCommand<STAT>{sizeof(STAT), commandBuffer, "STAT"} {}
+					CommandSTAT(const util::buffer::Ring<std::uint8_t>& commandRingBuffer)
+					: InboundCommand<STAT>{sizeof(STAT), commandRingBuffer, "STAT"} {}
 			};
 		}
 	}

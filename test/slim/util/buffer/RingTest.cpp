@@ -2,77 +2,99 @@
 
 #include "slim/util/buffer/RingTest.hpp"
 
-unsigned int RingTestContext::onIndexOutOfRangeCounter;
 
 TEST(Ring, Constructor1)
 {
-	RingTestContext::onIndexOutOfRangeCounter = 0;
-	std::size_t capacity{3};
+	std::size_t capacity{0};
 
 	RingTestContext::RingTest<int> ring{capacity};
 
 	RingTestContext::validateState(ring, capacity, {});
 }
 
-TEST(Ring, PopFront1)
+TEST(Ring, Clear1)
 {
-	RingTestContext::onIndexOutOfRangeCounter = 0;
-	std::size_t capacity{3};
-	RingTestContext::RingTest<int> ring{capacity};
-
-	ring.addBack(1);
-	auto result{ring.shrinkFront()};
-
-	EXPECT_TRUE(result);
-	RingTestContext::validateState(ring, capacity, {});
-}
-
-TEST(Ring, PopFront2)
-{
-	RingTestContext::onIndexOutOfRangeCounter = 0;
 	std::size_t capacity{1};
 	RingTestContext::RingTest<int> ring{capacity};
 
-	auto result{ring.shrinkFront()};
+	ring.push(1);
+	ring.clear();
 
-	EXPECT_FALSE(result);
 	RingTestContext::validateState(ring, capacity, {});
 }
 
-TEST(Ring, PushBack1)
+TEST(Ring, Pop1)
 {
-	RingTestContext::onIndexOutOfRangeCounter = 0;
-	std::vector<int> samples;
-	samples.push_back(1);
-	RingTestContext::RingTest<int> ring{samples.size()};
+	std::size_t capacity{1};
+	RingTestContext::RingTest<int> ring{capacity};
 
-	auto result{ring.addBack(samples[0])};
+	ring.pop();
 
-	EXPECT_EQ(0, result);
-	RingTestContext::validateState(ring, samples.size(), samples);
+	RingTestContext::validateState(ring, capacity, {});
 }
 
-TEST(Ring, PushBack2)
+TEST(Ring, Pop2)
 {
-	RingTestContext::onIndexOutOfRangeCounter = 0;
-	auto counter{0ul};
-	std::vector<int> samples;
+	std::size_t capacity{1};
+	RingTestContext::RingTest<int> ring{capacity};
 
-	// preparing sample data
-	for (auto i{0u}; i < 10; i++)
-	{
-		samples.push_back(++counter);
-	}
+	ring.push(1);
+	ring.pop();
 
-	// storing sample data in a ring buffer and validating its content
-	RingTestContext::RingTest<int> ring{samples.size()};
-	for (auto i{0u}; i < ring.getCapacity(); i++)
-	{
-		EXPECT_EQ(i, ring.addBack(samples[i]));
-	}
-	RingTestContext::validateState(ring, samples.size(), samples);
+	RingTestContext::validateState(ring, capacity, {});
+}
 
-	// validating ring buffer 'shifts' as expected
-	EXPECT_EQ(samples.size() - 1, ring.addBack(++counter));
-	EXPECT_EQ(counter, ring[samples.size() - 1]);
+TEST(Ring, Pop3)
+{
+	std::size_t capacity{2};
+	RingTestContext::RingTest<int> ring{capacity};
+
+	ring.push(1);
+	ring.push(2);
+	ring.pop();
+
+	RingTestContext::validateState(ring, capacity, {2});
+}
+
+TEST(Ring, Push1)
+{
+	std::size_t capacity{1};
+	RingTestContext::RingTest<int> ring{capacity};
+
+	ring.push(1);
+
+	RingTestContext::validateState(ring, capacity, {1});
+}
+
+TEST(Ring, Push2)
+{
+	std::size_t capacity{2};
+	RingTestContext::RingTest<int> ring{capacity};
+
+	ring.push(1);
+
+	RingTestContext::validateState(ring, capacity, {1});
+}
+
+TEST(Ring, Push3)
+{
+	std::size_t capacity{2};
+	RingTestContext::RingTest<int> ring{capacity};
+
+	ring.push(1);
+	ring.push(2);
+	ring.push(3);
+
+	RingTestContext::validateState(ring, capacity, {2, 3});
+}
+
+TEST(Ring, Access1)
+{
+	std::size_t capacity{2};
+	RingTestContext::RingTest<int> ring{capacity};
+
+	ring.push(1);
+
+	// making sure it is OK to access beyond data size but within capacity
+	ring[1];
 }

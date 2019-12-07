@@ -1,40 +1,19 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
+//#include "slim/util/buffer/HeapStorageTest.hpp"  // used for HeapStorageTest
 #include "slim/util/buffer/Ring.hpp"
 
 
 struct RingTestContext
 {
-	// keeping counters outside of the errors policies so that methods can be const
-	static unsigned int onIndexOutOfRangeCounter;
-
-	template<typename ElementType>
-	using DefaultStorageTest = slim::util::buffer::HeapStorage<ElementType>;
-
-	struct BufferErrorsPolicyTest
-	{
-		template<typename BufferType>
-		void onIndexOutOfRange(BufferType& buffer, const typename BufferType::IndexType& i) const
-		{
-			onIndexOutOfRangeCounter++;
-		}
-	};
-
 	template
 	<
 		typename ElementType,
-		template <typename> class StorageType = DefaultStorageTest
+		template <typename> class StorageType = slim::util::buffer::HeapBuffer,
+		template <typename, template <typename> class> class BufferViewPolicyType = slim::util::buffer::RingViewPolicy
 	>
-	using RingAccessPolicyType = slim::util::buffer::RingAccessPolicy<ElementType, BufferErrorsPolicyTest, StorageType>;
-
-	template
-	<
-		typename ElementType,
-		template <typename> class StorageType = DefaultStorageTest,
-		template <typename, template <typename> class> class BufferAccessPolicyType = RingAccessPolicyType
-	>
-	using RingTest = slim::util::buffer::Ring<ElementType, StorageType, BufferAccessPolicyType>;
+	using RingTest = slim::util::buffer::Ring<ElementType, StorageType, BufferViewPolicyType>;
 
 	template<typename RingType>
 	static void validateState(RingType& ring, const std::size_t& capacity, const std::vector<int>& samples)
@@ -46,7 +25,7 @@ struct RingTestContext
 		{
 			EXPECT_FALSE(ring.isEmpty());
 
-			for (auto i{std::size_t{0}}; i < samples.size(); i++)
+			for (auto i{0u}; i < samples.size(); i++)
 			{
 				EXPECT_EQ(ring[i], samples[i]);
 			}
@@ -64,7 +43,5 @@ struct RingTestContext
 		{
 			EXPECT_TRUE(ring.isFull());
 		}
-
-		EXPECT_EQ(RingTestContext::onIndexOutOfRangeCounter, 0);
 	}
 };

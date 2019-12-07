@@ -59,7 +59,7 @@ namespace slim
 				, queue{parameters.getQueueSize(), std::move([&](Chunk& chunk)
 				{
 					// no need to store data from the last channel as it contains commands
-					chunk.setBufferSize(pa.getFramesPerChunk() * pa.getLogicalChannels() * (pa.getBitsPerSample() >> 3));
+					chunk.allocateBuffer(pa.getFramesPerChunk() * pa.getLogicalChannels() * (pa.getBitsPerSample() >> 3));
 				})} {}
 
 				~Source()

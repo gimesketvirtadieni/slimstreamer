@@ -54,9 +54,8 @@ namespace slim
 			class CommandHELO : public InboundCommand<HELO>
 			{
 				public:
-					template<typename CommandBufferType>
-					CommandHELO(const CommandBufferType& commandBuffer)
-					: InboundCommand<HELO>{sizeof(HELO) + 2048, commandBuffer, "HELO"} {}
+					CommandHELO(const util::buffer::Ring<std::uint8_t>& commandRingBuffer)
+					: InboundCommand<HELO>{sizeof(HELO) + 2048, commandRingBuffer, "HELO"} {}
 			};
 		}
 	}

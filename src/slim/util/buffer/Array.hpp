@@ -12,113 +12,59 @@
 
 #pragma once
 
-#include <type_traits>
+#include <utility>  // std::as_const
 
-#include "slim/util/buffer/Storage.hpp"
+#include "slim/util/buffer/HeapBuffer.hpp"
 
 
 namespace slim
 {
-	namespace util
-	{
-        namespace buffer
+namespace util
+{
+namespace buffer
+{
+
+template
+<
+    typename ElementType,
+    template <typename> class StorageType = HeapBuffer
+>
+class ArrayViewPolicy : protected StorageType<ElementType>
+{
+    public:
+        using SizeType  = typename StorageType<ElementType>::SizeType;
+        using IndexType = std::size_t;
+
+        inline explicit ArrayViewPolicy(const SizeType& s)
+        : StorageType<ElementType>{s} {}
+
+        inline const auto& operator[](const IndexType& i) const
         {
-            template<typename ElementType>
-            using DefaultStorage = HeapStorage<ElementType>;
-
-            class IgnoreArrayErrorsPolicy
-            {
-                public:
-                    template<typename BufferType>
-                    void onIndexOutOfRange(BufferType& buffer, const typename BufferType::IndexType& i) const {}
-            };
-
-            template
-            <
-                typename ElementType,
-                class BufferErrorsPolicyType = IgnoreArrayErrorsPolicy,
-                template <typename> class StorageType = DefaultStorage
-            >
-            class ArrayAccessPolicy : public BufferErrorsPolicyType
-            {
-                public:
-                    using SizeType  = typename StorageType<ElementType>::CapacityType;
-                    using IndexType = std::size_t;
-
-                    inline explicit ArrayAccessPolicy(StorageType<ElementType>& s)
-                    : storage{s} {}
-
-                    inline auto& operator[](const typename ArrayAccessPolicy<ElementType, BufferErrorsPolicyType, StorageType>::IndexType& i) const
-                    {
-                        return *getElementByIndex(i);
-                    }
-
-                    inline auto& operator[](const typename ArrayAccessPolicy<ElementType, BufferErrorsPolicyType, StorageType>::IndexType& i)
-                    {
-                        return const_cast<ElementType&>(*std::as_const(*this).getElementByIndex(i));
-                    }
-
-                    inline auto getSize() const
-                    {
-                        return storage.getCapacity();
-                    }
-
-                protected:
-                    inline auto* getElementByIndex(const IndexType& i) const
-                    {
-                        // guarding against index-out-of-range
-                        if (isIndexOutOfRange(i, getSize()))
-                        {
-                            BufferErrorsPolicyType::onIndexOutOfRange(*this, i);
-                            return (ElementType*)nullptr;
-                        }
-
-                        return storage.getBuffer() + i;
-                    }
-
-                    inline auto isIndexOutOfRange(const IndexType& i, const SizeType& size) const
-                    {
-                        auto result{false};
-
-                        if constexpr(std::is_signed<IndexType>::value)
-                        {
-                            if (i < 0)
-                            {
-                                result = true;
-                            }
-                        }
-
-                        if (!result)
-                        {
-                            result = (i >= size);
-                        }
-
-                        return result;
-                    }
-
-                    StorageType<ElementType>& storage;
-            };
-
-            template
-            <
-                typename ElementType,
-                template <typename> class StorageType = DefaultStorage
-            >
-            using DefaultArrayAccessPolicyType = ArrayAccessPolicy<ElementType, IgnoreArrayErrorsPolicy, StorageType>;
-
-            template
-            <
-                typename ElementType,
-                template <typename> class StorageType = DefaultStorage,
-                template <typename, template <typename> class> class BufferAccessPolicyType = DefaultArrayAccessPolicyType
-            >
-            class Array : protected StorageType<ElementType>, public BufferAccessPolicyType<ElementType, StorageType>
-            {
-                public:
-                    inline explicit Array(const typename StorageType<ElementType>::CapacityType& c)
-                    : StorageType<ElementType>{c}
-                    , BufferAccessPolicyType<ElementType, StorageType>{(StorageType<ElementType>&)*this} {}
-            };
+            return this->getData()[i];
         }
-    }
+
+        inline auto& operator[](const IndexType& i)
+        {
+            return const_cast<ElementType&>(std::as_const(*this)[i]);
+        }
+
+        // overwriting visibility to make it public
+        using StorageType<ElementType>::getSize;
+};
+
+template
+<
+    typename ElementType,
+    template <typename> class StorageType = HeapBuffer,
+    template <typename, template <typename> class> class ArrayViewPolicyType = ArrayViewPolicy
+>
+class Array : public ArrayViewPolicyType<ElementType, StorageType>
+{
+    public:
+        inline explicit Array(const typename ArrayViewPolicyType<ElementType, StorageType>::SizeType& s)
+        : ArrayViewPolicyType<ElementType, StorageType>{s} {}
+};
+
+}
+}
 }

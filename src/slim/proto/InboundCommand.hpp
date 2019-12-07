@@ -15,6 +15,9 @@
 #include <cstddef>  // std::size_t
 #include <cstdint>  // std::u..._t types
 
+#include "slim/util/buffer/HeapBuffer.hpp"
+#include "slim/util/buffer/Ring.hpp"
+
 
 namespace slim
 {
@@ -24,8 +27,6 @@ namespace slim
 		class InboundCommand
 		{
 			protected:
-				using BufferType = util::buffer::RawBuffer<std::uint8_t>;
-
 				union SizeElement
 				{
 					std::uint8_t  array[4];
@@ -33,19 +34,18 @@ namespace slim
 				};
 
 			public:
-				template<typename CommandBufferType>
-				InboundCommand(const BufferType::CapacityType& bufferSize, const CommandBufferType& commandBuffer, const std::string& label)
+				InboundCommand(const util::buffer::HeapBuffer<std::uint8_t>::SizeType& bufferSize, const util::buffer::Ring<std::uint8_t>& commandRingBuffer, const std::string& label)
 				// TODO: buffer size must be calculated based on size provided in the command
-				: buffer{commandBuffer.getSize()}
+				: buffer{commandRingBuffer.getCapacity()}
 				{
 					// validating provided data is sufficient for the fixed part of the command
-					if (sizeof(CommandType) > commandBuffer.getSize())
+					if (sizeof(CommandType) > commandRingBuffer.getSize())
 					{
 						throw slim::Exception("Message is too small for the fixed part of the command");
 					}
 
 					// making sure there is enough data provided for the dynamic part of the command
-					if (!isEnoughData(commandBuffer))
+					if (!isEnoughData(commandRingBuffer))
 					{
 						throw slim::Exception("Message is too small for CommandType command");
 					}
@@ -53,26 +53,26 @@ namespace slim
 					// serializing fixed part of the command
 					for (std::size_t i{0}; i < sizeof(CommandType); i++)
 					{
-						buffer.getBuffer()[i] = commandBuffer[i];
+						buffer.getData()[i] = commandRingBuffer[i];
 					}
 
 					// TODO: refactor
-					auto* commandPtr{(CommandType*)buffer.getBuffer()};
+					auto* commandPtr{(CommandType*)buffer.getData()};
 
 					// converting command size data
 					commandPtr->size = ntohl(commandPtr->size);
 
 					// validating length attribute from the command (last byte accounts for tailing zero)
 					auto messageSize{commandPtr->size + sizeof(commandPtr->opcode) + sizeof(commandPtr->size)};
-					if (messageSize > buffer.getCapacity())
+					if (messageSize > buffer.getSize())
 					{
 						throw slim::Exception("Length provided in CommandType command is too big");
 					}
 
 					// serializing dynamic part of the command
-					for (std::size_t i{sizeof(CommandType) - 1}; i < messageSize; i++)
+					for (std::size_t i{sizeof(CommandType)}; i < messageSize; i++)
 					{
-						buffer.getBuffer()[i] = commandBuffer[i];
+						buffer.getData()[i] = commandRingBuffer[i];
 					}
 
 					// validating there is command label present
@@ -94,7 +94,7 @@ namespace slim
 
 				auto* getData()
 				{
-					return (CommandType*)buffer.getBuffer();
+					return (CommandType*)buffer.getData();
 				}
 
 				auto getSize()
@@ -103,23 +103,22 @@ namespace slim
 					return getData()->size + sizeof(SizeElement) + 4;
 				}
 
-				template <typename BufferType>
-				inline static auto isEnoughData(const BufferType& buffer)
+				inline static auto isEnoughData(const util::buffer::Ring<std::uint8_t>& rinBuffer)
 				{
 					auto result{false};
 
 					// TODO: consider max length size
-					auto labelOffset{typename BufferType::IndexType{4}};
-					if (labelOffset + sizeof(SizeElement) <= buffer.getSize())
+					auto labelOffset{typename util::buffer::Ring<std::uint8_t>::IndexType{4}};
+					if (labelOffset + sizeof(SizeElement) <= rinBuffer.getSize())
 					{
 						SizeElement sizeElement;
 						for (auto i{std::size_t{0}}; i < sizeof(SizeElement); i++)
 						{
-							sizeElement.array[i] = buffer[i + labelOffset];
+							sizeElement.array[i] = rinBuffer[i + labelOffset];
 						}
 
 						// there is enough data in the buffer if provided length is less of equal to the buffer size
-						result = (labelOffset + sizeof(sizeElement.size) + ntohl(sizeElement.size) <= buffer.getSize());
+						result = (labelOffset + sizeof(sizeElement.size) + ntohl(sizeElement.size) <= rinBuffer.getSize());
 					}
 
 					return result;
@@ -134,7 +133,7 @@ namespace slim
 				}
 
 			private:
-				BufferType buffer;
+				util::buffer::HeapBuffer<std::uint8_t> buffer;
 		};
 	}
 }

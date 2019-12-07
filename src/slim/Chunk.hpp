@@ -15,7 +15,7 @@
 #include <cstddef>   // std::size_t
 
 #include "slim/util/BigInteger.hpp"
-#include "slim/util/Buffer.hpp"
+#include "slim/util/buffer/HeapBuffer.hpp"
 #include "slim/util/Timestamp.hpp"
 
 
@@ -29,36 +29,38 @@ namespace slim
 
 	class Chunk
 	{
-		friend util::RealTimeQueue<Chunk>;
-
 		public:
+			using BufferType = util::buffer::HeapBuffer<std::uint8_t>;
+
 			Chunk(bool en, unsigned int sr, unsigned int ch, unsigned int bi)
 			: endOfStream{en}
 			, samplingRate{sr}
 			, channels{ch}
 			, bitsPerSample{bi} {}
 
-			~Chunk() = default;
-			Chunk(const Chunk& rhs) = delete;
-			Chunk& operator=(const Chunk& rhs) = delete;
-			Chunk(Chunk&& rhs) = delete;
-			Chunk& operator=(Chunk&& rhs) = delete;
+			inline void allocateBuffer(std::size_t s)
+			{
+				if (buffer.getSize() != s)
+				{
+					buffer = std::move(BufferType{s});
+				}
+				clear();
+			}
 
 			inline void clear()
 			{
-				buffer.clear();
-			}
-
-			template<typename FuncType>
-			inline void addData(FuncType func)
-			{
-				// TODO: introduce assert to make sure frames <= size / bytes per frame
-				buffer.setDataSize(func(buffer.getBuffer(), buffer.getSize()) * channels * (bitsPerSample >> 3));
+				frames = 0;
+				capturedFrames = 0;
 			}
 
 			inline auto getBufferSize() const
 			{
 				return buffer.getSize();
+			}
+
+			inline auto getBytesPerFrame() const
+			{
+				return channels * (bitsPerSample >> 3);
 			}
 
 			inline auto getCapturedFrames() const
@@ -71,19 +73,14 @@ namespace slim
 				return channels;
 			}
 
-			inline auto* getBuffer() const
+			inline auto* getData() const
 			{
-				return buffer.getBuffer();
-			}
-
-			inline std::size_t getDataSize() const
-			{
-				return buffer.getDataSize();
+				return buffer.getData();
 			}
 
 			inline auto getFrames() const
 			{
-				return buffer.getDataSize() / (channels * (bitsPerSample >> 3));
+				return frames;
 			}
 
 			inline unsigned int getSamplingRate() const
@@ -96,7 +93,7 @@ namespace slim
 				return timestamp;
 			}
 
-			inline bool isEndOfStream() const
+			inline auto isEndOfStream() const
 			{
 				return endOfStream;
 			}
@@ -104,15 +101,6 @@ namespace slim
 			inline void setBitsPerSample(unsigned int b)
 			{
 				bitsPerSample = b;
-			}
-
-			inline void setBufferSize(std::size_t s)
-			{
-				if (buffer.getSize() != s)
-				{
-					// changing buffer size resets the whole content of this chunk, hence reseting amount of frames stored
-					buffer = std::move(util::Buffer{s});
-				}
 			}
 
 			inline void setCapturedFrames(util::BigInteger f)
@@ -130,6 +118,11 @@ namespace slim
 				endOfStream = e;
 			}
 
+			inline void setFrames(std::size_t f)
+			{
+				frames = f;
+			}
+
 			inline void setSamplingRate(unsigned int r)
 			{
 				samplingRate = r;
@@ -141,6 +134,7 @@ namespace slim
 			}
 
 		protected:
+			friend util::RealTimeQueue<Chunk>;
 			Chunk() = default;
 
 		private:
@@ -148,8 +142,9 @@ namespace slim
 			unsigned int     samplingRate{0};
 			unsigned int     channels{0};
 			unsigned int     bitsPerSample{0};
-			util::Buffer     buffer{0};
-			util::Timestamp  timestamp;
+			BufferType       buffer{0};
+			std::size_t      frames{0};
 			util::BigInteger capturedFrames{0};
+			util::Timestamp  timestamp;
 		};
 }

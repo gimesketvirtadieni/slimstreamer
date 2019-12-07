@@ -21,6 +21,7 @@
 #include <memory>
 #include <scope_guard.hpp>
 #include <string>
+#include <sstream>
 #include <type_safe/optional.hpp>
 #include <type_safe/optional_ref.hpp>
 #include <unordered_map>
@@ -42,6 +43,7 @@
 #include "slim/proto/StreamingSession.hpp"
 #include "slim/util/Buffer.hpp"
 #include "slim/util/Duration.hpp"
+#include "slim/util/buffer/Helper.hpp"
 #include "slim/util/buffer/Ring.hpp"
 #include "slim/util/StateMachine.hpp"
 #include "slim/util/Timestamp.hpp"
@@ -57,7 +59,6 @@ namespace slim
 		class CommandSession
 		{
 			protected:
-				using CommandBufferType  = util::buffer::Ring<char>;
 				using CommandHandlersMap = std::unordered_map<std::string, std::function<std::size_t(util::Timestamp)>>;
 				using EventHandlersMap   = std::unordered_map<std::string, std::function<void(client::CommandSTAT&, util::Timestamp)>>;
 
@@ -269,15 +270,20 @@ namespace slim
 					// removing data from the buffer in case of an exception
 					::util::scope_guard_failure onException = [&]
 					{
-						commandBuffer.clear();
+						commandRingBuffer.clear();
 					};
 
 					// adding data to the buffer
-					for (auto i{std::size_t{0}}; i < size; i++)
+					for (std::size_t i{0}; i < size; i++)
 					{
-						commandBuffer.addBack(buffer[i]);
+						commandRingBuffer.push(buffer[i]);
 					}
-
+/*
+					std::stringstream ss;
+					ss << "Command buffer content:" << std::endl;
+					util::buffer::writeToStream(commandRingBuffer, commandRingBuffer.getSize(), ss);
+					LOG(INFO) << LABELS{"proto"} << ss.str();
+*/
 					// keep processing until there is anything to process in the buffer
 					std::size_t keySize{4};
 					std::size_t processedSize;
@@ -286,9 +292,9 @@ namespace slim
 						processedSize = 0;
 						auto label{ts::optional<std::string>{ts::nullopt}};
 
-						if (keySize <= commandBuffer.getSize())
+						if (keySize <= commandRingBuffer.getSize())
 						{
-							char labelCharacters[keySize] = {(char)commandBuffer[0], (char)commandBuffer[1], (char)commandBuffer[2], (char)commandBuffer[3]};
+							char labelCharacters[keySize] = {(char)commandRingBuffer[0], (char)commandRingBuffer[1], (char)commandRingBuffer[2], (char)commandRingBuffer[3]};
 							label = std::string{labelCharacters, keySize};
 						}
 
@@ -303,14 +309,14 @@ namespace slim
 							{
 								LOG(WARNING) << LABELS{"proto"} << "Unsupported SlimProto command received, skipping one character (header='" << label << "')";
 
-								commandBuffer.shrinkFront();
+								commandRingBuffer.pop();
 							}
 						});
 
 						if (found != commandHandlers.end())
 						{
 							// if there is enough data to process this message
-							if (InboundCommand<char>::isEnoughData(commandBuffer))
+							if (InboundCommand<char>::isEnoughData(commandRingBuffer))
 							{
 								// if this is not STAT command then reseting measuring flag
 								// TODO: consider proper usage of Command label
@@ -325,7 +331,7 @@ namespace slim
 								// removing processed data from the buffer
 								for (auto i{std::size_t{0}}; i < processedSize; i++)
 								{
-									commandBuffer.shrinkFront();
+									commandRingBuffer.pop();
 								}
 							}
 						}
@@ -380,7 +386,7 @@ namespace slim
 							LOG(WARNING) << LABELS{"proto"} << "Invalid SlimProto session state while processing Stop event";
 						});
 					}
-					
+
 					callback();
 				}
 
@@ -389,7 +395,7 @@ namespace slim
 				{
 					auto result{ts::optional<std::size_t>{ts::nullopt}};
 
-					for (auto i{std::size_t{probes.getSize()}}; 2 <= i && !result.has_value(); i--)
+					for (auto i{std::size_t{probes.getCapacity()}}; 2 <= i && !result.has_value(); i--)
 					{
 						auto& probe1{probes[i - 1]};
 						auto& probe2{probes[i - 2]};
@@ -409,7 +415,7 @@ namespace slim
 					auto samples{std::vector<ProbeValues>{}};
 
 					// skipping the first 3 elements while calculating 'mean probe' due to TCP 'slow start' (https://en.wikipedia.org/wiki/TCP_congestion_control)
-					for (auto i{std::size_t{3}}; i < probes.getSize(); i++)
+					for (auto i{std::size_t{3}}; i < probes.getCapacity(); i++)
 					{
 						if (probes[i].latency != probes[i].latency.zero())
 						{
@@ -442,7 +448,7 @@ namespace slim
 					LOG(INFO) << LABELS{"proto"} << "DSCO command received";
 
 					// deserializing DSCO command
-					result = client::CommandDSCO{commandBuffer}.getSize();
+					result = client::CommandDSCO{commandRingBuffer}.getSize();
 
 					return result;
 				}
@@ -450,7 +456,7 @@ namespace slim
 				inline auto onHELO()
 				{
 					// deserializing HELO command
-					auto h{client::CommandHELO{commandBuffer}};
+					auto h{client::CommandHELO{commandRingBuffer}};
 					auto result{h.getSize()};
 
 					if (!commandHELO.has_value())
@@ -473,7 +479,8 @@ namespace slim
 								pingTimer.reset();
 
 								// allocating an entry for ProbeValues to be collected
-								ping(probes.addBack(ProbeValues{}));
+								probes.push(ProbeValues{});
+								ping(probes.getSize() - 1);
 							}, std::chrono::seconds{1}));
 						}
 
@@ -502,7 +509,7 @@ namespace slim
 					LOG(INFO) << LABELS{"proto"} << "RESP command received";
 
 					// deserializing RESP command
-					result = client::CommandRESP{commandBuffer}.getSize();
+					result = client::CommandRESP{commandRingBuffer}.getSize();
 
 					return result;
 				}
@@ -514,14 +521,14 @@ namespace slim
 					LOG(INFO) << LABELS{"proto"} << "SETD command received";
 
 					// deserializing SETD command
-					result = client::CommandSETD{commandBuffer}.getSize();
+					result = client::CommandSETD{commandRingBuffer}.getSize();
 
 					return result;
 				}
 
 				inline auto onSTAT(util::Timestamp receiveTimestamp)
 				{
-					auto commandSTAT{client::CommandSTAT{commandBuffer}};
+					auto commandSTAT{client::CommandSTAT{commandRingBuffer}};
 					auto result{commandSTAT.getSize()};
 
 					auto event{std::string{commandSTAT.getData()->event, 4}};
@@ -582,7 +589,7 @@ namespace slim
 				inline void onSTMt(client::CommandSTAT& commandSTAT, util::Timestamp receiveTimestamp)
 				{
 					// processing guard: skipping any requests which were not originated by the server
-					if (!commandSTAT.getData()->serverTimestamp || commandSTAT.getData()->serverTimestamp > probes.getSize())
+					if (!commandSTAT.getData()->serverTimestamp || commandSTAT.getData()->serverTimestamp > probes.getCapacity())
 					{
 						return;
 					}
@@ -602,7 +609,7 @@ namespace slim
 						auto accurateDurationIndex{ts::optional<std::size_t>{ts::nullopt}};
 
 						// if there is enough samples to calculate mean values
-						if (probes.getSize() == probes.getCapacity())
+						if (probes.isFull())
 						{
 							// checking if there is an 'accurate' client playback duration sample available
 							if (stateMachine.state == PlayingState)
@@ -611,8 +618,8 @@ namespace slim
 							}
 						}
 
-						// if required samples are available for that latency and time offset can be calculated
-						if ((stateMachine.state != PlayingState && probes.getSize() == probes.getCapacity())
+						// if required samples are available so that latency and time offset can be calculated
+						if ((stateMachine.state != PlayingState && probes.isFull())
 						||  (stateMachine.state == PlayingState && accurateDurationIndex.value_or(0) >= 3))
 						{
 							// adjusting latency and time offset values
@@ -635,7 +642,7 @@ namespace slim
 								if (playbackDriftBase.has_value())
 								{
 									auto playbackDrift{playbackDriftBase.value() - playbackDiff - timeDiff};
-									
+
 									LOG(DEBUG) << LABELS{"proto"}
 										<< "Client playback drift was calculated (client id=" << clientID
 										<< ", drift=" << playbackDrift.count() << " microsec)";
@@ -653,7 +660,9 @@ namespace slim
 						else
 						{
 							// adding a new entry for ProbeValues to be collected
-							index = probes.addBack(ProbeValues{});
+							probes.push(ProbeValues{});
+							index = probes.getSize() - 1;
+
 						}
 					}
 					else
@@ -682,7 +691,8 @@ namespace slim
 								pingTimer.reset();
 
 								// allocating an entry for ProbeValues to be collected
-								ping(probes.addBack(ProbeValues{}));
+								probes.push(ProbeValues{});
+								ping(probes.getSize() - 1);
 							}, std::chrono::seconds{5}));
 						}
 					}
@@ -765,7 +775,7 @@ namespace slim
 				unsigned int                                                     samplingRate{0};
 				ts::optional_ref<StreamingSession<ConnectionType, StreamerType>> streamingSession{ts::nullopt};
 				// TODO: parameterize
-				util::buffer::Ring<std::uint8_t>                                 commandBuffer{2048};
+				util::buffer::Ring<std::uint8_t>                                 commandRingBuffer{2048};
 				ts::optional<client::CommandHELO>                                commandHELO{ts::nullopt};
 				ts::optional_ref<conwrap2::Timer>                                pingTimer{ts::nullopt};
 				bool                                                             measuringLatency{false};

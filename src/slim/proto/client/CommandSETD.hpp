@@ -42,9 +42,8 @@ namespace slim
 			class CommandSETD : public InboundCommand<SETD>
 			{
 				public:
-					template<typename CommandBufferType>
-					CommandSETD(const CommandBufferType& commandBuffer)
-					: InboundCommand<SETD>{sizeof(SETD), commandBuffer, "SETD"} {}
+					CommandSETD(const util::buffer::Ring<std::uint8_t>& commandRingBuffer)
+					: InboundCommand<SETD>{sizeof(SETD), commandRingBuffer, "SETD"} {}
 			};
 		}
 	}

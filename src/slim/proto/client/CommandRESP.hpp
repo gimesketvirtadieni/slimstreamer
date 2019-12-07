@@ -41,9 +41,8 @@ namespace slim
 			class CommandRESP : public InboundCommand<RESP>
 			{
 				public:
-					template<typename CommandBufferType>
-					CommandRESP(const CommandBufferType& commandBuffer)
-					: InboundCommand<RESP>{sizeof(RESP), commandBuffer, "RESP"} {}
+					CommandRESP(const util::buffer::Ring<std::uint8_t>& commandRingBuffer)
+					: InboundCommand<RESP>{sizeof(RESP), commandRingBuffer, "RESP"} {}
 			};
 		}
 	}

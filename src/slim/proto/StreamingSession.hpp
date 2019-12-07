@@ -90,7 +90,7 @@ namespace slim
 						}
 						else
 						{
-							encoderPtr->encode(chunk.getBuffer(), chunk.getDataSize());
+							encoderPtr->encode(chunk.getData(), chunk.getFrames() * chunk.getBytesPerFrame());
 							framesProvided += chunk.getFrames();
 
 							if (chunk.isEndOfStream())

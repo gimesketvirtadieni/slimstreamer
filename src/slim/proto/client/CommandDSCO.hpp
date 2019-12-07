@@ -19,6 +19,7 @@
 
 #include "slim/Exception.hpp"
 #include "slim/proto/InboundCommand.hpp"
+#include "slim/util/buffer/Ring.hpp"
 
 
 namespace slim
@@ -42,9 +43,8 @@ namespace slim
 			class CommandDSCO : public InboundCommand<DSCO>
 			{
 				public:
-					template<typename CommandBufferType>
-					CommandDSCO(const CommandBufferType& commandBuffer)
-					: InboundCommand<DSCO>{sizeof(DSCO), commandBuffer, "DSCO"} {}
+					CommandDSCO(const util::buffer::Ring<std::uint8_t>& commandRingBuffer)
+					: InboundCommand<DSCO>{sizeof(DSCO), commandRingBuffer, "DSCO"} {}
 			};
 		}
 	}

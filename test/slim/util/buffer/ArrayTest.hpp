@@ -7,55 +7,22 @@
 
 struct ArrayTestContext
 {
-	// keeping counters outside of the errors policies so that methods can be const
-	static unsigned int onIndexOutOfRangeCounter;
-
-	template<typename ElementType>
-	using DefaultStorageTest = slim::util::buffer::HeapStorage<ElementType>;
-
-	struct BufferErrorsPolicyTest
-	{
-		template<typename BufferType>
-		void onIndexOutOfRange(BufferType& buffer, const typename BufferType::IndexType& i) const
-		{
-			onIndexOutOfRangeCounter++;
-		}
-	};
-
 	template
 	<
 		typename ElementType,
-		template <typename> class StorageType = DefaultStorageTest
+		template <typename> class StorageType = slim::util::buffer::HeapBuffer,
+		template <typename, template <typename> class> class ArrayViewPolicyType = slim::util::buffer::ArrayViewPolicy
 	>
-	using ArrayAccessPolicyType = slim::util::buffer::ArrayAccessPolicy<ElementType, BufferErrorsPolicyTest, StorageType>;
-
-	template
-	<
-		typename ElementType,
-		template <typename> class StorageType = DefaultStorageTest,
-		template <typename, template <typename> class> class BufferAccessPolicyType = ArrayAccessPolicyType
-	>
-	class ArrayTest : public slim::util::buffer::Array<ElementType, StorageType, BufferAccessPolicyType>
-	{
-		public:
-			inline explicit ArrayTest(const typename StorageType<ElementType>::CapacityType& c)
-			: slim::util::buffer::Array<ElementType, StorageType, BufferAccessPolicyType>{c} {}
-
-			// overwriting visibility to make it public
-			using BufferAccessPolicyType<ElementType, StorageType>::getElementByIndex;
-			using BufferAccessPolicyType<ElementType, StorageType>::isIndexOutOfRange;
-	};
+	using ArrayTest = slim::util::buffer::Array<ElementType, StorageType, ArrayViewPolicyType>;
 
 	template<typename ArrayType>
-	static void validateState(ArrayType& arrayBuffer, const std::vector<int>& samples)
+	static void validateState(const ArrayType& array, const std::vector<int>& samples)
 	{
-		EXPECT_EQ(arrayBuffer.getSize(), samples.size());
+		EXPECT_EQ(array.getSize(), samples.size());
 
-		for (auto i{std::size_t{0}}; i < samples.size(); i++)
+		for (auto i{0u}; i < samples.size(); i++)
 		{
-			EXPECT_EQ(arrayBuffer[i], samples[i]);
+			EXPECT_EQ(array[i], samples[i]);
 		}
-
-		EXPECT_EQ(ArrayTestContext::onIndexOutOfRangeCounter, 0);
 	}
 };

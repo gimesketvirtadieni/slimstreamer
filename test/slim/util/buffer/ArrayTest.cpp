@@ -1,33 +1,24 @@
 #include "slim/util/buffer/ArrayTest.hpp"
 
 
-unsigned int ArrayTestContext::onIndexOutOfRangeCounter;
-
-
 TEST(Array, Constructor1)
 {
-	ArrayTestContext::onIndexOutOfRangeCounter = 0;
-	std::size_t capacity{0};
+	std::size_t size{0};
 
-	ArrayTestContext::ArrayTest<int> arrayBuffer{capacity};
+	ArrayTestContext::ArrayTest<int> array{size};
 
-	ArrayTestContext::validateState(arrayBuffer, {});
+	ArrayTestContext::validateState(array, {});
 }
 
-TEST(Array, getElementByIndex1)
+TEST(Array, getElement1)
 {
-	ArrayTestContext::ArrayTest<int> array{1};
-	auto value{11u};
-	array[0] = value;
+	std::vector<int> samples{11, 22};
+	ArrayTestContext::ArrayTest<int> array{samples.size()};
 
-	EXPECT_EQ(*array.getElementByIndex(0), value);
-	EXPECT_EQ(ArrayTestContext::onIndexOutOfRangeCounter, 0);
-}
+	for (auto i{0u}; i < samples.size(); i++)
+	{
+		array[i] = samples[i];
+	}
 
-TEST(Array, getElementByIndex2)
-{
-	ArrayTestContext::ArrayTest<int> array{1};
-
-	EXPECT_EQ(array.getElementByIndex(1), nullptr);
-	EXPECT_EQ(ArrayTestContext::onIndexOutOfRangeCounter, 1);
+	ArrayTestContext::validateState(array, samples);
 }

@@ -21,7 +21,7 @@
 #include "slim/conn/tcp/CallbacksBase.hpp"
 #include "slim/log/log.hpp"
 #include "slim/util/AsyncWriter.hpp"
-#include "slim/util/buffer/RawBuffer.hpp"
+#include "slim/util/buffer/HeapBuffer.hpp"
 #include "slim/util/Timestamp.hpp"
 
 
@@ -194,12 +194,12 @@ namespace slim
 							// calling onData callback that does all the usefull work
 							if (receivedSize > 0)
 							{
-								callbacks.getDataCallback()(*this, buffer.getBuffer(), receivedSize, timestamp);
+								callbacks.getDataCallback()(*this, buffer.getData(), receivedSize, timestamp);
 							}
 
 							// keep receiving data
 							nativeSocket.async_read_some(
-								std::experimental::net::mutable_buffer(buffer.getBuffer(), buffer.getCapacity()),
+								std::experimental::net::mutable_buffer(buffer.getData(), buffer.getSize()),
 								[&](const std::error_code error, std::size_t bytes_transferred)
 								{
 									onData(error, bytes_transferred, util::Timestamp());
@@ -256,7 +256,7 @@ namespace slim
 					std::experimental::net::ip::tcp::socket                  nativeSocket;
 					bool                                                     opened;
 					// TODO: parametrize
-					util::buffer::RawBuffer<std::uint8_t>                    buffer{1024};
+					util::buffer::HeapBuffer<std::uint8_t>                   buffer{1024};
 			};
 		}
 	}
