@@ -30,6 +30,8 @@ namespace slim
 			#pragma pack(push, 1)
 			struct HELO
 			{
+				static constexpr char LABEL[] = "HELO";
+
 				char          opcode[4];
 				std::uint32_t size;
 				std::uint8_t  deviceID;
@@ -55,7 +57,7 @@ namespace slim
 			{
 				public:
 					CommandHELO(const util::buffer::Ring<std::uint8_t>& commandRingBuffer)
-					: InboundCommand<HELO>{sizeof(HELO) + 2048, commandRingBuffer, "HELO"} {}
+					: InboundCommand<HELO>{commandRingBuffer, HELO::LABEL} {}
 			};
 		}
 	}

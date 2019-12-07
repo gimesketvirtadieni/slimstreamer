@@ -34,7 +34,7 @@ namespace slim
 				};
 
 			public:
-				InboundCommand(const util::buffer::HeapBuffer<std::uint8_t>::SizeType& bufferSize, const util::buffer::Ring<std::uint8_t>& commandRingBuffer, const std::string& label)
+				InboundCommand(const util::buffer::Ring<std::uint8_t>& commandRingBuffer, const std::string_view& label)
 				// TODO: buffer size must be calculated based on size provided in the command
 				: buffer{commandRingBuffer.getCapacity()}
 				{

@@ -30,6 +30,8 @@ namespace slim
 			#pragma pack(push, 1)
 			struct SETD
 			{
+				static constexpr char LABEL[] = "SETD";
+
 				char          opcode[4];
 				std::uint32_t size;
 				std::uint8_t  id;
@@ -43,7 +45,7 @@ namespace slim
 			{
 				public:
 					CommandSETD(const util::buffer::Ring<std::uint8_t>& commandRingBuffer)
-					: InboundCommand<SETD>{sizeof(SETD), commandRingBuffer, "SETD"} {}
+					: InboundCommand<SETD>{commandRingBuffer, SETD::LABEL} {}
 			};
 		}
 	}

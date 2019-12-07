@@ -31,6 +31,8 @@ namespace slim
 			#pragma pack(push, 1)
 			struct DSCO
 			{
+				static constexpr char LABEL[] = "DSCO";
+
 				char          opcode[4];
 				std::uint32_t size;
 				std::uint8_t  reason;
@@ -44,7 +46,7 @@ namespace slim
 			{
 				public:
 					CommandDSCO(const util::buffer::Ring<std::uint8_t>& commandRingBuffer)
-					: InboundCommand<DSCO>{sizeof(DSCO), commandRingBuffer, "DSCO"} {}
+					: InboundCommand<DSCO>{commandRingBuffer, DSCO::LABEL} {}
 			};
 		}
 	}

@@ -28,6 +28,8 @@ namespace slim
 			#pragma pack(push, 1)
 			struct STAT
 			{
+				static constexpr char LABEL[] = "STAT";
+
 				char          opcode[4];
 				std::uint32_t size;
 				char          event[4];
@@ -71,7 +73,7 @@ namespace slim
 			{
 				public:
 					CommandSTAT(const util::buffer::Ring<std::uint8_t>& commandRingBuffer)
-					: InboundCommand<STAT>{sizeof(STAT), commandRingBuffer, "STAT"} {}
+					: InboundCommand<STAT>{commandRingBuffer, STAT::LABEL} {}
 			};
 		}
 	}

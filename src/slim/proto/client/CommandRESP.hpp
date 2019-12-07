@@ -30,6 +30,8 @@ namespace slim
 			#pragma pack(push, 1)
 			struct RESP
 			{
+				static constexpr char LABEL[] = "RESP";
+
 				char          opcode[4];
 				std::uint32_t size;
 
@@ -42,7 +44,7 @@ namespace slim
 			{
 				public:
 					CommandRESP(const util::buffer::Ring<std::uint8_t>& commandRingBuffer)
-					: InboundCommand<RESP>{sizeof(RESP), commandRingBuffer, "RESP"} {}
+					: InboundCommand<RESP>{commandRingBuffer, RESP::LABEL} {}
 			};
 		}
 	}
