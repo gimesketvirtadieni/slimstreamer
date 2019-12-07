@@ -395,7 +395,7 @@ namespace slim
 				{
 					auto result{ts::optional<std::size_t>{ts::nullopt}};
 
-					for (auto i{std::size_t{probes.getCapacity()}}; 2 <= i && !result.has_value(); i--)
+					for (auto i{std::size_t{probes.capacity()}}; 2 <= i && !result.has_value(); i--)
 					{
 						auto& probe1{probes[i - 1]};
 						auto& probe2{probes[i - 2]};
@@ -415,7 +415,7 @@ namespace slim
 					auto samples{std::vector<ProbeValues>{}};
 
 					// skipping the first 3 elements while calculating 'mean probe' due to TCP 'slow start' (https://en.wikipedia.org/wiki/TCP_congestion_control)
-					for (auto i{std::size_t{3}}; i < probes.getCapacity(); i++)
+					for (auto i{std::size_t{3}}; i < probes.capacity(); i++)
 					{
 						if (probes[i].latency != probes[i].latency.zero())
 						{
@@ -479,8 +479,8 @@ namespace slim
 								pingTimer.reset();
 
 								// allocating an entry for ProbeValues to be collected
-								probes.push(ProbeValues{});
-								ping(probes.getSize() - 1);
+								probes.push_back(ProbeValues{});
+								ping(probes.size() - 1);
 							}, std::chrono::seconds{1}));
 						}
 
@@ -589,7 +589,7 @@ namespace slim
 				inline void onSTMt(client::CommandSTAT& commandSTAT, util::Timestamp receiveTimestamp)
 				{
 					// processing guard: skipping any requests which were not originated by the server
-					if (!commandSTAT.getData()->serverTimestamp || commandSTAT.getData()->serverTimestamp > probes.getCapacity())
+					if (!commandSTAT.getData()->serverTimestamp || commandSTAT.getData()->serverTimestamp > probes.capacity())
 					{
 						return;
 					}
@@ -609,7 +609,7 @@ namespace slim
 						auto accurateDurationIndex{ts::optional<std::size_t>{ts::nullopt}};
 
 						// if there is enough samples to calculate mean values
-						if (probes.isFull())
+						if (probes.size() == probes.capacity())
 						{
 							// checking if there is an 'accurate' client playback duration sample available
 							if (stateMachine.state == PlayingState)
@@ -619,7 +619,7 @@ namespace slim
 						}
 
 						// if required samples are available so that latency and time offset can be calculated
-						if ((stateMachine.state != PlayingState && probes.isFull())
+						if ((stateMachine.state != PlayingState && probes.size() == probes.capacity())
 						||  (stateMachine.state == PlayingState && accurateDurationIndex.value_or(0) >= 3))
 						{
 							// adjusting latency and time offset values
@@ -660,8 +660,8 @@ namespace slim
 						else
 						{
 							// adding a new entry for ProbeValues to be collected
-							probes.push(ProbeValues{});
-							index = probes.getSize() - 1;
+							probes.push_back(ProbeValues{});
+							index = probes.size() - 1;
 
 						}
 					}
@@ -691,8 +691,8 @@ namespace slim
 								pingTimer.reset();
 
 								// allocating an entry for ProbeValues to be collected
-								probes.push(ProbeValues{});
-								ping(probes.getSize() - 1);
+								probes.push_back(ProbeValues{});
+								ping(probes.size() - 1);
 							}, std::chrono::seconds{5}));
 						}
 					}
@@ -782,7 +782,7 @@ namespace slim
 				ts::optional<util::Duration>                                     latency;
 				ts::optional<util::Duration>                                     timeOffset;
 				// TODO: parameterize
-				util::buffer::Ring<ProbeValues>                                  probes{13};
+				std::vector<ProbeValues>                                         probes{13};
 				ts::optional<util::Duration>                                     playbackDriftBase{ts::nullopt};
 				bool                                                             clientBufferIsReady{false};
 				util::Timestamp                                                  lastChunkTimestamp;
