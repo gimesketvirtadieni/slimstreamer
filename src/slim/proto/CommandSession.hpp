@@ -41,7 +41,6 @@
 #include "slim/proto/server/CommandSETD.hpp"
 #include "slim/proto/server/CommandSTRM.hpp"
 #include "slim/proto/StreamingSession.hpp"
-#include "slim/util/Buffer.hpp"
 #include "slim/util/Duration.hpp"
 #include "slim/util/buffer/Helper.hpp"
 #include "slim/util/buffer/Ring.hpp"

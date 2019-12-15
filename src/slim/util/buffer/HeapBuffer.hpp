@@ -26,18 +26,41 @@ template
 <
     typename ElementType
 >
+class PointerWrapper
+{
+    public:
+        inline explicit PointerWrapper(const std::size_t& s)
+        : data{std::make_unique<ElementType[]>(s)} {}
+
+        inline auto* get() const
+        {
+            return data.get();
+        }
+
+    private:
+        std::unique_ptr<ElementType[]> data;
+};
+
+template
+<
+    typename ElementType,
+    typename StorageType = PointerWrapper<ElementType>
+>
 class HeapBuffer
 {
     public:
         using SizeType = std::size_t;
 
+        inline explicit HeapBuffer(StorageType d, const SizeType& s)
+        : data{std::move(d)}
+        , size{s} {}
+
         inline explicit HeapBuffer(const SizeType& s)
-        : size{s}
-        , dataPtr{std::make_unique<ElementType[]>(s)} {}
+        : HeapBuffer{std::move(StorageType{s}), s} {}
 
         inline auto* getData() const
         {
-            return dataPtr.get();
+            return data.get();
         }
 
         inline auto getSize() const
@@ -46,8 +69,8 @@ class HeapBuffer
         }
 
     private:
-        SizeType                       size;
-        std::unique_ptr<ElementType[]> dataPtr;
+        StorageType data;
+        SizeType    size;
 };
 
 }
