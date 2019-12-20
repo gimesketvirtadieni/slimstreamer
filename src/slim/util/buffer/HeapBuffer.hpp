@@ -30,7 +30,7 @@ class PointerWrapper
 {
     public:
         inline explicit PointerWrapper(const std::size_t& s)
-        : data{std::make_unique<ElementType[]>(s)} {}
+        : data{s > 0 ? std::make_unique<ElementType[]>(s) : std::unique_ptr<ElementType[]>()} {}
 
         inline auto* get() const
         {
@@ -63,7 +63,7 @@ class HeapBuffer
             return data.get();
         }
 
-        inline auto getSize() const
+        inline const auto getSize() const
         {
             return size;
         }

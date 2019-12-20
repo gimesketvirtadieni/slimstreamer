@@ -12,9 +12,13 @@
 
 #pragma once
 
+#include <algorithm>  // std::min
 #include <conwrap2/ProcessorProxy.hpp>
+#include <cstring>  // std::memcpy
 #include <functional>
+#include <queue>
 #include <memory>
+#include <scope_guard.hpp>
 #include <sstream>  // std::stringstream
 #include <string>
 #include <type_safe/optional.hpp>
@@ -24,7 +28,7 @@
 #include "slim/EncoderBuilder.hpp"
 #include "slim/log/log.hpp"
 #include "slim/util/BigInteger.hpp"
-#include "slim/util/BufferedAsyncWriter.hpp"
+#include "slim/util/buffer/BufferPool.hpp"
 
 
 namespace slim
@@ -42,20 +46,30 @@ namespace slim
 				, connection{co}
 				, streamer{st}
 				, clientID{id}
-				, bufferedWriter{co}
 				{
 					LOG(DEBUG) << LABELS{"proto"} << "HTTP session object was created (id=" << this << ")";
 
-					eb.setEncodedCallback([&](auto* data, auto size)
+					eb.setEncodedCallback([&](const auto* encodedData, auto encodedDataSize)
 					{
-						// do not feed writer with more data if there is no room in transfer buffer
-						if (bufferedWriter.isBufferAvailable())
+						for (std::size_t offset = 0; offset < encodedDataSize;)
 						{
-							bufferedWriter.writeAsync(data, size, [](auto error, auto written) {});
-						}
-						else
-						{
-							LOG(WARNING) << LABELS{"proto"} << "Transfer buffer is full - skipping encoded chunk";
+							auto buffer = bufferPool.allocate();
+							if (!buffer.getData())
+							{
+								LOG(WARNING) << LABELS{"proto"} << "Transfer buffer is full - skipping encoded chunk";
+								return;
+							}
+
+							// copying encoded PCM content to the allocated buffer and submitting for transfer to a client
+							auto chunkSize = std::min(buffer.getSize(), encodedDataSize - offset);
+							std::memcpy(buffer.getData(), encodedData, chunkSize);
+							auto transferDataChunk = TransferDataChunk{std::move(buffer), chunkSize, 0};
+
+							// submitting a chunk to be transferred to a client
+							transferBufferQueue.push(std::move(transferDataChunk));
+							submitTransferTask();
+
+							offset += chunkSize;
 						}
 					});
 					encoderPtr = std::move(eb.build());
@@ -81,23 +95,23 @@ namespace slim
 				{
 					if (running)
 					{
-						// stopping this session in case sampling rates do not match
+						// sampling rates do not match then stopping this session
 						if (chunk.getSamplingRate() != encoderPtr->getSamplingRate())
 						{
 							// stopping this session due to incorrect data provided
 							LOG(WARNING) << LABELS{"proto"} << "Closing HTTP connection due to different sampling rate used by a client (session rate=" << encoderPtr->getSamplingRate() << "; data rate=" << chunk.getSamplingRate() << ")";
 							stop([] {});
+							return;
 						}
-						else
-						{
-							encoderPtr->encode(chunk.getData(), chunk.getFrames() * chunk.getBytesPerFrame());
-							framesProvided += chunk.getFrames();
 
-							if (chunk.isEndOfStream())
-							{
-								stop([] {});
-							}
+						// if this is the last chunk for the ongoing stream then stopping this session
+						if (chunk.isEndOfStream())
+						{
+							stop([] {});
 						}
+
+						encoderPtr->encode(chunk.getData(), chunk.getFrames() * chunk.getBytesPerFrame());
+						framesProvided += chunk.getFrames();
 					}
 				}
 
@@ -195,9 +209,19 @@ namespace slim
 				}
 
 			protected:
+				using PooledBufferType = util::buffer::BufferPool<std::uint8_t>::PooledBufferType;
+				struct TransferDataChunk
+				{
+					PooledBufferType           buffer;
+					PooledBufferType::SizeType size;
+					PooledBufferType::SizeType offset;
+				};
+
 				template <typename CallbackType>
 				void flush(CallbackType callback)
 				{
+					// TODO: work in progress - implement properly
+/*
 					if (bufferedWriter.isBufferAvailable())
 					{
 						// submitting an 'empty' chunk so that a callback gets invoked when all data has been transferred
@@ -214,6 +238,85 @@ namespace slim
 							flush(std::move(callback));
 						}, std::chrono::milliseconds{1}));
 					}
+*/
+				}
+
+				inline void submitTransferTask()
+				{
+					// ongoing transfer will resubmit itself once finished so no need to submit one more task
+					if (transferring)
+					{
+						return;
+					}
+
+					processorProxy.process([&]
+					{
+						transferTask();
+					});
+				}
+
+				inline void transferTask()
+				{
+					// there is nothing to transfer
+					if (!transferBufferQueue.size())
+					{
+						return;
+					}
+
+					// there is already an ongoing transfer
+					if (transferring)
+					{
+						return;
+					}
+
+					// it will disabling submiting new tasks until this write succeeds
+					transferring = true;
+
+					auto& transferDataChunk = transferBufferQueue.front();
+					connection.get().writeAsync(transferDataChunk.buffer.getData() + transferDataChunk.offset, transferDataChunk.size, [this](auto error, auto bytesTransferred)
+					{
+						// ensuring that a buffer is consumed from the queue unless it is explicitly instructed not to do so
+						auto releaseBuffer = true;
+						::util::scope_guard onExit = [&]
+						{
+							if (releaseBuffer && transferBufferQueue.size())
+							{
+								transferBufferQueue.pop();
+							}
+
+							// submitting a new transfer task
+							transferring = false;
+							submitTransferTask();
+						};
+
+						if (error)
+						{
+							LOG(ERROR) << LABELS{"proto"} << "Skipped data chunk due to an error while transferring it to a client: " << error.message();
+							return;
+						}
+
+						if (!transferBufferQueue.size())
+						{
+							LOG(ERROR) << LABELS{"proto"} << "Missing transfer buffer";
+							return;
+						}
+
+						auto& transferDataChunk = transferBufferQueue.front();
+						if (bytesTransferred < transferDataChunk.size)
+						{
+							LOG(INFO) << LABELS{"proto"} << "Incomplete buffer content was sent, transmitting reminder: chunk size=" << transferDataChunk.size << ", transferred=" << bytesTransferred;
+
+							// setting up transfer chunk data to transfer only the reminder
+							transferDataChunk.size   -= bytesTransferred;
+							transferDataChunk.offset += bytesTransferred;
+
+							// it will instruct the guard not to release transfer data chunk back to the pool
+							releaseBuffer = false;
+							return;
+						}
+
+						//LOG(DEBUG) << LABELS{"proto"} << "Chunk was successfully transferred: " << transferDataChunk.size << ", transferred=" << bytesTransferred;
+					});
 				}
 
 			private:
@@ -221,12 +324,16 @@ namespace slim
 				std::reference_wrapper<ConnectionType>                   connection;
 				std::reference_wrapper<StreamerType>                     streamer;
 				std::string                                              clientID;
-				// TODO: parameterize
-				util::BufferedAsyncWriter<ConnectionType, 128>           bufferedWriter;
 				std::unique_ptr<EncoderBase>                             encoderPtr;
 				bool                                                     running{false};
-				ts::optional_ref<conwrap2::Timer>                        timer{ts::nullopt};
+				bool                                                     transferring{false};
+				// TODO: parameterize
+				const std::size_t                                        poolSize{256};
+				const std::size_t                                        bufferSize{4096};
+				util::buffer::BufferPool<std::uint8_t>                   bufferPool{poolSize, bufferSize};
+				std::queue<TransferDataChunk>                            transferBufferQueue;
 				util::BigInteger                                         framesProvided{0};
+				ts::optional_ref<conwrap2::Timer>                        timer{ts::nullopt};
 		};
 	}
 }

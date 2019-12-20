@@ -8,6 +8,7 @@ TEST(HeapBuffer, Constructor1)
 	HeapBufferTestContext::HeapBufferTest<int> buffer{size};
 
 	HeapBufferTestContext::validateState(buffer, {});
+	EXPECT_EQ(buffer.getData(), nullptr);
 }
 
 TEST(HeapBuffer, Constructor2)

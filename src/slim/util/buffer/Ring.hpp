@@ -52,22 +52,22 @@ class RingViewPolicy : protected ArrayViewPolicy<ElementType, StorageType>
             size = 0;
         }
 
-        inline auto getCapacity() const
+        inline const auto getCapacity() const
         {
             return ArrayViewPolicy<ElementType, StorageType>::getSize();
         }
 
-        inline SizeType getSize() const
+        inline const SizeType getSize() const
         {
             return size;
         }
 
-        inline auto isEmpty() const
+        inline const auto isEmpty() const
         {
             return size == 0;
         }
 
-        inline auto isFull() const
+        inline const auto isFull() const
         {
             return size == StorageType<ElementType>::getSize();
         }
@@ -97,12 +97,12 @@ class RingViewPolicy : protected ArrayViewPolicy<ElementType, StorageType>
         }
 
     protected:
-        inline auto getAbsoluteIndex(const IndexType& i) const
+        inline const auto getAbsoluteIndex(const IndexType& i) const
         {
             return i < StorageType<ElementType>::getSize() ? normalizeIndex(head + i) : i;
         }
 
-        inline auto normalizeIndex(const IndexType& i) const
+        inline const auto normalizeIndex(const IndexType& i) const
         {
             return i < StorageType<ElementType>::getSize() ? i : i - StorageType<ElementType>::getSize();
         }
