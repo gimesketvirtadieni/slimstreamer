@@ -53,17 +53,17 @@ namespace slim
 					{
 						for (std::size_t offset = 0; offset < encodedDataSize;)
 						{
-							auto buffer = bufferPool.allocate();
-							if (!buffer.getData())
+							auto pooledBuffer = bufferPool.allocate();
+							if (!pooledBuffer.getData())
 							{
 								LOG(WARNING) << LABELS{"proto"} << "Transfer buffer is full - skipping encoded chunk";
 								return;
 							}
 
 							// copying encoded PCM content to the allocated buffer and submitting for transfer to a client
-							auto chunkSize = std::min(buffer.getSize(), encodedDataSize - offset);
-							std::memcpy(buffer.getData(), encodedData, chunkSize);
-							auto transferDataChunk = TransferDataChunk{std::move(buffer), chunkSize, 0};
+							auto chunkSize = std::min(pooledBuffer.getSize(), encodedDataSize - offset);
+							std::memcpy(pooledBuffer.getData(), encodedData, chunkSize);
+							auto transferDataChunk = TransferDataChunk{std::move(pooledBuffer), chunkSize, 0};
 
 							// submitting a chunk to be transferred to a client
 							transferBufferQueue.push(std::move(transferDataChunk));
@@ -209,7 +209,7 @@ namespace slim
 				}
 
 			protected:
-				using PooledBufferType = util::buffer::BufferPool<std::uint8_t>::PooledBufferType;
+				using PooledBufferType  = util::buffer::BufferPool<std::uint8_t>::PooledBufferType;
 				struct TransferDataChunk
 				{
 					PooledBufferType           buffer;
@@ -220,25 +220,22 @@ namespace slim
 				template <typename CallbackType>
 				void flush(CallbackType callback)
 				{
-					// TODO: work in progress - implement properly
-/*
-					if (bufferedWriter.isBufferAvailable())
+					if (!transferring)
 					{
-						// submitting an 'empty' chunk so that a callback gets invoked when all data has been transferred
-						bufferedWriter.writeAsync(nullptr, 0, [callback = std::move(callback)](auto error, auto written)
+						while (!transferBufferQueue.empty())
 						{
-							callback();
-						});
+							transferBufferQueue.pop();
+						}
+						callback();
 					}
 					else
 					{
-						// waiting until data is transferred so a new 'empty' chunk can be submitted
+						// waiting until data is transferred
 						timer = ts::ref(processorProxy.processWithDelay([&, callback = std::move(callback)]
 						{
 							flush(std::move(callback));
 						}, std::chrono::milliseconds{1}));
 					}
-*/
 				}
 
 				inline void submitTransferTask()
@@ -295,9 +292,9 @@ namespace slim
 							return;
 						}
 
+						// guarding against cases when queue has been flushed
 						if (!transferBufferQueue.size())
 						{
-							LOG(ERROR) << LABELS{"proto"} << "Missing transfer buffer";
 							return;
 						}
 

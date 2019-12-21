@@ -50,7 +50,7 @@ class BufferPool
         }
 
         inline PooledBufferType allocate()
-        {            
+        {
             for (SizeType i = 0; i < buffers.size(); i++)
             {
                 auto& bufferWrapper = buffers[i];
