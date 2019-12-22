@@ -26,10 +26,10 @@ template
 <
     typename ElementType
 >
-class PointerWrapper
+class DefaultPointerWrapper
 {
     public:
-        inline explicit PointerWrapper(const std::size_t& s)
+        inline explicit DefaultPointerWrapper(const std::size_t& s)
         : data{s > 0 ? std::make_unique<ElementType[]>(s) : std::unique_ptr<ElementType[]>()} {}
 
         inline auto* get() const
@@ -44,7 +44,7 @@ class PointerWrapper
 template
 <
     typename ElementType,
-    typename StorageType = PointerWrapper<ElementType>
+    typename StorageType = DefaultPointerWrapper<ElementType>
 >
 class DefaultHeapBufferViewPolicy
 {
@@ -76,7 +76,7 @@ class DefaultHeapBufferViewPolicy
 template
 <
     typename ElementType,
-    typename StorageType = PointerWrapper<ElementType>,
+    typename StorageType = DefaultPointerWrapper<ElementType>,
     typename BufferViewPolicyType = DefaultHeapBufferViewPolicy<ElementType, StorageType>
 >
 class HeapBuffer : public BufferViewPolicyType

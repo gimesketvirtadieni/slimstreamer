@@ -14,7 +14,7 @@ TEST(HeapBuffer, Constructor1)
 TEST(HeapBuffer, Constructor2)
 {
 	std::size_t size{11};
-	slim::util::buffer::PointerWrapper<int> data{size};
+	slim::util::buffer::DefaultPointerWrapper<int> data{size};
 	HeapBufferTestContext::HeapBufferTest<int> buffer{std::move(data), size};
 
 	EXPECT_EQ(buffer.getSize(), size);
@@ -36,7 +36,7 @@ TEST(HeapBuffer, getElement1)
 TEST(HeapBuffer, getElement2)
 {
 	std::vector<int> samples{11, 22};
-	slim::util::buffer::PointerWrapper<int> data{samples.size()};
+	slim::util::buffer::DefaultPointerWrapper<int> data{samples.size()};
 	for (auto i{0u}; i < samples.size(); i++)
 	{
 		data.get()[i] = samples[i];

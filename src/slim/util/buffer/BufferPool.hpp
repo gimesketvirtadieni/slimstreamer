@@ -26,6 +26,30 @@ namespace util
 namespace buffer
 {
 
+template
+<
+    typename ElementType
+>
+class PooledStorage
+{
+    public:
+        using PointerType = std::unique_ptr<ElementType[], std::function<void(ElementType*)>>;
+
+        template <typename DeleterType>
+        inline explicit PooledStorage(ElementType* dat, const DeleterType& del)
+        : data{dat, std::move(del)} {}
+
+        inline PooledStorage()
+        : data{} {}
+
+        inline auto* get() const
+        {
+            return data.get();
+        }
+
+    private:
+        PointerType data;
+};
 
 template
 <
@@ -37,7 +61,7 @@ class BufferPool
     public:
         using BufferType        = BufferTemplate<ElementType, std::unique_ptr<ElementType[]>>;
         using SizeType          = typename BufferType::SizeType;
-        using PooledStorageType = std::unique_ptr<ElementType[], std::function<void(ElementType*)>>;
+        using PooledStorageType = PooledStorage<ElementType>;
         using PooledBufferType  = BufferTemplate<ElementType, PooledStorageType>;
 
     public:
