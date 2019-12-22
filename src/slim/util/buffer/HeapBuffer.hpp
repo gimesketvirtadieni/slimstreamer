@@ -77,15 +77,15 @@ template
 <
     typename ElementType,
     typename StorageType = PointerWrapper<ElementType>,
-    typename BufferViewType = DefaultHeapBufferViewPolicy<ElementType, StorageType>
+    typename BufferViewPolicyType = DefaultHeapBufferViewPolicy<ElementType, StorageType>
 >
-class HeapBuffer : public BufferViewType
+class HeapBuffer : public BufferViewPolicyType
 {
     public:
-        inline explicit HeapBuffer(StorageType d, const typename BufferViewType::SizeType& s)
-        : BufferViewType{std::move(d), s} {}
+        inline explicit HeapBuffer(StorageType d, const typename BufferViewPolicyType::SizeType& s)
+        : BufferViewPolicyType{std::move(d), s} {}
 
-        inline explicit HeapBuffer(const typename BufferViewType::SizeType& s)
+        inline explicit HeapBuffer(const typename BufferViewPolicyType::SizeType& s)
         : HeapBuffer{std::move(StorageType{s}), s} {}
 };
 
