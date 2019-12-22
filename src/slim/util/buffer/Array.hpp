@@ -29,13 +29,13 @@ template
     typename ElementType,
     template <typename> class StorageType = HeapBuffer
 >
-class ArrayViewPolicy : protected StorageType<ElementType>
+class DefaultArrayViewPolicy : protected StorageType<ElementType>
 {
     public:
         using SizeType  = typename StorageType<ElementType>::SizeType;
         using IndexType = std::size_t;
 
-        inline explicit ArrayViewPolicy(const SizeType& s)
+        inline explicit DefaultArrayViewPolicy(const SizeType& s)
         : StorageType<ElementType>{s} {}
 
         inline const auto& operator[](const IndexType& i) const
@@ -56,7 +56,7 @@ template
 <
     typename ElementType,
     template <typename> class StorageType = HeapBuffer,
-    template <typename, template <typename> class> class ArrayViewPolicyType = ArrayViewPolicy
+    template <typename, template <typename> class> class ArrayViewPolicyType = DefaultArrayViewPolicy
 >
 class Array : public ArrayViewPolicyType<ElementType, StorageType>
 {

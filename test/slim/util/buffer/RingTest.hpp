@@ -1,7 +1,6 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
-//#include "slim/util/buffer/HeapStorageTest.hpp"  // used for HeapStorageTest
 #include "slim/util/buffer/Ring.hpp"
 
 

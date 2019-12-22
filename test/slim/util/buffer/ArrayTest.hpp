@@ -11,7 +11,7 @@ struct ArrayTestContext
 	<
 		typename ElementType,
 		template <typename> class StorageType = slim::util::buffer::HeapBuffer,
-		template <typename, template <typename> class> class ArrayViewPolicyType = slim::util::buffer::ArrayViewPolicy
+		template <typename, template <typename> class> class ArrayViewPolicyType = slim::util::buffer::DefaultArrayViewPolicy
 	>
 	using ArrayTest = slim::util::buffer::Array<ElementType, StorageType, ArrayViewPolicyType>;
 

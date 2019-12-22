@@ -28,18 +28,18 @@ template
     typename ElementType,
     template <typename> class StorageType = HeapBuffer
 >
-class RingViewPolicy : protected ArrayViewPolicy<ElementType, StorageType>
+class RingViewPolicy : protected DefaultArrayViewPolicy<ElementType, StorageType>
 {
     public:
-        using SizeType  = typename ArrayViewPolicy<ElementType, StorageType>::SizeType;
-        using IndexType = typename ArrayViewPolicy<ElementType, StorageType>::IndexType;
+        using SizeType  = typename DefaultArrayViewPolicy<ElementType, StorageType>::SizeType;
+        using IndexType = typename DefaultArrayViewPolicy<ElementType, StorageType>::IndexType;
 
         inline explicit RingViewPolicy(const typename StorageType<ElementType>::SizeType& s)
-        : ArrayViewPolicy<ElementType, StorageType>{s} {}
+        : DefaultArrayViewPolicy<ElementType, StorageType>{s} {}
 
         inline const auto& operator[](const IndexType& i) const
         {
-            return ArrayViewPolicy<ElementType, StorageType>::operator[](normalizeIndex(head + i));
+            return DefaultArrayViewPolicy<ElementType, StorageType>::operator[](normalizeIndex(head + i));
         }
 
         inline auto& operator[](const IndexType& i)
@@ -54,7 +54,7 @@ class RingViewPolicy : protected ArrayViewPolicy<ElementType, StorageType>
 
         inline const auto getCapacity() const
         {
-            return ArrayViewPolicy<ElementType, StorageType>::getSize();
+            return DefaultArrayViewPolicy<ElementType, StorageType>::getSize();
         }
 
         inline const SizeType getSize() const
