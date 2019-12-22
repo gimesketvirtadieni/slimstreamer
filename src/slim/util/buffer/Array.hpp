@@ -13,6 +13,7 @@
 #pragma once
 
 #include <utility>  // std::as_const
+#include <vector>
 
 #include "slim/util/buffer/HeapBuffer.hpp"
 
@@ -23,6 +24,34 @@ namespace util
 {
 namespace buffer
 {
+
+/* TODO: work in progress
+template
+<
+    typename ElementType
+>
+class VectorWrapper
+{
+    public:
+        using SizeType = std::size_t;
+
+        inline explicit VectorWrapper(const std::size_t& s)
+        : storage(s) {}
+
+        inline auto& getData()
+        {
+            return storage;
+        }
+
+        inline const auto getSize() const
+        {
+            return storage.size();
+        }
+
+    private:
+        std::vector<ElementType> storage;
+};
+*/
 
 template
 <
