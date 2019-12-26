@@ -26,67 +26,64 @@ template
 <
     typename ElementType
 >
-class DefaultPointerWrapper
+class DefaultHeapBufferStorage
 {
     public:
-        inline explicit DefaultPointerWrapper(const std::size_t& s)
-        : data{s > 0 ? std::make_unique<ElementType[]>(s) : std::unique_ptr<ElementType[]>()} {}
+        using PointerType = std::unique_ptr<ElementType[]>;
+        using SizeType    = std::size_t;
 
-        inline auto* get() const
-        {
-            return data.get();
-        }
-
-    private:
-        std::unique_ptr<ElementType[]> data;
-};
-
-template
-<
-    typename ElementType,
-    typename StorageType = DefaultPointerWrapper<ElementType>
->
-class DefaultHeapBufferViewPolicy
-{
-    public:
-        using SizeType = std::size_t;
-
-        inline explicit DefaultHeapBufferViewPolicy(StorageType d, const SizeType& s)
-        : data{std::move(d)}
+        inline explicit DefaultHeapBufferStorage(const SizeType& s)
+        : data{s > 0 ? PointerType{new ElementType[s]} : PointerType{}}
         , size{s} {}
 
-        inline explicit DefaultHeapBufferViewPolicy(const SizeType& s)
-        : DefaultHeapBufferViewPolicy{std::move(StorageType{s}), s} {}
-
-        inline auto* getData() const
-        {
-            return data.get();
-        }
-
-        inline const auto getSize() const
-        {
-            return size;
-        }
-
-    private:
-        StorageType data;
+        PointerType data;
         SizeType    size;
 };
 
 template
 <
     typename ElementType,
-    typename StorageType = DefaultPointerWrapper<ElementType>,
-    typename BufferViewPolicyType = DefaultHeapBufferViewPolicy<ElementType, StorageType>
+    template <typename> class StorageType = DefaultHeapBufferStorage
 >
-class HeapBuffer : public BufferViewPolicyType
+class DefaultHeapBufferViewPolicy
 {
     public:
-        inline explicit HeapBuffer(StorageType d, const typename BufferViewPolicyType::SizeType& s)
-        : BufferViewPolicyType{std::move(d), s} {}
+        using SizeType = typename StorageType<ElementType>::SizeType;
 
-        inline explicit HeapBuffer(const typename BufferViewPolicyType::SizeType& s)
-        : HeapBuffer{std::move(StorageType{s}), s} {}
+        inline explicit DefaultHeapBufferViewPolicy(StorageType<ElementType> d)
+        : storage{std::move(d)} {}
+
+        inline explicit DefaultHeapBufferViewPolicy(const SizeType& s)
+        : storage{s} {}
+
+        inline auto* getData() const
+        {
+            return storage.data.get();
+        }
+
+        inline const auto getSize() const
+        {
+            return storage.size;
+        }
+
+    private:
+        StorageType<ElementType> storage;
+};
+
+template
+<
+    typename ElementType,
+    template <typename> class StorageType = DefaultHeapBufferStorage,
+    template <typename, template <typename> class> class BufferViewPolicyType = DefaultHeapBufferViewPolicy
+>
+class HeapBuffer : public BufferViewPolicyType<ElementType, StorageType>
+{
+    public:
+        inline explicit HeapBuffer(StorageType<ElementType> d)
+        : BufferViewPolicyType<ElementType, StorageType>{std::move(d)} {}
+
+        inline explicit HeapBuffer(const typename BufferViewPolicyType<ElementType, StorageType>::SizeType& s)
+        : BufferViewPolicyType<ElementType, StorageType>{s} {}
 };
 
 }
