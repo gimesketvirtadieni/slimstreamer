@@ -58,18 +58,18 @@ template
     typename ElementType,
     template <typename> class StorageType = HeapBuffer
 >
-class DefaultArrayViewPolicy : protected StorageType<ElementType>
+class DefaultArrayViewPolicy
 {
     public:
         using SizeType  = typename StorageType<ElementType>::SizeType;
         using IndexType = std::size_t;
 
         inline explicit DefaultArrayViewPolicy(const SizeType& s)
-        : StorageType<ElementType>{s} {}
+        : storage{s} {}
 
         inline const auto& operator[](const IndexType& i) const
         {
-            return this->getData()[i];
+            return storage.getData()[i];
         }
 
         inline auto& operator[](const IndexType& i)
@@ -77,8 +77,13 @@ class DefaultArrayViewPolicy : protected StorageType<ElementType>
             return const_cast<ElementType&>(std::as_const(*this)[i]);
         }
 
-        // overwriting visibility to make it public
-        using StorageType<ElementType>::getSize;
+        inline const auto getSize() const
+        {
+            return storage.getSize();
+        }
+
+    private:
+        StorageType<ElementType> storage;
 };
 
 template

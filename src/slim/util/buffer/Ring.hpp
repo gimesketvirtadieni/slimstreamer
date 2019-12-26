@@ -69,7 +69,7 @@ class RingViewPolicy : protected DefaultArrayViewPolicy<ElementType, StorageType
 
         inline const auto isFull() const
         {
-            return size == StorageType<ElementType>::getSize();
+            return size == DefaultArrayViewPolicy<ElementType, StorageType>::getSize();
         }
 
         inline void pop()
@@ -93,7 +93,7 @@ class RingViewPolicy : protected DefaultArrayViewPolicy<ElementType, StorageType
             {
                 head = normalizeIndex(head + 1);
             }
-            StorageType<ElementType>::getData()[normalizeIndex(head + size - 1)] = item;
+            DefaultArrayViewPolicy<ElementType, StorageType>::operator[](normalizeIndex(head + size - 1)) = item;
         }
 
     protected:
@@ -104,7 +104,7 @@ class RingViewPolicy : protected DefaultArrayViewPolicy<ElementType, StorageType
 
         inline const auto normalizeIndex(const IndexType& i) const
         {
-            return i < StorageType<ElementType>::getSize() ? i : i - StorageType<ElementType>::getSize();
+            return i < DefaultArrayViewPolicy<ElementType, StorageType>::getSize() ? i : i - DefaultArrayViewPolicy<ElementType, StorageType>::getSize();
         }
 
     private:
