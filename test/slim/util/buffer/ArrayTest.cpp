@@ -1,37 +1,52 @@
+/*
+ * Copyright 2017, Andrej Kislovskij
+ *
+ * This is PUBLIC DOMAIN software so use at your own risk as it comes
+ * with no warranties. This code is yours to share, use and modify without
+ * any restrictions or obligations.
+ *
+ * For more information see conwrap/LICENSE or refer refer to http://unlicense.org
+ *
+ * Author: gimesketvirtadieni at gmail dot com (Andrej Kislovskij)
+ */
+
 #include "slim/util/buffer/ArrayTest.hpp"
 
 
-TEST(Array, Constructor1)
+TEST_P(ArrayTestFixture, Constructor1)
 {
-	std::size_t size{0};
+	std::size_t size = GetParam();
+	ArrayTest<int> array{size};
 
-	ArrayTestContext::ArrayTest<int> array{size};
-
-	ArrayTestContext::validateState(array, {});
+    EXPECT_EQ(array.getSize(), size);
 }
 
-TEST(Array, getElement1)
+TEST_P(ArrayTestFixture, getElement1)
 {
-	std::vector<int> samples{11, 22};
-	ArrayTestContext::ArrayTest<int> array{samples.size()};
+	std::vector<int> samples(GetParam());
+	ArrayTest<int> array{samples.size()};
 
 	for (auto i{0u}; i < samples.size(); i++)
 	{
-		array[i] = samples[i];
+		samples[i] = i * 11;
+		array[i]   = samples[i];
 	}
 
-	ArrayTestContext::validateState(array, samples);
+	validateState(array, samples);
 }
 
-TEST(Array, getElement2)
+TEST_P(ArrayTestFixture, getElement2)
 {
-	std::vector<int> samples{11, 22};
-	slim::util::buffer::Array<int, ArrayTestContext::VectorStorage> array{samples.size()};
+	std::vector<int> samples(GetParam());
+	ArrayTest<int, VectorStorage> array{samples.size()};
 
 	for (auto i{0u}; i < samples.size(); i++)
 	{
-		array[i] = samples[i];
+		samples[i] = i * 11;
+		array[i]   = samples[i];
 	}
 
-	ArrayTestContext::validateState(array, samples);
+	validateState(array, samples);
 }
+
+INSTANTIATE_TEST_SUITE_P(ArrayInstantiation, ArrayTestFixture, testing::Values(0, 1, 2, 3));

@@ -1,3 +1,15 @@
+/*
+ * Copyright 2017, Andrej Kislovskij
+ *
+ * This is PUBLIC DOMAIN software so use at your own risk as it comes
+ * with no warranties. This code is yours to share, use and modify without
+ * any restrictions or obligations.
+ *
+ * For more information see conwrap/LICENSE or refer refer to http://unlicense.org
+ *
+ * Author: gimesketvirtadieni at gmail dot com (Andrej Kislovskij)
+ */
+
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <vector>
@@ -5,8 +17,9 @@
 #include "slim/util/buffer/Array.hpp"
 
 
-struct ArrayTestContext
+struct ArrayTestFixture : public ::testing::TestWithParam<std::size_t>
 {
+	// this class is used to make sure Array works with other 'storages', not just with default one
 	template
 	<
 		typename ElementType
@@ -42,7 +55,7 @@ struct ArrayTestContext
 	using ArrayTest = slim::util::buffer::Array<ElementType, StorageType, ArrayViewPolicyType>;
 
 	template<typename ArrayType>
-	static void validateState(ArrayType& array, const std::vector<int>& samples)
+	void validateState(ArrayType& array, const std::vector<int>& samples)
 	{
 		EXPECT_EQ(array.getSize(), samples.size());
 
