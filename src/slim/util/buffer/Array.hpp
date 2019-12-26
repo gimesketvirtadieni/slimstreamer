@@ -25,34 +25,6 @@ namespace util
 namespace buffer
 {
 
-/* TODO: work in progress
-template
-<
-    typename ElementType
->
-class VectorWrapper
-{
-    public:
-        using SizeType = std::size_t;
-
-        inline explicit VectorWrapper(const std::size_t& s)
-        : storage(s) {}
-
-        inline auto& getData()
-        {
-            return storage;
-        }
-
-        inline const auto getSize() const
-        {
-            return storage.size();
-        }
-
-    private:
-        std::vector<ElementType> storage;
-};
-*/
-
 template
 <
     typename ElementType,
@@ -74,7 +46,8 @@ class DefaultArrayViewPolicy
 
         inline auto& operator[](const IndexType& i)
         {
-            return const_cast<ElementType&>(std::as_const(*this)[i]);
+            // getData may be 'non-const' thus it may not be delegated to const version of this method
+            return storage.getData()[i];
         }
 
         inline const auto getSize() const

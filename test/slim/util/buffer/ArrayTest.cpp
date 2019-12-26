@@ -22,3 +22,16 @@ TEST(Array, getElement1)
 
 	ArrayTestContext::validateState(array, samples);
 }
+
+TEST(Array, getElement2)
+{
+	std::vector<int> samples{11, 22};
+	slim::util::buffer::Array<int, ArrayTestContext::VectorStorage> array{samples.size()};
+
+	for (auto i{0u}; i < samples.size(); i++)
+	{
+		array[i] = samples[i];
+	}
+
+	ArrayTestContext::validateState(array, samples);
+}
