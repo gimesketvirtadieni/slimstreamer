@@ -1,47 +1,56 @@
+/*
+ * Copyright 2017, Andrej Kislovskij
+ *
+ * This is PUBLIC DOMAIN software so use at your own risk as it comes
+ * with no warranties. This code is yours to share, use and modify without
+ * any restrictions or obligations.
+ *
+ * For more information see conwrap/LICENSE or refer refer to http://unlicense.org
+ *
+ * Author: gimesketvirtadieni at gmail dot com (Andrej Kislovskij)
+ */
+
 #include "slim/util/buffer/HeapBufferTest.hpp"
 
-
-TEST(HeapBuffer, Constructor1)
+TEST_P(HeapBufferTestFixture, Constructor1)
 {
-	std::size_t size{0};
+	std::size_t size = GetParam();
+	HeapBufferTest<int> buffer{size};
 
-	HeapBufferTestContext::HeapBufferTest<int> buffer{size};
-
-	HeapBufferTestContext::validateState(buffer, {});
-	EXPECT_EQ(buffer.getData(), nullptr);
+    EXPECT_EQ(buffer.getSize(), size);
+	if (size == 0)
+	{
+		EXPECT_EQ(buffer.getData(), nullptr);
+	}
 }
 
-TEST(HeapBuffer, Constructor2)
+TEST_P(HeapBufferTestFixture, getElement1)
 {
-	std::size_t size{11};
-	slim::util::buffer::DefaultHeapBufferStorage<int> data{size};
-	HeapBufferTestContext::HeapBufferTest<int> buffer{std::move(data)};
-
-	EXPECT_EQ(buffer.getSize(), size);
-}
-
-TEST(HeapBuffer, getElement1)
-{
-	std::vector<int> samples{11, 22};
-	HeapBufferTestContext::HeapBufferTest<int> buffer{samples.size()};
+	std::vector<int> samples(GetParam());
+	HeapBufferTest<int> buffer{samples.size()};
 
 	for (auto i{0u}; i < samples.size(); i++)
 	{
+		samples[i] = i * 11;
 		buffer.getData()[i] = samples[i];
 	}
 
-	HeapBufferTestContext::validateState(buffer, samples);
+	validateState(buffer, samples);
 }
 
-TEST(HeapBuffer, getElement2)
+TEST_P(HeapBufferTestFixture, getElement2)
 {
-	std::vector<int> samples{11, 22};
+	std::vector<int> samples(GetParam());
 	slim::util::buffer::DefaultHeapBufferStorage<int> storage{samples.size()};
+
+	// saving some data in a separatelly created storage
 	for (auto i{0u}; i < samples.size(); i++)
 	{
 		storage.data.get()[i] = samples[i];
 	}
-	HeapBufferTestContext::HeapBufferTest<int> buffer{std::move(storage)};
+	HeapBufferTest<int> buffer{std::move(storage)};
 
-	HeapBufferTestContext::validateState(buffer, samples);
+	validateState(buffer, samples);
 }
+
+INSTANTIATE_TEST_SUITE_P(HeapBufferInstantiation, HeapBufferTestFixture, testing::Values(0, 1, 2, 3));
