@@ -23,5 +23,5 @@ struct BufferPoolTestFixture : public ::testing::TestWithParam<std::size_t>
     <
 		typename ElementType
 	>
-	using BufferPoolTest = slim::util::buffer::BufferPool<ElementType, slim::util::buffer::HeapBuffer>;
+	using BufferPoolTest = slim::util::buffer::BufferPool<ElementType>;
 };

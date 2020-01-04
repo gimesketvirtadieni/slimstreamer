@@ -34,8 +34,9 @@ TEST_P(BufferPoolTestFixture, Allocate1)
     for (auto i = 0u; i < 3; i++)
     {
         allocatedBuffers.clear();
-        EXPECT_EQ(bufferPool.getAvailableSize(), poolSize);
 
+        // exhausting pool
+        EXPECT_EQ(bufferPool.getAvailableSize(), poolSize);
         for (auto j = 0u; j < poolSize; j++)
         {
             auto allocatedBuffer = bufferPool.allocate();
@@ -44,6 +45,7 @@ TEST_P(BufferPoolTestFixture, Allocate1)
 
             allocatedBuffers.push_back(std::move(allocatedBuffer));
         }
+        EXPECT_EQ(bufferPool.getAvailableSize(), 0);
 
         auto allocatedBuffer = bufferPool.allocate();
         EXPECT_EQ(allocatedBuffer.getData(), nullptr);
