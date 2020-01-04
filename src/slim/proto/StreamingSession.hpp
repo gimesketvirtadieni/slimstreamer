@@ -51,7 +51,7 @@ namespace slim
 
 					eb.setEncodedCallback([&](const auto* encodedData, auto encodedDataSize)
 					{
-						for (std::size_t offset = 0; offset < encodedDataSize;)
+						for (std::size_t offset = 0, chunkSize; offset < encodedDataSize; offset += chunkSize)
 						{
 							auto pooledBuffer = bufferPool.allocate();
 							if (!pooledBuffer.getData())
@@ -61,15 +61,16 @@ namespace slim
 							}
 
 							// copying encoded PCM content to the allocated buffer and submitting for transfer to a client
-							auto chunkSize = std::min(pooledBuffer.getSize(), encodedDataSize - offset);
+							chunkSize = std::min(pooledBuffer.getSize(), encodedDataSize - offset);
 							std::memcpy(pooledBuffer.getData(), encodedData, chunkSize);
 							auto transferDataChunk = TransferDataChunk{std::move(pooledBuffer), chunkSize, 0};
 
 							// submitting a chunk to be transferred to a client
 							transferBufferQueue.push(std::move(transferDataChunk));
-							submitTransferTask();
-
-							offset += chunkSize;
+							processorProxy.process([&]
+							{
+								transferTask();
+							});
 						}
 					});
 					encoderPtr = std::move(eb.build());
@@ -90,6 +91,17 @@ namespace slim
 				StreamingSession& operator=(const StreamingSession&) = delete;  // non-assignable
 				StreamingSession(StreamingSession&& rhs) = delete;              // non-movable
 				StreamingSession& operator=(StreamingSession&& rhs) = delete;   // non-movable-assignable
+
+				inline bool canConsumeChunk()
+				{
+					// TODO: work in progress
+					if (bufferPool.getAvailableSize() < 10)
+					{
+						return false;
+					}
+
+					return true;
+				}
 
 				inline void consumeChunk(const Chunk& chunk)
 				{
@@ -209,7 +221,7 @@ namespace slim
 				}
 
 			protected:
-				using PooledBufferType  = util::buffer::BufferPool<std::uint8_t>::PooledBufferType;
+				using PooledBufferType = util::buffer::BufferPool<std::uint8_t>::PooledBufferType;
 				struct TransferDataChunk
 				{
 					PooledBufferType           buffer;
@@ -238,20 +250,6 @@ namespace slim
 					}
 				}
 
-				inline void submitTransferTask()
-				{
-					// ongoing transfer will resubmit itself once finished so no need to submit one more task
-					if (transferring)
-					{
-						return;
-					}
-
-					processorProxy.process([&]
-					{
-						transferTask();
-					});
-				}
-
 				inline void transferTask()
 				{
 					// there is nothing to transfer
@@ -260,19 +258,19 @@ namespace slim
 						return;
 					}
 
-					// there is already an ongoing transfer
+					// there is already an ongoing transfer so no need to do anything
 					if (transferring)
 					{
 						return;
 					}
 
-					// it will disabling submiting new tasks until this write succeeds
+					// it will disabling submiting write async requests from any other task until this write succeeds
 					transferring = true;
 
 					auto& transferDataChunk = transferBufferQueue.front();
-					connection.get().writeAsync(transferDataChunk.buffer.getData() + transferDataChunk.offset, transferDataChunk.size, [this](auto error, auto bytesTransferred)
+					connection.get().writeAsync(transferDataChunk.buffer.getData() + transferDataChunk.offset, transferDataChunk.size, [this](auto error, auto sizeTransferred)
 					{
-						// ensuring that a buffer is consumed from the queue unless it is explicitly instructed not to do so
+						// using RAII guard to ensure that a buffer is removed from the queue unless it is explicitly instructed not to do so
 						auto releaseBuffer = true;
 						::util::scope_guard onExit = [&]
 						{
@@ -281,14 +279,18 @@ namespace slim
 								transferBufferQueue.pop();
 							}
 
-							// submitting a new transfer task
+							// reseting transferring flag and submitting a new transfer task so it can write async
 							transferring = false;
-							submitTransferTask();
+							processorProxy.process([&]
+							{
+								transferTask();
+							});
 						};
 
+						// if case of transfer error just log the error; chunk will be removed from the queue by the RAII guard
 						if (error)
 						{
-							LOG(ERROR) << LABELS{"proto"} << "Skipped data chunk due to an error while transferring it to a client: " << error.message();
+							LOG(ERROR) << LABELS{"proto"} << "Error while transferring data chunk: " << error.message();
 							return;
 						}
 
@@ -299,20 +301,19 @@ namespace slim
 						}
 
 						auto& transferDataChunk = transferBufferQueue.front();
-						if (bytesTransferred < transferDataChunk.size)
+						if (sizeTransferred < transferDataChunk.size)
 						{
-							LOG(INFO) << LABELS{"proto"} << "Incomplete buffer content was sent, transmitting reminder: chunk size=" << transferDataChunk.size << ", transferred=" << bytesTransferred;
+							LOG(INFO) << LABELS{"proto"} << "Incomplete buffer content was sent, transmitting reminder: chunk size=" << transferDataChunk.size << ", transferred=" << sizeTransferred;
 
 							// setting up transfer chunk data to transfer only the reminder
-							transferDataChunk.size   -= bytesTransferred;
-							transferDataChunk.offset += bytesTransferred;
+							transferDataChunk.size   -= sizeTransferred;
+							transferDataChunk.offset += sizeTransferred;
 
 							// it will instruct the guard not to release transfer data chunk back to the pool
 							releaseBuffer = false;
-							return;
 						}
 
-						//LOG(DEBUG) << LABELS{"proto"} << "Chunk was successfully transferred: " << transferDataChunk.size << ", transferred=" << bytesTransferred;
+						//LOG(DEBUG) << LABELS{"proto"} << "Chunk was successfully transferred: " << transferDataChunk.size << ", transferred=" << sizeTransferred;
 					});
 				}
 
@@ -325,7 +326,7 @@ namespace slim
 				bool                                                     running{false};
 				bool                                                     transferring{false};
 				// TODO: parameterize
-				const std::size_t                                        poolSize{256};
+				const std::size_t                                        poolSize{32};
 				const std::size_t                                        bufferSize{4096};
 				util::buffer::BufferPool<std::uint8_t>                   bufferPool{poolSize, bufferSize};
 				std::queue<TransferDataChunk>                            transferBufferQueue;

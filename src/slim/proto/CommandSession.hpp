@@ -178,6 +178,20 @@ namespace slim
 				CommandSession(CommandSession&& rhs) = delete;              // non-movable
 				CommandSession& operator=(CommandSession&& rhs) = delete;   // non-movable-assignable
 
+				inline bool canConsumeChunk()
+				{
+					auto result = true;
+					ts::with(streamingSession, [&](auto& streamingSession)
+					{
+						if (!streamingSession.canConsumeChunk())
+						{
+							result = false;
+						}
+					});
+
+					return result;
+				}
+
 				inline void consumeChunk(const Chunk& chunk)
 				{
 					if (stateMachine.state == StartedState)

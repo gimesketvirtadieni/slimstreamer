@@ -218,8 +218,7 @@ namespace slim
 						// if sampling rate does not change then just distributing a chunk
 						if (samplingRate == chunkSamplingRate)
 						{
-							streamChunk(chunk);
-							result = true;
+							result = streamChunk(chunk);
 						}
 
 						if (samplingRate != chunkSamplingRate || chunk.isEndOfStream())
@@ -663,8 +662,16 @@ namespace slim
 					}
 				}
 
-				inline void streamChunk(Chunk& chunk)
+				inline bool streamChunk(Chunk& chunk)
 				{
+					for (auto& entry : commandSessions)
+					{
+						if (!entry.second->canConsumeChunk())
+						{
+							return false;
+						}
+					}
+
 					// sending chunk to all SlimProto sessions
 					for (auto& entry : commandSessions)
 					{
@@ -673,6 +680,8 @@ namespace slim
 
 					// increasing played frames counter
 					streamedFrames += chunk.getFrames();
+
+					return true;
 				}
 
 			private:
