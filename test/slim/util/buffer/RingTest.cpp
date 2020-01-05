@@ -1,100 +1,113 @@
-#include <vector>
+/*
+ * Copyright 2017, Andrej Kislovskij
+ *
+ * This is PUBLIC DOMAIN software so use at your own risk as it comes
+ * with no warranties. This code is yours to share, use and modify without
+ * any restrictions or obligations.
+ *
+ * For more information see conwrap/LICENSE or refer refer to http://unlicense.org
+ *
+ * Author: gimesketvirtadieni at gmail dot com (Andrej Kislovskij)
+ */
 
 #include "slim/util/buffer/RingTest.hpp"
 
 
-TEST(Ring, Constructor1)
+TEST_P(RingTestFixture, Constructor1)
 {
-	std::size_t capacity{0};
+	std::size_t capacity = GetParam();
 
-	RingTestContext::RingTest<int> ring{capacity};
+	RingTest<int> ring{capacity};
 
-	RingTestContext::validateState(ring, capacity, {});
+	validateState(ring, capacity, {});
 }
 
-TEST(Ring, Clear1)
+TEST_P(RingTestFixture, Clear1)
 {
-	std::size_t capacity{1};
-	RingTestContext::RingTest<int> ring{capacity};
+	std::size_t capacity = GetParam();
+	RingTest<int> ring{capacity};
 
 	ring.push(1);
 	ring.clear();
 
-	RingTestContext::validateState(ring, capacity, {});
+	validateState(ring, capacity, {});
 }
 
-TEST(Ring, Pop1)
+TEST_P(RingTestFixture, Pop1)
 {
-	std::size_t capacity{1};
-	RingTestContext::RingTest<int> ring{capacity};
+	std::size_t capacity = GetParam();
+	RingTest<int> ring{capacity};
 
 	ring.pop();
 
-	RingTestContext::validateState(ring, capacity, {});
+	validateState(ring, capacity, {});
 }
 
-TEST(Ring, Pop2)
+TEST_P(RingTestFixture, Pop2)
 {
-	std::size_t capacity{1};
-	RingTestContext::RingTest<int> ring{capacity};
+	std::size_t capacity = GetParam();
+	RingTest<int> ring{capacity};
 
 	ring.push(1);
 	ring.pop();
 
-	RingTestContext::validateState(ring, capacity, {});
+	validateState(ring, capacity, {});
 }
 
-TEST(Ring, Pop3)
+TEST_P(RingTestFixture, Pop3)
 {
-	std::size_t capacity{2};
-	RingTestContext::RingTest<int> ring{capacity};
+	std::size_t capacity = GetParam();
+	RingTest<int> ring{capacity};
 
-	ring.push(1);
-	ring.push(2);
-	ring.pop();
+	if (capacity >= 2)
+	{
+		ring.push(1);
+		ring.push(2);
+		ring.pop();
 
-	RingTestContext::validateState(ring, capacity, {2});
+		validateState(ring, capacity, {2});
+	}
 }
 
-TEST(Ring, Push1)
+TEST_P(RingTestFixture, Push1)
 {
-	std::size_t capacity{1};
-	RingTestContext::RingTest<int> ring{capacity};
+	std::size_t capacity = GetParam();
+	RingTest<int> ring{capacity};
 
-	ring.push(1);
+	if (capacity > 0)
+	{
+		ring.push(1);
 
-	RingTestContext::validateState(ring, capacity, {1});
+		validateState(ring, capacity, {1});
+	}
 }
 
-TEST(Ring, Push2)
+TEST_P(RingTestFixture, Push2)
 {
-	std::size_t capacity{2};
-	RingTestContext::RingTest<int> ring{capacity};
+	std::size_t capacity = GetParam();
+	RingTest<int> ring{capacity};
 
-	ring.push(1);
+	if (capacity == 2)
+	{
+		ring.push(1);
+		ring.push(2);
+		ring.push(3);
 
-	RingTestContext::validateState(ring, capacity, {1});
+		validateState(ring, capacity, {2, 3});
+	}
 }
 
-TEST(Ring, Push3)
+TEST_P(RingTestFixture, Access1)
 {
-	std::size_t capacity{2};
-	RingTestContext::RingTest<int> ring{capacity};
-
-	ring.push(1);
-	ring.push(2);
-	ring.push(3);
-
-	RingTestContext::validateState(ring, capacity, {2, 3});
-}
-
-TEST(Ring, Access1)
-{
-	std::size_t capacity{2};
-	RingTestContext::RingTest<int> ring{capacity};
-
-	ring.push(1);
+	std::size_t capacity = GetParam();
+	RingTest<int> ring{capacity};
 
 	// making sure it is OK to access beyond data size but within capacity
-	ring[1];
+	if (capacity >= 2)
+	{
+		ring.push(1);
+		ring[1];
+	}
 }
+
+INSTANTIATE_TEST_SUITE_P(RingInstantiation, RingTestFixture, testing::Values(0, 1, 2, 3));

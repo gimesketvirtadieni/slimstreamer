@@ -1,21 +1,33 @@
+/*
+ * Copyright 2017, Andrej Kislovskij
+ *
+ * This is PUBLIC DOMAIN software so use at your own risk as it comes
+ * with no warranties. This code is yours to share, use and modify without
+ * any restrictions or obligations.
+ *
+ * For more information see conwrap/LICENSE or refer refer to http://unlicense.org
+ *
+ * Author: gimesketvirtadieni at gmail dot com (Andrej Kislovskij)
+ */
+
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
 #include "slim/util/buffer/Ring.hpp"
 
 
-struct RingTestContext
+struct RingTestFixture : public ::testing::TestWithParam<std::size_t>
 {
 	template
 	<
 		typename ElementType,
 		template <typename> class StorageType = slim::util::buffer::HeapBuffer,
-		template <typename, template <typename> class> class BufferViewPolicyType = slim::util::buffer::RingViewPolicy
+		template <typename, template <typename> class> class RingViewPolicyType = slim::util::buffer::RingViewPolicy
 	>
-	using RingTest = slim::util::buffer::Ring<ElementType, StorageType, BufferViewPolicyType>;
+	using RingTest = slim::util::buffer::Ring<ElementType, StorageType, RingViewPolicyType>;
 
 	template<typename RingType>
-	static void validateState(RingType& ring, const std::size_t& capacity, const std::vector<int>& samples)
+	void validateState(RingType& ring, const std::size_t& capacity, const std::vector<int>& samples)
 	{
 		EXPECT_EQ(ring.getCapacity(), capacity);
 		EXPECT_EQ(ring.getSize(), samples.size());

@@ -23,6 +23,7 @@ namespace util
 {
 namespace buffer
 {
+
 template
 <
     typename ElementType,
@@ -85,13 +86,18 @@ class RingViewPolicy : protected DefaultArrayViewPolicy<ElementType, StorageType
 
         inline void push(const ElementType& item)
         {
-            if (!isFull())
+            if (isFull())
             {
-                size++;
+                // guarding against cases when size is 0
+                if (isEmpty())
+                {
+                    return;
+                }
+                head = normalizeIndex(head + 1);
             }
             else
             {
-                head = normalizeIndex(head + 1);
+                size++;
             }
             DefaultArrayViewPolicy<ElementType, StorageType>::operator[](normalizeIndex(head + size - 1)) = item;
         }
@@ -116,13 +122,13 @@ template
 <
     typename ElementType,
     template <typename> class StorageType = HeapBuffer,
-    template <typename, template <typename> class> class BufferAccessPolicyType = RingViewPolicy
+    template <typename, template <typename> class> class RingViewPolicyType = RingViewPolicy
 >
-class Ring : public Array<ElementType, StorageType, BufferAccessPolicyType>
+class Ring : public Array<ElementType, StorageType, RingViewPolicyType>
 {
     public:
         inline explicit Ring(const typename StorageType<ElementType>::SizeType& c)
-        : Array<ElementType, StorageType, BufferAccessPolicyType>{c} {}
+        : Array<ElementType, StorageType, RingViewPolicyType>{c} {}
 };
 
 }
