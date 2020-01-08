@@ -445,6 +445,8 @@ namespace slim
 				}
 
 			protected:
+				using SessionToChunkSequenceMap = std::unordered_map<CommandSessionType*, util::BigInteger>;
+
 				template<typename SessionType>
 				inline auto& addSession(SessionsMap<SessionType>& sessions, ConnectionType& connection, std::unique_ptr<SessionType> sessionPtr)
 				{
@@ -692,6 +694,7 @@ namespace slim
 				util::BigInteger                  nextID{0};
 				SessionsMap<CommandSessionType>   commandSessions;
 				SessionsMap<StreamingSessionType> streamingSessions;
+				SessionToChunkSequenceMap         sessionToChunkSequenceMap;
 				unsigned int                      samplingRate{0};
 				util::Timestamp                   preparingStartedAt;
 				util::Timestamp                   bufferingStartedAt;
