@@ -228,7 +228,7 @@ namespace slim
 							streamingSession.consumeChunk(chunk);
 						});
 
-						if (chunk.isEndOfStream())
+						if (chunk.endOfStream)
 						{
 							// changing state to Draining
 							stateMachine.processEvent(DrainEvent, [&](auto event, auto state)
@@ -238,8 +238,8 @@ namespace slim
 							});
 						}
 
-						lastChunkTimestamp      = chunk.getTimestamp();
-						lastChunkCapturedFrames = chunk.getCapturedFrames();
+						lastChunkTimestamp      = chunk.timestamp;
+						lastChunkCapturedFrames = chunk.capturedFrames;
 					}
 				}
 

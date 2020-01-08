@@ -70,12 +70,12 @@ namespace slim
 
 			virtual bool consumeChunk(Chunk& chunk) override
 			{
-				auto size{chunk.getFrames() * chunk.getBytesPerFrame()};
+				auto size{chunk.frames * chunk.bytesPerSample * chunk.channels};
 
-				encoderPtr->encode(chunk.getData(), size);
+				encoderPtr->encode(chunk.buffer.getData(), size);
 				bytesWritten += size;
 
-				LOG(DEBUG) << LABELS{"slim"} << "Written " << chunk.getFrames() << " frames";
+				LOG(DEBUG) << LABELS{"slim"} << "Written " << chunk.frames << " frames";
 
 				// deferring chunk is irrelevant for a file
 				return true;

@@ -61,27 +61,28 @@ class BufferPool
 
     public:
         inline explicit BufferPool(const SizeType& poolSize, const SizeType& bufferSize)
+        : bufferWrappersPtr{std::make_unique<std::vector<BufferWrapper>>()}
         {
             for (SizeType i = 0; i < poolSize; i++)
             {
-                buffers.emplace_back(BufferWrapper{BufferType{DefaultHeapBufferStorage<ElementType>{bufferSize}}, true});
+                bufferWrappersPtr->emplace_back(BufferWrapper{BufferType{DefaultHeapBufferStorage<ElementType>{bufferSize}}, true});
             }
         }
 
         inline PooledBufferType allocate()
         {
-            for (SizeType i = 0; i < buffers.size(); i++)
+            for (SizeType i = 0; i < getSize(); i++)
             {
-                auto& bufferWrapper = buffers[i];
+                auto& bufferWrapper = (*bufferWrappersPtr)[i];
 
                 if (bufferWrapper.free)
                 {
                     // creating a 'proxy' object, which wraps an existing buffer and will release it back to the pool upon destruction
-                    auto bufferProxy = std::unique_ptr<ElementType[], std::function<void(ElementType*)>>{bufferWrapper.buffer.getData(), [this, index = i](auto* releasedBuffer)
+                    auto bufferProxyPtr = std::unique_ptr<ElementType[], std::function<void(ElementType*)>>{bufferWrapper.buffer.getData(), [&bufferWrappers = *bufferWrappersPtr, index = i](auto* data)
                     {
-                        buffers[index].free = true;
+                        bufferWrappers[index].free = true;
                     }};
-                    auto pooledBufferStorage = PooledBufferStorage<ElementType>{std::move(bufferProxy), bufferWrapper.buffer.getSize()};
+                    auto pooledBufferStorage = PooledBufferStorage<ElementType>{std::move(bufferProxyPtr), bufferWrapper.buffer.getSize()};
 
                     // marking this buffer as used
                     bufferWrapper.free = false;
@@ -96,8 +97,14 @@ class BufferPool
 
         inline const auto getAvailableSize() const
         {
+            // guarding against cases when BufferPool content was moved to a different object
+            if (!bufferWrappersPtr)
+            {
+                return std::size_t{0};
+            }
+
             // auto may not be used here as count_if returns signed value
-            SizeType s = std::count_if(buffers.begin(), buffers.end(), [](const auto& bufferWrapper)
+            SizeType s = std::count_if(bufferWrappersPtr->begin(), bufferWrappersPtr->end(), [](const auto& bufferWrapper)
             {
                 return bufferWrapper.free;
             });
@@ -107,7 +114,13 @@ class BufferPool
 
         inline const auto getSize() const
         {
-            return buffers.size();
+            // guarding against cases when BufferPool content was moved to a different object
+            if (!bufferWrappersPtr)
+            {
+                return std::size_t{0};
+            }
+
+            return bufferWrappersPtr->size();
         }
 
     protected:
@@ -118,7 +131,8 @@ class BufferPool
         };
 
     private:
-        std::vector<BufferWrapper> buffers;
+        // using std::unique_ptr<...> to make this pool movable
+        std::unique_ptr<std::vector<BufferWrapper>> bufferWrappersPtr;
 };
 
 }

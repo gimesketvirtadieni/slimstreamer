@@ -213,21 +213,22 @@ namespace slim
 						queue.enqueue([&](Chunk& chunk)
 						{
 							// setting chunk 'meta' data
-							chunk.setTimestamp(timestamp);
-							chunk.setSamplingRate(parameters.getSamplingRate());
-							chunk.setChannels(parameters.getLogicalChannels());
-							chunk.setBitsPerSample(parameters.getBitsPerSample());
-							chunk.setEndOfStream(false);
+							chunk.timestamp = timestamp;
+							chunk.samplingRate = parameters.getSamplingRate();
+							chunk.channels = parameters.getLogicalChannels();
+							chunk.bytesPerSample = parameters.getBitsPerSample() >> 3;
+							chunk.endOfStream = false;
 
 							// copying PCM data and setting chunk's payload size in frames
 							auto copiedFrames = copyData(
 								srcBuffer + offset * bytesPerFrame,
-								chunk.getData(),
+								chunk.buffer.getData(),
 								static_cast<snd_pcm_uframes_t>(result - std::min(offset, result)));
 
 							capturedFrames += copiedFrames;
-							chunk.setFrames(copiedFrames);
-							chunk.setCapturedFrames(capturedFrames);
+							chunk.frames = copiedFrames;
+							chunk.sequenceNumber = ++chunkSequenceNumber;
+							chunk.capturedFrames = capturedFrames;
 
 							// only the first chunk in stream is marked as Beginning-Of-Stream
 							isBeginningOfStream = false;
@@ -246,17 +247,19 @@ namespace slim
 						queue.enqueue([&](Chunk& chunk)
 						{
 							// setting chunk 'meta' data
-							chunk.setTimestamp(timestamp);
-							chunk.setSamplingRate(parameters.getSamplingRate());
-							chunk.setChannels(parameters.getLogicalChannels());
-							chunk.setBitsPerSample(parameters.getBitsPerSample());
-							chunk.setEndOfStream(true);
+							chunk.timestamp = timestamp;
+							chunk.samplingRate = parameters.getSamplingRate();
+							chunk.channels = parameters.getLogicalChannels();
+							chunk.bytesPerSample = parameters.getBitsPerSample() >> 3;
+							chunk.endOfStream = true;
 							chunk.clear();
 
-							chunk.setCapturedFrames(capturedFrames);
+							chunk.sequenceNumber = ++chunkSequenceNumber;
+							chunk.capturedFrames = capturedFrames;
 
-							// the next chunk in stream will be marked as Beginning-Of-Stream
+							// resetting state as the next chunk will initiate a new streaming session
 							isBeginningOfStream = true;
+							chunkSequenceNumber = 0;
 
 							// always true as source buffer contains data
 							return true;

@@ -213,7 +213,7 @@ namespace slim
 							consumed = true;
 
 							// if chunk was consumed and it is the end of the stream
-							if (chunk.isEndOfStream())
+							if (chunk.endOfStream)
 							{
 								consuming = false;
 							}
@@ -256,6 +256,7 @@ namespace slim
 				std::mutex            deviceLock;
 				std::mutex            threadLock;
 
+				util::BigInteger      chunkSequenceNumber{0};
 				util::BigInteger      capturedFrames{0};
 		};
 	}

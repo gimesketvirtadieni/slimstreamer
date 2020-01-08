@@ -10,6 +10,8 @@
  * Author: gimesketvirtadieni at gmail dot com (Andrej Kislovskij)
  */
 
+#include <type_traits>
+
 #include "slim/util/buffer/HeapBufferTest.hpp"
 
 TEST_P(HeapBufferTestFixture, Constructor1)
@@ -22,6 +24,27 @@ TEST_P(HeapBufferTestFixture, Constructor1)
 	{
 		EXPECT_EQ(buffer.getData(), nullptr);
 	}
+}
+
+TEST_P(HeapBufferTestFixture, Constructor2)
+{
+	std::size_t size = GetParam();
+	std::vector<int> samples;
+	HeapBufferTest<int> buffer1{size};
+
+	for (int i = 0; i < GetParam(); i++)
+	{
+		buffer1.getData()[i] = i;
+		samples.push_back(i);
+	}
+	HeapBufferTest<int> buffer2 = std::move(buffer1);
+
+	validateState(buffer2, samples);
+}
+
+TEST_P(HeapBufferTestFixture, Constructor3)
+{
+	EXPECT_FALSE(std::is_trivially_copyable<HeapBufferTest<int>>::value);
 }
 
 TEST_P(HeapBufferTestFixture, getElement1)

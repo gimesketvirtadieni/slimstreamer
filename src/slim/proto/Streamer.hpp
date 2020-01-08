@@ -165,7 +165,7 @@ namespace slim
 				virtual bool consumeChunk(Chunk& chunk) override
 				{
 					auto result{false};
-					auto chunkSamplingRate{chunk.getSamplingRate()};
+					auto chunkSamplingRate{chunk.samplingRate};
 
 					if (stateMachine.state == StartedState)
 					{
@@ -221,7 +221,7 @@ namespace slim
 							result = streamChunk(chunk);
 						}
 
-						if (samplingRate != chunkSamplingRate || chunk.isEndOfStream())
+						if (samplingRate != chunkSamplingRate || chunk.endOfStream)
 						{
 							// changing state to Draining
 							stateMachine.processEvent(DrainEvent, [&](auto event, auto state)
@@ -679,7 +679,7 @@ namespace slim
 					}
 
 					// increasing played frames counter
-					streamedFrames += chunk.getFrames();
+					streamedFrames += chunk.frames;
 
 					return true;
 				}

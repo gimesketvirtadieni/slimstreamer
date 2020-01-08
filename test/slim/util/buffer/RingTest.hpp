@@ -22,12 +22,12 @@ struct RingTestFixture : public ::testing::TestWithParam<std::size_t>
 	<
 		typename ElementType,
 		template <typename> class StorageType = slim::util::buffer::HeapBuffer,
-		template <typename, template <typename> class> class RingViewPolicyType = slim::util::buffer::RingViewPolicy
+		template <typename, template <typename> class> class RingViewPolicyType = slim::util::buffer::DefaultRingViewPolicy
 	>
 	using RingTest = slim::util::buffer::Ring<ElementType, StorageType, RingViewPolicyType>;
 
 	template<typename RingType>
-	void validateState(RingType& ring, const std::size_t& capacity, const std::vector<int>& samples)
+	static void validateState(RingType& ring, const std::size_t& capacity, const std::vector<int>& samples)
 	{
 		EXPECT_EQ(ring.getCapacity(), capacity);
 		EXPECT_EQ(ring.getSize(), samples.size());

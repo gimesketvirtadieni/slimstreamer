@@ -10,6 +10,8 @@
  * Author: gimesketvirtadieni at gmail dot com (Andrej Kislovskij)
  */
 
+#include <type_traits>
+
 #include "slim/util/buffer/ArrayTest.hpp"
 
 
@@ -19,6 +21,27 @@ TEST_P(ArrayTestFixture, Constructor1)
 	ArrayTest<int> array{size};
 
     EXPECT_EQ(array.getSize(), size);
+}
+
+TEST_P(ArrayTestFixture, Constructor2)
+{
+	std::size_t size = GetParam();
+	std::vector<int> samples;
+	ArrayTest<int> array1{size};
+
+	for (int i = 0; i < GetParam(); i++)
+	{
+		array1[i] = i;
+		samples.push_back(i);
+	}
+	ArrayTest<int> array2 = std::move(array1);
+
+	validateState(array2, samples);
+}
+
+TEST_P(ArrayTestFixture, Constructor3)
+{
+	EXPECT_FALSE(std::is_trivially_copyable<ArrayTest<int>>::value);
 }
 
 TEST_P(ArrayTestFixture, getElement1)

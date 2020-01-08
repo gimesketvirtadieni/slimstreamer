@@ -41,7 +41,7 @@ namespace slim
 			virtual bool consumeChunk(Chunk& chunk) override
 			{
 				auto result{false};
-				auto chunkSamplingRate{chunk.getSamplingRate()};
+				auto chunkSamplingRate{chunk.samplingRate};
 
 				// if sampling rate does not match to the provided chunk's sampling rate
 				if (currentConsumerPtr && currentConsumerPtr->getSamplingRate() != chunkSamplingRate)

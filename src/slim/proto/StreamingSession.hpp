@@ -108,22 +108,22 @@ namespace slim
 					if (running)
 					{
 						// sampling rates do not match then stopping this session
-						if (chunk.getSamplingRate() != encoderPtr->getSamplingRate())
+						if (chunk.samplingRate != encoderPtr->getSamplingRate())
 						{
 							// stopping this session due to incorrect data provided
-							LOG(WARNING) << LABELS{"proto"} << "Closing HTTP connection due to different sampling rate used by a client (session rate=" << encoderPtr->getSamplingRate() << "; data rate=" << chunk.getSamplingRate() << ")";
+							LOG(WARNING) << LABELS{"proto"} << "Closing HTTP connection due to different sampling rate used by a client (session rate=" << encoderPtr->getSamplingRate() << "; data rate=" << chunk.samplingRate << ")";
 							stop([] {});
 							return;
 						}
 
 						// if this is the last chunk for the ongoing stream then stopping this session
-						if (chunk.isEndOfStream())
+						if (chunk.endOfStream)
 						{
 							stop([] {});
 						}
 
-						encoderPtr->encode(chunk.getData(), chunk.getFrames() * chunk.getBytesPerFrame());
-						framesProvided += chunk.getFrames();
+						encoderPtr->encode(chunk.buffer.getData(), chunk.frames * chunk.bytesPerSample * chunk.channels);
+						framesProvided += chunk.frames;
 					}
 				}
 

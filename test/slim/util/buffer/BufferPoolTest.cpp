@@ -10,6 +10,8 @@
  * Author: gimesketvirtadieni at gmail dot com (Andrej Kislovskij)
  */
 
+#include <type_traits>
+
 #include "slim/util/buffer/BufferPoolTest.hpp"
 
 
@@ -23,6 +25,33 @@ TEST_P(BufferPoolTestFixture, Constructor1)
     EXPECT_EQ(bufferPool.getAvailableSize(), poolSize);
 }
 
+TEST(BufferPoolTest, Constructor2)
+{
+    std::size_t poolSize = 2;
+    std::size_t bufferSize = 1;
+    BufferPoolTestFixture::BufferPoolTest<int> bufferPool1{poolSize, bufferSize};
+    BufferPoolTestFixture::BufferPoolTest<int> bufferPool2{0, 0};
+
+    {
+        auto allocatedBuffer = bufferPool1.allocate();
+        allocatedBuffer.getData()[0] = 11;
+        bufferPool2 = std::move(bufferPool1);
+
+        EXPECT_EQ(bufferPool1.getAvailableSize(), 0);
+        EXPECT_EQ(allocatedBuffer.getData()[0], 11);
+    }
+    {
+        auto allocatedBuffer = bufferPool2.allocate();
+
+        EXPECT_EQ(bufferPool1.getAvailableSize(), 0);
+        EXPECT_EQ(allocatedBuffer.getData()[0], 11);
+    }
+}
+
+TEST_P(BufferPoolTestFixture, Constructor3)
+{
+	EXPECT_FALSE(std::is_trivially_copyable<BufferPoolTest<int>>::value);
+}
 
 TEST_P(BufferPoolTestFixture, Allocate1)
 {
@@ -31,6 +60,7 @@ TEST_P(BufferPoolTestFixture, Allocate1)
     BufferPoolTest<int> bufferPool{poolSize, bufferSize};
     std::vector<BufferPoolTest<int>::PooledBufferType> allocatedBuffers;
 
+    // repeating this part 3 times
     for (auto i = 0u; i < 3; i++)
     {
         allocatedBuffers.clear();
