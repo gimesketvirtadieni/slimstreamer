@@ -48,9 +48,22 @@ TEST(BufferPoolTest, Constructor2)
     }
 }
 
-TEST_P(BufferPoolTestFixture, Constructor3)
+TEST(BufferPoolTest, Constructor3)
 {
-	EXPECT_FALSE(std::is_trivially_copyable<BufferPoolTest<int>>::value);
+	EXPECT_FALSE(std::is_trivially_copyable<BufferPoolTestFixture::BufferPoolTest<int>>::value);
+}
+
+TEST(BufferPoolTest, Constructor4)
+{
+	EXPECT_FALSE(std::is_trivially_copyable<BufferPoolTestFixture::BufferPoolTest<int>::PooledBufferType>::value);
+}
+
+TEST(BufferPoolTest, Constructor5)
+{
+    BufferPoolTestFixture::BufferPoolTest<int> bufferPool{1, 0};
+    auto allocatedBuffer = bufferPool.allocate();
+
+    EXPECT_NE(allocatedBuffer.getData(), nullptr);
 }
 
 TEST_P(BufferPoolTestFixture, Allocate1)
@@ -82,7 +95,6 @@ TEST_P(BufferPoolTestFixture, Allocate1)
     }
 }
 
-
 TEST(BufferPoolTest, Allocate2)
 {
     std::size_t poolSize = 1;
@@ -100,6 +112,20 @@ TEST(BufferPoolTest, Allocate2)
         EXPECT_EQ(allocatedBuffer.getData()[0], 11);
         EXPECT_EQ(allocatedBuffer.getData()[1], 22);
     }
+}
+
+TEST(BufferPoolTest, Allocate3)
+{
+    BufferPoolTestFixture::BufferPoolTest<int> bufferPool{1, 0};
+    auto allocatedBuffer = bufferPool.allocate();
+
+    EXPECT_EQ(bufferPool.getAvailableSize(), 0);
+    EXPECT_NE(allocatedBuffer.getData(), nullptr);
+
+    allocatedBuffer = BufferPoolTestFixture::BufferPoolTest<int>::PooledBufferType{};
+
+    EXPECT_EQ(bufferPool.getAvailableSize(), 1);
+    EXPECT_EQ(allocatedBuffer.getData(), nullptr);
 }
 
 INSTANTIATE_TEST_SUITE_P(BufferPoolInstantiation, BufferPoolTestFixture, testing::Values(0, 1, 2, 3));

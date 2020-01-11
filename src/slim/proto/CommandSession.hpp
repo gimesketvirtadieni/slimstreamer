@@ -178,22 +178,10 @@ namespace slim
 				CommandSession(CommandSession&& rhs) = delete;              // non-movable
 				CommandSession& operator=(CommandSession&& rhs) = delete;   // non-movable-assignable
 
-				inline bool canConsumeChunk()
+				inline bool consumeChunk(const Chunk& chunk)
 				{
 					auto result = true;
-					ts::with(streamingSession, [&](auto& streamingSession)
-					{
-						if (!streamingSession.canConsumeChunk())
-						{
-							result = false;
-						}
-					});
 
-					return result;
-				}
-
-				inline void consumeChunk(const Chunk& chunk)
-				{
 					if (stateMachine.state == StartedState)
 					{
 						// calling prepare() here is required for cases when SlimProto session is created while streaming
@@ -225,22 +213,26 @@ namespace slim
 						// TODO: implement accounting for amount of frames which were not sent out
 						ts::with(streamingSession, [&](auto& streamingSession)
 						{
-							streamingSession.consumeChunk(chunk);
+							result = streamingSession.consumeChunk(chunk);
 						});
 
-						if (chunk.endOfStream)
+						// if chunk was consumed and it contains end-of-stream signal then changing state to Draining
+						if (result)
 						{
-							// changing state to Draining
-							stateMachine.processEvent(DrainEvent, [&](auto event, auto state)
+							if (chunk.endOfStream)
 							{
-								LOG(WARNING) << LABELS{"proto"} << "Invalid SlimProto session state while processing Drain event - closing the connection";
-								connection.get().stop();
-							});
+								stateMachine.processEvent(DrainEvent, [&](auto event, auto state)
+								{
+									LOG(WARNING) << LABELS{"proto"} << "Invalid SlimProto session state while processing Drain event - closing the connection";
+									connection.get().stop();
+								});
+							}
+							lastChunkTimestamp      = chunk.timestamp;
+							lastChunkCapturedFrames = chunk.capturedFrames;
 						}
-
-						lastChunkTimestamp      = chunk.timestamp;
-						lastChunkCapturedFrames = chunk.capturedFrames;
 					}
+
+					return result;
 				}
 
 				inline auto getClientID()

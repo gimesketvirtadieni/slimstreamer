@@ -33,7 +33,7 @@ class DefaultHeapBufferStorage
         using SizeType    = std::size_t;
 
         inline explicit DefaultHeapBufferStorage(const SizeType& s)
-        : data{s > 0 ? PointerType{new ElementType[s]} : PointerType{}}
+        : data{new ElementType[s]}
         , size{s} {}
 
         PointerType data;
@@ -82,7 +82,7 @@ class HeapBuffer : public BufferViewPolicyType<ElementType, StorageType>
         inline explicit HeapBuffer(StorageType<ElementType> d)
         : BufferViewPolicyType<ElementType, StorageType>{std::move(d)} {}
 
-        inline explicit HeapBuffer(const typename BufferViewPolicyType<ElementType, StorageType>::SizeType& s)
+        inline explicit HeapBuffer(const typename BufferViewPolicyType<ElementType, StorageType>::SizeType& s = 0)
         : BufferViewPolicyType<ElementType, StorageType>{s} {}
 };
 

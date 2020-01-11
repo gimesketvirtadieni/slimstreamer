@@ -46,7 +46,6 @@ namespace slim
 		unsigned int     bytesPerSample{0};
 		BufferType       buffer{0};
 		std::size_t      frames{0};
-		util::BigInteger sequenceNumber{0};
 		util::BigInteger capturedFrames{0};
 		util::Timestamp  timestamp;
 	};

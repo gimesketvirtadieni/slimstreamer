@@ -39,9 +39,9 @@ TEST_P(ArrayTestFixture, Constructor2)
 	validateState(array2, samples);
 }
 
-TEST_P(ArrayTestFixture, Constructor3)
+TEST(ArrayTest, Constructor3)
 {
-	EXPECT_FALSE(std::is_trivially_copyable<ArrayTest<int>>::value);
+	EXPECT_FALSE(std::is_trivially_copyable<ArrayTestFixture::ArrayTest<int>>::value);
 }
 
 TEST_P(ArrayTestFixture, getElement1)

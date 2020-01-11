@@ -378,6 +378,7 @@ namespace slim
 
 					if (auto found{commandSessions.find(&connection)}; found != commandSessions.end())
 					{
+						sessionToChunkSequenceMap.erase((*found).second.get());
 						removeSession(commandSessions, *(*found).first, *(*found).second);
 					}
 					else
@@ -417,7 +418,8 @@ namespace slim
 					auto commandSessionPtr{std::make_unique<CommandSessionType>(getProcessorProxy(), std::ref(connection), std::ref(*this), ss.str(), streamingPort, encoderBuilder.getFormat(), gain)};
 					commandSessionPtr->start();
 
-					// saving command session in the map
+					// saving data about command session in the maps
+					sessionToChunkSequenceMap.emplace(commandSessionPtr.get(), 0);
 					addSession(commandSessions, connection, std::move(commandSessionPtr));
 				}
 
@@ -666,24 +668,32 @@ namespace slim
 
 				inline bool streamChunk(Chunk& chunk)
 				{
-					for (auto& entry : commandSessions)
-					{
-						if (!entry.second->canConsumeChunk())
-						{
-							return false;
-						}
-					}
+					auto result = true;
 
 					// sending chunk to all SlimProto sessions
-					for (auto& entry : commandSessions)
+					for (auto& entry : sessionToChunkSequenceMap)
 					{
-						entry.second->consumeChunk(chunk);
+						if (streamedChunks <= entry.second)
+						{
+							if (entry.first->consumeChunk(chunk))
+							{
+								entry.second++;
+							}
+							else
+							{
+								result = false;
+							}
+						}
+					}
+					
+					// increasing counters
+					if (result)
+					{
+						streamedChunks++;
+						streamedFrames += chunk.frames;
 					}
 
-					// increasing played frames counter
-					streamedFrames += chunk.frames;
-
-					return true;
+					return result;
 				}
 
 			private:
@@ -699,6 +709,7 @@ namespace slim
 				util::Timestamp                   preparingStartedAt;
 				util::Timestamp                   bufferingStartedAt;
 				util::Timestamp                   playbackStartedAt;
+				util::BigInteger                  streamedChunks{0};
 				util::BigInteger                  streamedFrames{0};
 				util::BigInteger                  bufferedFrames{0};
 		};

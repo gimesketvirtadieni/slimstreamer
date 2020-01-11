@@ -40,9 +40,9 @@ class PooledBufferStorage
         : data{std::move(d)}
         , size{s} {}
 
-        inline PooledBufferStorage()
+        inline PooledBufferStorage(const SizeType& s = 0)
         : data{}
-        , size{0} {}
+        , size{s} {}
 
         PointerType data;
         SizeType    size;
@@ -59,7 +59,6 @@ class BufferPool
         using SizeType         = typename BufferType<ElementType, DefaultHeapBufferStorage>::SizeType;
         using PooledBufferType = BufferType<ElementType, PooledBufferStorage>;
 
-    public:
         inline explicit BufferPool(const SizeType& poolSize, const SizeType& bufferSize)
         : bufferWrappersPtr{std::make_unique<std::vector<BufferWrapper>>()}
         {

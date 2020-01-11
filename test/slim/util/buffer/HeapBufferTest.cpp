@@ -20,10 +20,7 @@ TEST_P(HeapBufferTestFixture, Constructor1)
 	HeapBufferTest<int> buffer{size};
 
     EXPECT_EQ(buffer.getSize(), size);
-	if (size == 0)
-	{
-		EXPECT_EQ(buffer.getData(), nullptr);
-	}
+	EXPECT_NE(buffer.getData(), nullptr);
 }
 
 TEST_P(HeapBufferTestFixture, Constructor2)
@@ -42,9 +39,17 @@ TEST_P(HeapBufferTestFixture, Constructor2)
 	validateState(buffer2, samples);
 }
 
-TEST_P(HeapBufferTestFixture, Constructor3)
+TEST(HeapBufferTest, Constructor3)
 {
-	EXPECT_FALSE(std::is_trivially_copyable<HeapBufferTest<int>>::value);
+	EXPECT_FALSE(std::is_trivially_copyable<HeapBufferTestFixture::HeapBufferTest<int>>::value);
+}
+
+TEST(HeapBufferTest, Constructor4)
+{
+	HeapBufferTestFixture::HeapBufferTest<int> buffer;
+
+    EXPECT_EQ(buffer.getSize(), 0);
+	EXPECT_NE(buffer.getData(), nullptr);
 }
 
 TEST_P(HeapBufferTestFixture, getElement1)

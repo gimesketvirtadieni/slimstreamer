@@ -92,28 +92,24 @@ namespace slim
 				StreamingSession(StreamingSession&& rhs) = delete;              // non-movable
 				StreamingSession& operator=(StreamingSession&& rhs) = delete;   // non-movable-assignable
 
-				inline bool canConsumeChunk()
-				{
-					// TODO: work in progress
-					if (bufferPool.getAvailableSize() < 10)
-					{
-						return false;
-					}
-
-					return true;
-				}
-
-				inline void consumeChunk(const Chunk& chunk)
+				inline bool consumeChunk(const Chunk& chunk)
 				{
 					if (running)
 					{
+						// TODO: configure
+						// if no enough place in the buffer then signalling that chunk was not consumed (streamer will redeliver this chunk)
+						if (bufferPool.getAvailableSize() < 10)
+						{
+							return false;
+						}
+
 						// sampling rates do not match then stopping this session
 						if (chunk.samplingRate != encoderPtr->getSamplingRate())
 						{
 							// stopping this session due to incorrect data provided
 							LOG(WARNING) << LABELS{"proto"} << "Closing HTTP connection due to different sampling rate used by a client (session rate=" << encoderPtr->getSamplingRate() << "; data rate=" << chunk.samplingRate << ")";
 							stop([] {});
-							return;
+							return true;
 						}
 
 						// if this is the last chunk for the ongoing stream then stopping this session
@@ -125,6 +121,8 @@ namespace slim
 						encoderPtr->encode(chunk.buffer.getData(), chunk.frames * chunk.bytesPerSample * chunk.channels);
 						framesProvided += chunk.frames;
 					}
+
+					return true;
 				}
 
 				inline auto getClientID()
@@ -326,9 +324,7 @@ namespace slim
 				bool                                                     running{false};
 				bool                                                     transferring{false};
 				// TODO: parameterize
-				const std::size_t                                        poolSize{32};
-				const std::size_t                                        bufferSize{4096};
-				util::buffer::BufferPool<std::uint8_t>                   bufferPool{poolSize, bufferSize};
+				util::buffer::BufferPool<std::uint8_t>                   bufferPool{64, 4096};
 				std::queue<TransferDataChunk>                            transferBufferQueue;
 				util::BigInteger                                         framesProvided{0};
 				ts::optional_ref<conwrap2::Timer>                        timer{ts::nullopt};

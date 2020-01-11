@@ -227,7 +227,6 @@ namespace slim
 
 							capturedFrames += copiedFrames;
 							chunk.frames = copiedFrames;
-							chunk.sequenceNumber = ++chunkSequenceNumber;
 							chunk.capturedFrames = capturedFrames;
 
 							// only the first chunk in stream is marked as Beginning-Of-Stream
@@ -254,12 +253,10 @@ namespace slim
 							chunk.endOfStream = true;
 							chunk.clear();
 
-							chunk.sequenceNumber = ++chunkSequenceNumber;
 							chunk.capturedFrames = capturedFrames;
 
 							// resetting state as the next chunk will initiate a new streaming session
 							isBeginningOfStream = true;
-							chunkSequenceNumber = 0;
 
 							// always true as source buffer contains data
 							return true;
