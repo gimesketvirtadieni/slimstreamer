@@ -272,7 +272,7 @@ namespace slim
 					{
 						until = bufferingStartedAt;
 					}
-					
+
 					return std::chrono::duration_cast<std::chrono::duration<int64_t, RatioType>>(until - preparingStartedAt);
 				}
 
@@ -419,7 +419,7 @@ namespace slim
 					commandSessionPtr->start();
 
 					// saving data about command session in the maps
-					sessionToChunkSequenceMap.emplace(commandSessionPtr.get(), 0);
+					sessionToChunkSequenceMap.emplace(commandSessionPtr.get(), streamedChunks);
 					addSession(commandSessions, connection, std::move(commandSessionPtr));
 				}
 
@@ -643,6 +643,7 @@ namespace slim
 				{
 					// preparing start time is required for calculating defer time-out
 					preparingStartedAt = util::Timestamp::now();
+					streamedChunks     = 0;
 					streamedFrames     = 0;
                     bufferedFrames     = 0;
 
@@ -673,7 +674,7 @@ namespace slim
 					// sending chunk to all SlimProto sessions
 					for (auto& entry : sessionToChunkSequenceMap)
 					{
-						if (streamedChunks <= entry.second)
+						if (entry.second <= streamedChunks)
 						{
 							if (entry.first->consumeChunk(chunk))
 							{
@@ -685,7 +686,7 @@ namespace slim
 							}
 						}
 					}
-					
+
 					// increasing counters
 					if (result)
 					{

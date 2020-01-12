@@ -68,16 +68,16 @@ class BufferPool
             }
         }
 
-        inline PooledBufferType allocate()
+        inline auto allocate()
         {
+            // no need to guard here against cases when pool 'was moved from' this object as getSize() will return 0
             for (SizeType i = 0; i < getSize(); i++)
             {
-                auto& bufferWrapper = (*bufferWrappersPtr)[i];
-
+                auto& bufferWrapper = getBufferWrappers()[i];
                 if (bufferWrapper.free)
                 {
                     // creating a 'proxy' object, which wraps an existing buffer and will release it back to the pool upon destruction
-                    auto bufferProxyPtr = std::unique_ptr<ElementType[], std::function<void(ElementType*)>>{bufferWrapper.buffer.getData(), [&bufferWrappers = *bufferWrappersPtr, index = i](auto* data)
+                    auto bufferProxyPtr = typename PooledBufferStorage<ElementType>::PointerType{bufferWrapper.buffer.getData(), [&bufferWrappers = getBufferWrappers(), index = i](auto* data)
                     {
                         bufferWrappers[index].free = true;
                     }};
@@ -90,7 +90,7 @@ class BufferPool
                 }
             }
 
-            // this point is reach if no available buffer was found
+            // this point is reached if no available buffer was found
             return PooledBufferType{PooledBufferStorage<ElementType>{}};
         }
 
@@ -128,6 +128,11 @@ class BufferPool
             BufferType<ElementType, DefaultHeapBufferStorage> buffer;
             bool                                              free;
         };
+
+        inline auto& getBufferWrappers()
+        {
+            return *bufferWrappersPtr.get();
+        }
 
     private:
         // using std::unique_ptr<...> to make this pool movable

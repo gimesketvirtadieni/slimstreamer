@@ -310,8 +310,6 @@ namespace slim
 							// it will instruct the guard not to release transfer data chunk back to the pool
 							releaseBuffer = false;
 						}
-
-						//LOG(DEBUG) << LABELS{"proto"} << "Chunk was successfully transferred: " << transferDataChunk.size << ", transferred=" << sizeTransferred;
 					});
 				}
 
