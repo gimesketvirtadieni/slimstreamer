@@ -62,7 +62,7 @@ namespace slim
 
 							// copying encoded PCM content to the allocated buffer and submitting for transfer to a client
 							chunkSize = std::min(pooledBuffer.getSize(), encodedDataSize - offset);
-							std::memcpy(pooledBuffer.getData(), encodedData, chunkSize);
+							std::memcpy(pooledBuffer.getData(), encodedData + offset, chunkSize);
 							auto transferDataChunk = TransferDataChunk{std::move(pooledBuffer), chunkSize, 0};
 
 							// submitting a chunk to be transferred to a client
@@ -266,7 +266,7 @@ namespace slim
 					transferring = true;
 
 					auto& transferDataChunk = transferBufferQueue.front();
-					connection.get().writeAsync(transferDataChunk.buffer.getData() + transferDataChunk.offset, transferDataChunk.size, [this](auto error, auto sizeTransferred)
+					connection.get().writeAsync(transferDataChunk.buffer.getData() + transferDataChunk.offset, transferDataChunk.size - transferDataChunk.offset, [this](auto error, auto sizeTransferred)
 					{
 						// using RAII guard to ensure that a buffer is removed from the queue unless it is explicitly instructed not to do so
 						auto releaseBuffer = true;
@@ -299,12 +299,11 @@ namespace slim
 						}
 
 						auto& transferDataChunk = transferBufferQueue.front();
-						if (sizeTransferred < transferDataChunk.size)
+						if (sizeTransferred < transferDataChunk.size - transferDataChunk.offset)
 						{
 							LOG(INFO) << LABELS{"proto"} << "Incomplete buffer content was sent, transmitting reminder: chunk size=" << transferDataChunk.size << ", transferred=" << sizeTransferred;
 
 							// setting up transfer chunk data to transfer only the reminder
-							transferDataChunk.size   -= sizeTransferred;
 							transferDataChunk.offset += sizeTransferred;
 
 							// it will instruct the guard not to release transfer data chunk back to the pool
