@@ -592,7 +592,8 @@ namespace slim
 					auto result{false};
 
 					// TODO: min buffering period should be configurable
-					if (auto minThresholdReached{std::chrono::milliseconds{2000} < getStreamingDuration(util::milliseconds)}; minThresholdReached)
+					// if min buffering period was reached then check sessions readiness
+					if (std::chrono::milliseconds{2000} < getStreamingDuration(util::milliseconds))
 					{
 						// TODO: introduce max timeout threshold
 						result = (0 == std::count_if(commandSessions.begin(), commandSessions.end(), [&](auto& entry)
@@ -643,9 +644,15 @@ namespace slim
 				{
 					// preparing start time is required for calculating defer time-out
 					preparingStartedAt = util::Timestamp::now();
-					streamedChunks     = 0;
 					streamedFrames     = 0;
                     bufferedFrames     = 0;
+					streamedChunks     = 0;
+
+					// resetting chunk sequence for all sessions
+					for (auto& entry : sessionToChunkSequenceMap)
+					{
+						entry.second = 0;
+					}
 
 					for (auto& entry : commandSessions)
 					{
