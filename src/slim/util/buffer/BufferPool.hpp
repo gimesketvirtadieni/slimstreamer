@@ -64,7 +64,7 @@ class BufferPool
         {
             for (SizeType i = 0; i < poolSize; i++)
             {
-                bufferWrappersPtr->emplace_back(BufferWrapper{BufferType{DefaultHeapBufferStorage<ElementType>{bufferSize}}, true});
+                bufferWrappersPtr->emplace_back(BufferWrapper{BufferType<ElementType, DefaultHeapBufferStorage>{bufferSize}, true});
             }
         }
 

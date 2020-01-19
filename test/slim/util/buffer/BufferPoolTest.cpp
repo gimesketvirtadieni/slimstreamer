@@ -122,7 +122,7 @@ TEST(BufferPoolTest, Allocate3)
     EXPECT_EQ(bufferPool.getAvailableSize(), 0);
     EXPECT_NE(allocatedBuffer.getData(), nullptr);
 
-    allocatedBuffer = BufferPoolTestFixture::BufferPoolTest<int>::PooledBufferType{};
+    allocatedBuffer = BufferPoolTestFixture::BufferPoolTest<int>::PooledBufferType{0};
 
     EXPECT_EQ(bufferPool.getAvailableSize(), 1);
     EXPECT_EQ(allocatedBuffer.getData(), nullptr);

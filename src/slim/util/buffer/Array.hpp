@@ -12,7 +12,6 @@
 
 #pragma once
 
-#include <utility>  // std::as_const
 #include <vector>
 
 #include "slim/util/buffer/HeapBuffer.hpp"
@@ -65,12 +64,7 @@ template
     template <typename> class StorageType = HeapBuffer,
     template <typename, template <typename> class> class ArrayViewPolicyType = DefaultArrayViewPolicy
 >
-class Array : public ArrayViewPolicyType<ElementType, StorageType>
-{
-    public:
-        inline explicit Array(const typename ArrayViewPolicyType<ElementType, StorageType>::SizeType& s)
-        : ArrayViewPolicyType<ElementType, StorageType>{s} {}
-};
+using Array = ArrayViewPolicyType<ElementType, StorageType>;
 
 }
 }

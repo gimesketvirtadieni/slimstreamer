@@ -124,12 +124,7 @@ template
     template <typename> class StorageType = HeapBuffer,
     template <typename, template <typename> class> class RingViewPolicyType = DefaultRingViewPolicy
 >
-class Ring : public Array<ElementType, StorageType, RingViewPolicyType>
-{
-    public:
-        inline explicit Ring(const typename StorageType<ElementType>::SizeType& c)
-        : Array<ElementType, StorageType, RingViewPolicyType>{c} {}
-};
+using Ring = Array<ElementType, StorageType, RingViewPolicyType>;
 
 }
 }

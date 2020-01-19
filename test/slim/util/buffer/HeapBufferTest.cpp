@@ -46,7 +46,7 @@ TEST(HeapBufferTest, Constructor3)
 
 TEST(HeapBufferTest, Constructor4)
 {
-	HeapBufferTestFixture::HeapBufferTest<int> buffer;
+	HeapBufferTestFixture::HeapBufferTest<int> buffer{0};
 
     EXPECT_EQ(buffer.getSize(), 0);
 	EXPECT_NE(buffer.getData(), nullptr);
