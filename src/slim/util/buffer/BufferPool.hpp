@@ -30,22 +30,17 @@ template
 <
     typename ElementType
 >
-class PooledBufferStorage
+class PooledBufferStorage : public DefaultHeapBufferStorage<ElementType, std::unique_ptr<ElementType[], std::function<void(ElementType*)>>>
 {
     public:
         using PointerType = std::unique_ptr<ElementType[], std::function<void(ElementType*)>>;
         using SizeType    = std::size_t;
 
+        inline PooledBufferStorage(const SizeType& s)
+        : DefaultHeapBufferStorage<ElementType, PointerType>{s} {}
+
         inline explicit PooledBufferStorage(PointerType d, const SizeType& s)
-        : data{std::move(d)}
-        , size{s} {}
-
-        inline PooledBufferStorage(const SizeType& s = 0)
-        : data{}
-        , size{s} {}
-
-        PointerType data;
-        SizeType    size;
+        : DefaultHeapBufferStorage<ElementType, PointerType>(std::move(d), s) {}
 };
 
 template
@@ -91,7 +86,7 @@ class BufferPool
             }
 
             // this point is reached if no available buffer was found
-            return PooledBufferType{PooledBufferStorage<ElementType>{}};
+            return PooledBufferType{PooledBufferStorage<ElementType>{0}};
         }
 
         inline const auto getAvailableSize() const

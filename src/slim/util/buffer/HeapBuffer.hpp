@@ -24,19 +24,37 @@ namespace buffer
 
 template
 <
-    typename ElementType
+    typename ElementType,
+    typename PointerType = std::unique_ptr<ElementType[]>
 >
-struct DefaultHeapBufferStorage
+class DefaultHeapBufferStorage
 {
-    using PointerType = std::unique_ptr<ElementType[]>;
-    using SizeType    = std::size_t;
+    public:
+        using SizeType = std::size_t;
 
-    inline explicit DefaultHeapBufferStorage(const SizeType& s)
-    : data{new ElementType[s]}
-    , size{s} {}
+        // TODO: disable allocation for anything except unique_ptr
+        inline explicit DefaultHeapBufferStorage(const SizeType& s)
+        : data{new ElementType[s]}
+        , size{s} {}
 
-    PointerType data;
-    SizeType    size;
+        // TODO: do not move except unique_ptr
+        inline explicit DefaultHeapBufferStorage(PointerType d, const SizeType& s)
+        : data{std::move(d)}
+        , size{s} {}
+
+        inline auto* getData() const
+        {
+            return data.get();
+        }
+
+        inline const auto getSize() const
+        {
+            return size;
+        }
+
+    private:
+        PointerType data;
+        SizeType    size;
 };
 
 template
@@ -44,29 +62,16 @@ template
     typename ElementType,
     template <typename> class StorageType = DefaultHeapBufferStorage
 >
-class DefaultHeapBufferViewPolicy
+class DefaultHeapBufferViewPolicy : public StorageType<ElementType>
 {
     public:
         using SizeType = typename StorageType<ElementType>::SizeType;
 
-        inline explicit DefaultHeapBufferViewPolicy(StorageType<ElementType> d)
-        : storage{std::move(d)} {}
-
         inline explicit DefaultHeapBufferViewPolicy(const SizeType& s)
-        : storage{s} {}
+        : StorageType<ElementType>{s} {}
 
-        inline auto getData() const
-        {
-            return storage.data.get();
-        }
-
-        inline const auto getSize() const
-        {
-            return storage.size;
-        }
-
-    private:
-        StorageType<ElementType> storage;
+        inline explicit DefaultHeapBufferViewPolicy(StorageType<ElementType> d)
+        : StorageType<ElementType>{std::move(d)} {}
 };
 
 template

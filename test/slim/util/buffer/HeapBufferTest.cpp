@@ -52,6 +52,18 @@ TEST(HeapBufferTest, Constructor4)
 	EXPECT_NE(buffer.getData(), nullptr);
 }
 
+TEST(HeapBufferTest, Constructor5)
+{
+	auto buffer1 = HeapBufferTestFixture::HeapBufferTest<int>{1};
+	auto storage = HeapBufferTestFixture::NonOwningStorage<int>(buffer1.getData(), buffer1.getSize());
+	auto buffer2 = HeapBufferTestFixture::HeapBufferTest<int, HeapBufferTestFixture::NonOwningStorage>(std::move(storage));
+
+	buffer1.getData()[0] = 11;
+
+	// TODO: work in progress
+    //EXPECT_EQ(*buffer2.getData(), *buffer1.getData());
+}
+
 TEST_P(HeapBufferTestFixture, getElement1)
 {
 	std::vector<int> samples(GetParam());
@@ -74,7 +86,7 @@ TEST_P(HeapBufferTestFixture, getElement2)
 	// saving some data in a separatelly created storage
 	for (auto i{0u}; i < samples.size(); i++)
 	{
-		storage.data.get()[i] = samples[i];
+		storage.getData()[i] = samples[i];
 	}
 	HeapBufferTest<int> buffer{std::move(storage)};
 
