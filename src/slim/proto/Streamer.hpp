@@ -51,6 +51,7 @@ namespace slim
 		class Streamer : public Consumer
 		{
 			template<typename SessionType>
+			using StreamingSessions    = std::vector<std::unique_ptr<StreamingSessionType>>;
 			using SessionsMap          = std::unordered_map<ConnectionType*, std::unique_ptr<SessionType>>;
 			using CommandSessionType   = CommandSession<ConnectionType, Streamer>;
 			using StreamingSessionType = StreamingSession<ConnectionType, Streamer>;
@@ -309,16 +310,20 @@ namespace slim
 				{
 					LOG(DEBUG) << LABELS{"proto"} << "HTTP session close callback (connection=" << &connection << ")";
 
-					if (auto found{streamingSessions.find(&connection)}; found != streamingSessions.end())
+					auto found = std::find_if(streamingSessions.begin(), streamingSessions.end(), [&](const auto& sessionPtr)
+					{
+						return &sessionPtr->getConnection().get() == &connection;
+					});
+					if (found != streamingSessions.end())
 					{
 						// if there is a relevant SlimProto session then reset the reference
-						auto clientID{(*found).second->getClientID()};
-						if (auto commandSession{findSessionByID(commandSessions, clientID)}; commandSession.has_value())
+						auto commandSession = findSessionByID(commandSessions, (*found)->getClientID());
+						if (commandSession.has_value())
 						{
 							commandSession.value()->setStreamingSession(ts::nullopt);
 						}
 
-						removeSession(streamingSessions, *(*found).first, *(*found).second);
+						streamingSessions.erase(found);
 					}
 					else
 					{
@@ -328,13 +333,18 @@ namespace slim
 
 				void onHTTPData(ConnectionType& connection, unsigned char* buffer, std::size_t receivedSize)
 				{
-					if (!applyToSession(streamingSessions, connection, [&](StreamingSessionType& session)
+					auto found = std::find_if(streamingSessions.begin(), streamingSessions.end(), [&](const auto& sessionPtr)
+					{
+						return &sessionPtr->getConnection().get() == &connection;
+					});
+					if (found != streamingSessions.end())
 					{
 						// processing request by a proper Streaming session mapped to this connection
-						session.onRequest(buffer, receivedSize);
-					}))
+						(*found)->onRequest(buffer, receivedSize);
+					}
+					else
 					{
-						// parsing client ID
+						// this is the first request from a new session
 						auto clientID = StreamingSessionType::parseClientID(std::string{(char*)buffer, receivedSize});
 						if (!clientID.has_value())
 						{
@@ -362,8 +372,8 @@ namespace slim
 						// processing request by a proper Streaming session mapped to this connection
 						streamingSessionPtr->onRequest(buffer, receivedSize);
 
-						// saving Streaming session as a part of this Streamer
-						addSession(streamingSessions, connection, std::move(streamingSessionPtr));
+						// saving streaming session
+						streamingSessions.push_back(std::move(streamingSessionPtr));
 					}
 				}
 
@@ -670,7 +680,7 @@ namespace slim
 					}
 					for (auto& entry : streamingSessions)
 					{
-						entry.second->stop([] {});
+						//entry.second->stop([] {});
 					}
 				}
 
@@ -705,21 +715,21 @@ namespace slim
 				}
 
 			private:
-				unsigned int                      streamingPort;
-				EncoderBuilder                    encoderBuilder;
-				ts::optional<unsigned int>        gain;
-				util::StateMachine<Event, State>  stateMachine;
-				util::BigInteger                  nextID{0};
-				SessionsMap<CommandSessionType>   commandSessions;
-				SessionsMap<StreamingSessionType> streamingSessions;
-				SessionToChunkSequenceMap         sessionToChunkSequenceMap;
-				unsigned int                      samplingRate{0};
-				util::Timestamp                   preparingStartedAt;
-				util::Timestamp                   bufferingStartedAt;
-				util::Timestamp                   playbackStartedAt;
-				util::BigInteger                  streamedChunks{0};
-				util::BigInteger                  streamedFrames{0};
-				util::BigInteger                  bufferedFrames{0};
+				unsigned int                     streamingPort;
+				EncoderBuilder                   encoderBuilder;
+				ts::optional<unsigned int>       gain;
+				util::StateMachine<Event, State> stateMachine;
+				util::BigInteger                 nextID{0};
+				SessionsMap<CommandSessionType>  commandSessions;
+				StreamingSessions                streamingSessions;
+				SessionToChunkSequenceMap        sessionToChunkSequenceMap;
+				unsigned int                     samplingRate{0};
+				util::Timestamp                  preparingStartedAt;
+				util::Timestamp                  bufferingStartedAt;
+				util::Timestamp                  playbackStartedAt;
+				util::BigInteger                 streamedChunks{0};
+				util::BigInteger                 streamedFrames{0};
+				util::BigInteger                 bufferedFrames{0};
 		};
 	}
 }

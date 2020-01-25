@@ -130,6 +130,11 @@ namespace slim
 					return clientID;
 				}
 
+				inline auto getConnection()
+				{
+					return connection;
+				}
+
 				inline auto getFramesProvided()
 				{
 					return framesProvided;

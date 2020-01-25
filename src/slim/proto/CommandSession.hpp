@@ -240,6 +240,11 @@ namespace slim
 					return clientID;
 				}
 
+				inline auto getConnection()
+				{
+					return connection;
+				}
+
 				inline auto getLatency()
 				{
 					return latency;
