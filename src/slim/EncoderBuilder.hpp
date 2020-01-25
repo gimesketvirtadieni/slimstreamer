@@ -117,7 +117,7 @@ namespace slim
 				{
 					throw Exception("Builder function was not provided");
 				}
-				return std::move(builder(getChannels(), getBitsPerSample(), getBitsPerValue(), getSamplingRate(), getHeader(), getExtention(), getMIME(), getEncodedCallback()));
+				return builder(getChannels(), getBitsPerSample(), getBitsPerValue(), getSamplingRate(), getHeader(), getExtention(), getMIME(), getEncodedCallback());
 			}
 
 			void setBitsPerSample(unsigned int bs)

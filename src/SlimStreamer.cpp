@@ -126,7 +126,7 @@ auto createCommandCallbacks(Streamer<TCPConnection>& streamer)
 		streamer.onSlimProtoClose(connection);
 	});
 
-	return std::move(callbacksPtr);
+	return callbacksPtr;
 }
 
 
@@ -140,7 +140,7 @@ auto createDiscoveryCallbacks()
 		server.write("E");
 	});
 
-	return std::move(callbacksPtr);
+	return callbacksPtr;
 }
 
 
@@ -203,7 +203,7 @@ auto createProducers(conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>> pr
 		}));
 	}
 
-	return std::move(producers);
+	return producers;
 }
 
 
@@ -224,7 +224,7 @@ auto createStreamingCallbacks(Streamer<TCPConnection>& streamer)
 		streamer.onHTTPClose(connection);
 	});
 
-	return std::move(callbacksPtr);
+	return callbacksPtr;
 }
 
 
@@ -298,7 +298,7 @@ int main(int argc, char *argv[])
 			{
 				encoderBuilder.setBuilder([](unsigned int ch, unsigned int bs, unsigned int bv, unsigned int sr, bool hd, std::string ex, std::string mm, std::function<void(unsigned char*, std::size_t)> ec)
 				{
-					return std::move(std::unique_ptr<EncoderBase>{new wave::Encoder{ch, bs, bv, sr, hd, ex, mm, ec}});
+					return std::unique_ptr<EncoderBase>{new wave::Encoder{ch, bs, bv, sr, hd, ex, mm, ec}};
 				});
 				encoderBuilder.setFormat(slim::proto::FormatSelection::PCM);
 				encoderBuilder.setExtention("wav");
@@ -308,7 +308,7 @@ int main(int argc, char *argv[])
 			{
 				encoderBuilder.setBuilder([](unsigned int ch, unsigned int bs, unsigned int bv, unsigned int sr, bool hd, std::string ex, std::string mm, std::function<void(unsigned char*, std::size_t)> ec)
 				{
-					return std::move(std::unique_ptr<EncoderBase>{new flac::Encoder{ch, bs, bv, sr, hd, ex, mm, ec}});
+					return std::unique_ptr<EncoderBase>{new flac::Encoder{ch, bs, bv, sr, hd, ex, mm, ec}};
 				});
 				encoderBuilder.setFormat(slim::proto::FormatSelection::FLAC);
 				encoderBuilder.setExtention("flac");
@@ -374,10 +374,10 @@ int main(int argc, char *argv[])
 				// creating a scheduler
 				auto schedulerPtr{std::make_unique<Scheduler<Multiplexor<Source>, Consumer>>(processorProxy, std::move(multiplexorPtr), std::move(consumerPtr))};
 
-				return std::move(std::unique_ptr<ContainerBase>
+				return std::unique_ptr<ContainerBase>
 				{
 					new Container<TCPServer, TCPServer, UDPServer, Scheduler<Multiplexor<Source>, Consumer>>(processorProxy, std::move(commandServerPtr), std::move(streamingServerPtr), std::move(discoveryServerPtr), std::move(schedulerPtr))
-				});
+				};
 			}};
 			LOG(INFO) << "Streaming format is " << format;
 

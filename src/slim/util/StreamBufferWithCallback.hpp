@@ -57,7 +57,7 @@ namespace slim
 		template <typename CallbackType>
 		inline auto makeStreamBufferWithCallback(CallbackType callback)
 		{
-		    return std::move(StreamBufferWithCallback<CallbackType>(std::move(callback)));
+		    return StreamBufferWithCallback<CallbackType>(std::move(callback));
 		}
 	}
 }
