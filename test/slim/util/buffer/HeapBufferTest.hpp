@@ -26,13 +26,6 @@ struct HeapBufferTestFixture : public ::testing::TestWithParam<std::size_t>
 	>
 	using HeapBufferTest = slim::util::buffer::HeapBuffer<ElementType, StorageType>;
 
-	// this class is used to make sure HeapBuffer works with regular, non-owning pointers, not just with default one
-	template
-	<
-		typename ElementType
-	>
-	using NonOwningStorage = slim::util::buffer::DefaultHeapBufferStorage<ElementType, ElementType*>;
-
 	template<typename HeapBufferType>
 	void validateState(const HeapBufferType& buffer, const std::vector<int>& samples)
 	{

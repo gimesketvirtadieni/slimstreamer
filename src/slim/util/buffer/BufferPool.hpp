@@ -34,10 +34,7 @@ class PooledBufferStorage : public DefaultHeapBufferStorage<ElementType, std::un
 {
     public:
         using PointerType = std::unique_ptr<ElementType[], std::function<void(ElementType*)>>;
-        using SizeType    = std::size_t;
-
-        inline PooledBufferStorage(const SizeType& s)
-        : DefaultHeapBufferStorage<ElementType, PointerType>{s} {}
+        using SizeType    = typename DefaultHeapBufferStorage<ElementType, PointerType>::SizeType;
 
         inline explicit PooledBufferStorage(PointerType d, const SizeType& s)
         : DefaultHeapBufferStorage<ElementType, PointerType>(std::move(d), s) {}
@@ -86,7 +83,8 @@ class BufferPool
             }
 
             // this point is reached if no available buffer was found
-            return PooledBufferType{PooledBufferStorage<ElementType>{0}};
+            auto emptyPtr = typename PooledBufferStorage<ElementType>::PointerType{nullptr, [](auto*) {}};
+            return PooledBufferType{PooledBufferStorage<ElementType>{std::move(emptyPtr), 0}};
         }
 
         inline const auto getAvailableSize() const

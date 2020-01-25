@@ -32,12 +32,10 @@ class DefaultHeapBufferStorage
     public:
         using SizeType = std::size_t;
 
-        // TODO: disable allocation for anything except unique_ptr
         inline explicit DefaultHeapBufferStorage(const SizeType& s)
         : data{new ElementType[s]}
         , size{s} {}
 
-        // TODO: do not move except unique_ptr
         inline explicit DefaultHeapBufferStorage(PointerType d, const SizeType& s)
         : data{std::move(d)}
         , size{s} {}
@@ -60,19 +58,9 @@ class DefaultHeapBufferStorage
 template
 <
     typename ElementType,
-    template <typename> class StorageType = DefaultHeapBufferStorage
+    template <typename> class HeapBufferStorageType = DefaultHeapBufferStorage
 >
-class DefaultHeapBufferViewPolicy : public StorageType<ElementType>
-{
-    public:
-        using SizeType = typename StorageType<ElementType>::SizeType;
-
-        inline explicit DefaultHeapBufferViewPolicy(const SizeType& s)
-        : StorageType<ElementType>{s} {}
-
-        inline explicit DefaultHeapBufferViewPolicy(StorageType<ElementType> d)
-        : StorageType<ElementType>{std::move(d)} {}
-};
+using DefaultHeapBufferViewPolicy = HeapBufferStorageType<ElementType>;
 
 template
 <

@@ -122,7 +122,8 @@ TEST(BufferPoolTest, Allocate3)
     EXPECT_EQ(bufferPool.getAvailableSize(), 0);
     EXPECT_NE(allocatedBuffer.getData(), nullptr);
 
-    allocatedBuffer = BufferPoolTestFixture::BufferPoolTest<int>::PooledBufferType{0};
+    auto emptyPtr = typename slim::util::buffer::PooledBufferStorage<int>::PointerType{nullptr, [](auto* ) {}};
+    allocatedBuffer = BufferPoolTestFixture::BufferPoolTest<int>::PooledBufferType{slim::util::buffer::PooledBufferStorage<int>{std::move(emptyPtr), 0}};
 
     EXPECT_EQ(bufferPool.getAvailableSize(), 1);
     EXPECT_EQ(allocatedBuffer.getData(), nullptr);
