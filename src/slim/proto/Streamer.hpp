@@ -50,11 +50,10 @@ namespace slim
 		template<typename ConnectionType>
 		class Streamer : public Consumer
 		{
-			template<typename SessionType>
-			using StreamingSessions    = std::vector<std::unique_ptr<StreamingSessionType>>;
-			using SessionsMap          = std::unordered_map<ConnectionType*, std::unique_ptr<SessionType>>;
 			using CommandSessionType   = CommandSession<ConnectionType, Streamer>;
 			using StreamingSessionType = StreamingSession<ConnectionType, Streamer>;
+			using CommandSessions      = std::vector<std::unique_ptr<CommandSessionType>>;
+			using StreamingSessions    = std::vector<std::unique_ptr<StreamingSessionType>>;
 
 			enum Event
 			{
@@ -290,9 +289,9 @@ namespace slim
 
 				inline auto isDraining()
 				{
-					return 0 < std::count_if(commandSessions.begin(), commandSessions.end(), [&](auto& entry)
+					return 0 < std::count_if(commandSessions.begin(), commandSessions.end(), [&](const auto& sessionPtr)
 					{
-						return entry.second->isDraining();
+						return sessionPtr->isDraining();
 					});
 				}
 
@@ -317,11 +316,13 @@ namespace slim
 					if (found != streamingSessions.end())
 					{
 						// if there is a relevant SlimProto session then reset the reference
-						auto commandSession = findSessionByID(commandSessions, (*found)->getClientID());
-						if (commandSession.has_value())
+						std::for_each(commandSessions.begin(), commandSessions.end(), [&](auto& sessionPtr)
 						{
-							commandSession.value()->setStreamingSession(ts::nullopt);
-						}
+							if (sessionPtr->getClientID() == (*found)->getClientID())
+							{
+								sessionPtr->setStreamingSession(ts::nullopt);
+							}
+						});
 
 						streamingSessions.erase(found);
 					}
@@ -361,19 +362,25 @@ namespace slim
 						streamingSessionPtr->start();
 
 						// saving HTTP session reference in the relevant SlimProto session
-						auto commandSession{findSessionByID(commandSessions, clientID.value())};
-						if (!commandSession.has_value())
+						auto found = std::find_if(commandSessions.begin(), commandSessions.end(), [&](const auto& sessionPtr)
 						{
-							connection.stop();
-							throw slim::Exception("Could not correlate provided client ID with a valid SlimProto session");
+							return sessionPtr->getClientID() == clientID.value();
+						});
+						if (found != commandSessions.end())
+						{
+							(*found)->setStreamingSession(ts::optional_ref<StreamingSessionType>{*streamingSessionPtr});
+
+							// processing request by a proper Streaming session mapped to this connection
+							streamingSessionPtr->onRequest(buffer, receivedSize);
+
+							// saving streaming session
+							streamingSessions.push_back(std::move(streamingSessionPtr));
 						}
-						commandSession.value()->setStreamingSession(ts::optional_ref<StreamingSessionType>{*streamingSessionPtr});
-
-						// processing request by a proper Streaming session mapped to this connection
-						streamingSessionPtr->onRequest(buffer, receivedSize);
-
-						// saving streaming session
-						streamingSessions.push_back(std::move(streamingSessionPtr));
+						else
+						{
+							LOG(ERROR) << LABELS{"proto"} << "Could not correlate provided client ID with a valid SlimProto session";
+							connection.stop();
+						}
 					}
 				}
 
@@ -386,10 +393,14 @@ namespace slim
 				{
 					LOG(DEBUG) << LABELS{"proto"} << "SlimProto close callback (connection=" << &connection << ")";
 
-					if (auto found{commandSessions.find(&connection)}; found != commandSessions.end())
+					auto found = std::find_if(commandSessions.begin(), commandSessions.end(), [&](const auto& sessionPtr)
 					{
-						sessionToChunkSequenceMap.erase((*found).second.get());
-						removeSession(commandSessions, *(*found).first, *(*found).second);
+						return &sessionPtr->getConnection().get() == &connection;
+					});
+					if (found != commandSessions.end())
+					{
+						sessionToChunkSequenceMap.erase((*found).get());
+						commandSessions.erase(found);
 					}
 					else
 					{
@@ -399,20 +410,17 @@ namespace slim
 
 				void onSlimProtoData(ConnectionType& connection, unsigned char* buffer, std::size_t size, util::Timestamp timestamp)
 				{
-					try
+					auto found = std::find_if(commandSessions.begin(), commandSessions.end(), [&](const auto& sessionPtr)
 					{
-						if (!applyToSession(commandSessions, connection, [&](CommandSessionType& session)
-						{
-							session.onRequest(buffer, size, timestamp);
-						}))
-						{
-							throw slim::Exception("Could not find SlimProto session object");
-						}
+						return &sessionPtr->getConnection().get() == &connection;
+					});
+					if (found != commandSessions.end())
+					{
+						(*found)->onRequest(buffer, size, timestamp);
 					}
-					catch (const slim::Exception& error)
+					else
 					{
-						LOG(ERROR) << LABELS{"proto"} << "Error while processing SlimProto command: " << error.what();
-						connection.stop();
+						LOG(WARNING) << LABELS{"proto"} << "Did not find SlimProto ession by provided connection (" << &connection << ")";
 					}
 				}
 
@@ -430,7 +438,7 @@ namespace slim
 
 					// saving data about command session in the maps
 					sessionToChunkSequenceMap.emplace(commandSessionPtr.get(), streamedChunks);
-					addSession(commandSessions, connection, std::move(commandSessionPtr));
+					commandSessions.push_back(std::move(commandSessionPtr));
 				}
 
 				virtual void start() override
@@ -438,7 +446,7 @@ namespace slim
 					// changing state to Running
 					stateMachine.processEvent(StartEvent, [&](auto event, auto state)
 					{
-						LOG(WARNING) << LABELS{"proto"} << "Invalid Streamer state while processing Start event";
+						LOG(ERROR) << LABELS{"proto"} << "Invalid Streamer state while processing Start event";
 					});
 				}
 
@@ -446,10 +454,10 @@ namespace slim
 				{
 					stateMachine.processEvent(StopEvent, [&](auto event, auto state)
 					{
-						LOG(WARNING) << LABELS{"proto"} << "Invalid Streamer state while processing Stop event";
+						LOG(ERROR) << LABELS{"proto"} << "Invalid Streamer state while processing Stop event";
 					});
 
-					// submitting a handler with a callback is required as stopping streamer creates numerous handlers
+					// stopping streamer creates numerous handlers submitted for processing; this was callback will be the last one
 					getProcessorProxy().process([callback = std::move(callback)]
 					{
 						callback();
@@ -459,42 +467,6 @@ namespace slim
 			protected:
 				using SessionToChunkSequenceMap = std::unordered_map<CommandSessionType*, util::BigInteger>;
 
-				template<typename SessionType>
-				inline auto& addSession(SessionsMap<SessionType>& sessions, ConnectionType& connection, std::unique_ptr<SessionType> sessionPtr)
-				{
-					auto         found{sessions.find(&connection)};
-					SessionType* s{nullptr};
-
-					if (found == sessions.end())
-					{
-						s = sessionPtr.get();
-
-						// saving session in a map; using pointer to a relevant connection as an ID
-						sessions[&connection] = std::move(sessionPtr);
-						LOG(DEBUG) << LABELS{"proto"} << "New session was added (id=" << s << ", sessions=" << sessions.size() << ")";
-					}
-					else
-					{
-						s = (*found).second.get();
-						LOG(WARNING) << LABELS{"proto"} << "Session already exists";
-					}
-
-					return *s;
-				}
-
-				template<typename SessionType, typename FunctionType>
-				inline bool applyToSession(SessionsMap<SessionType>& sessions, ConnectionType& connection, FunctionType fun)
-				{
-					auto found{sessions.find(&connection)};
-
-					if (found != sessions.end())
-					{
-						fun(*(*found).second);
-					}
-
-					return (found != sessions.end());
-				}
-
 				inline auto calculatePlaybackDelay()
 				{
 					// postponing playback due to network latency while sending play command to all clients
@@ -503,9 +475,9 @@ namespace slim
 					auto result{util::Duration{1000}};
 
 					// 'play' command is sent synchroniously hence playback delay is a sum of all latencies
-					for (auto& entry : commandSessions)
+					for (const auto& sessionPtr : commandSessions)
 					{
-						ts::with(entry.second->getLatency(), [&](const auto& latency)
+						ts::with(sessionPtr->getLatency(), [&](const auto& latency)
 						{
 							result += latency;
 						});
@@ -531,30 +503,6 @@ namespace slim
 					return result;
  				}
 
-				template<typename SessionType>
-				auto findSessionByID(SessionsMap<SessionType>& sessions,  std::string clientID)
-				{
-					auto result{ts::optional<SessionType*>{ts::nullopt}};
-					auto found{std::find_if(sessions.begin(), sessions.end(), [&](auto& entry) -> bool
-					{
-						auto found{false};
-
-						if (entry.second->getClientID() == clientID)
-						{
-							found = true;
-						}
-
-						return found;
-					})};
-
-					if (found != sessions.end())
-					{
-						result = (*found).second.get();
-					}
-
-					return result;
-				}
-
 				inline auto framesToDuration(const util::BigInteger& frames) const
 				{
 					auto result{util::Duration{0}};
@@ -573,9 +521,9 @@ namespace slim
 
 					// TODO: deferring time-out should be configurable
 					auto waitThresholdReached{std::chrono::milliseconds{2000} < (util::Timestamp::now() - preparingStartedAt)};
-					auto notReadyToStreamTotal{std::count_if(commandSessions.begin(), commandSessions.end(), [&](auto& entry)
+					auto notReadyToStreamTotal{std::count_if(commandSessions.begin(), commandSessions.end(), [&](const auto& sessionPtr)
 					{
-						return !entry.second->isReadyToBuffer();
+						return !sessionPtr->isReadyToBuffer();
 					})};
 
 					// if deferring time-out has expired
@@ -606,29 +554,13 @@ namespace slim
 					if (std::chrono::milliseconds{2000} < getStreamingDuration(util::milliseconds))
 					{
 						// TODO: introduce max timeout threshold
-						result = (0 == std::count_if(commandSessions.begin(), commandSessions.end(), [&](auto& entry)
+						result = (0 == std::count_if(commandSessions.begin(), commandSessions.end(), [&](const auto& sessionPtr)
 						{
-							return !entry.second->isReadyToPlay();
+							return !sessionPtr->isReadyToPlay();
 						}));
 					}
 
 					return result;
-				}
-
-				template<typename SessionsType, typename SessionType>
-				inline void removeSession(SessionsType& sessions, ConnectionType& connection, SessionType& session)
-				{
-					session.stop([&sessions = sessions, &connection = connection, &session = session]
-					{
-						if (sessions.erase(&connection))
-						{
-							LOG(DEBUG) << LABELS{"proto"} << "Session was removed (id=" << &session << ", total sessions=" << sessions.size() << ")";
-						}
-						else
-						{
-							LOG(WARNING) << LABELS{"proto"} << "Did not find session by provided connection (" << &connection << ")";
-						}
-					});
 				}
 
 				inline void stateChangeToBuffering()
@@ -663,10 +595,9 @@ namespace slim
 					{
 						entry.second = 0;
 					}
-
-					for (auto& entry : commandSessions)
+					for (const auto& sessionPtr : commandSessions)
 					{
-						entry.second->prepare(samplingRate);
+						sessionPtr->prepare(samplingRate);
 					}
 
 					LOG(DEBUG) << LABELS{"proto"} << "Preparing to stream started";
@@ -674,13 +605,13 @@ namespace slim
 
 				inline void stateChangeToStopped()
 				{
-					for (auto& entry : commandSessions)
+					for (const auto& sessionPtr : commandSessions)
 					{
-						entry.second->stop([] {});
+						sessionPtr->stop([] {});
 					}
-					for (auto& entry : streamingSessions)
+					for (const auto& sessionPtr : streamingSessions)
 					{
-						//entry.second->stop([] {});
+						sessionPtr->stop([] {});
 					}
 				}
 
@@ -720,7 +651,7 @@ namespace slim
 				ts::optional<unsigned int>       gain;
 				util::StateMachine<Event, State> stateMachine;
 				util::BigInteger                 nextID{0};
-				SessionsMap<CommandSessionType>  commandSessions;
+				CommandSessions                  commandSessions;
 				StreamingSessions                streamingSessions;
 				SessionToChunkSequenceMap        sessionToChunkSequenceMap;
 				unsigned int                     samplingRate{0};

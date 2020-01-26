@@ -198,29 +198,29 @@ namespace slim
 				template <typename CallbackType>
 				inline void stop(CallbackType callback)
 				{
-					if (running)
-					{
-						encoderPtr->stop([&, callback = std::move(callback)]
-						{
-							flush([&, callback = std::move(callback)]
-							{
-								running = false;
-
-								// stopping connection will submit a onClose handler
-								connection.get().stop();
-
-								// submiting a new handler is required to run a callback after onClose handler is processed
-								processorProxy.process([callback = std::move(callback)]
-								{
-									callback();
-								});
-							});
-						});
-					}
-					else
+					// guarding against non-running state
+					if (!running)
 					{
 						callback();
+						return;
 					}
+
+					encoderPtr->stop([&, callback = std::move(callback)]
+					{
+						flush([&, callback = std::move(callback)]
+						{
+							running = false;
+
+							// stopping connection will submit a onClose handler
+							connection.get().stop();
+
+							// submiting a new handler is required to run a callback after onClose handler is processed
+							processorProxy.process([callback = std::move(callback)]
+							{
+								callback();
+							});
+						});
+					});
 				}
 
 			protected:

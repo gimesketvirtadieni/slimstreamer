@@ -397,6 +397,7 @@ namespace slim
 						});
 					}
 
+					// no need to submit callback as a handler as there is other no async operation going on
 					callback();
 				}
 
