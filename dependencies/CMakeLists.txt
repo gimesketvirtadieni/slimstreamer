@@ -81,7 +81,6 @@ set(
     CACHE PATH "scope_guard include directories"
 )
 
-
 # for convenience setting up a target
 add_library(scope_guard INTERFACE)
 
@@ -91,6 +90,22 @@ target_include_directories(
     $<INSTALL_INTERFACE:${scope_guard}>
 )
 
+
+# handling any_invocable dependency
+set(
+    ANY_INVOCABLE_INCLUDE_DIR
+    "${CMAKE_CURRENT_SOURCE_DIR}/any_invocable/include"
+    CACHE PATH "any_invocable include directories"
+)
+
+# for convenience setting up a target
+add_library(any_invocable INTERFACE)
+
+target_include_directories(
+    any_invocable INTERFACE
+    "$<BUILD_INTERFACE:${ANY_INVOCABLE_INCLUDE_DIR}>"
+    $<INSTALL_INTERFACE:${any_invocable}>
+)
 
 # handling gtest dependency
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/googletest EXCLUDE_FROM_ALL)

@@ -15,7 +15,8 @@
                 "${workspaceFolder}/dependencies/googletest/googlemock/include",
                 "${workspaceFolder}/dependencies/googletest/googletest/include",
                 "${workspaceFolder}/build/dependencies/g3log/include",
-                "${workspaceFolder}/test"
+                "${workspaceFolder}/test",
+                "${workspaceFolder}/dependencies/any_invocable/include"
             ],
             "defines": [
                 "_DEBUG",
