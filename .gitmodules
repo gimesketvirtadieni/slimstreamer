@@ -19,3 +19,6 @@
 [submodule "dependencies/conwrap2"]
 	path = dependencies/conwrap2
 	url = https://github.com/gimesketvirtadieni/conwrap2.git
+[submodule "dependencies/any_invocable"]
+	path = dependencies/any_invocable
+	url = https://github.com/ofats/any_invocable.git
