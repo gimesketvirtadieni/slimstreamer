@@ -56,7 +56,7 @@ namespace slim
 				discoveryServerPtr->stop();
 				schedulerPtr->stop([&]
 				{
-					// stooping servers after scheduler was stopped
+					// stopping servers after scheduler was stopped
 					commandServerPtr->stop();
 					streamingServerPtr->stop();
 				});

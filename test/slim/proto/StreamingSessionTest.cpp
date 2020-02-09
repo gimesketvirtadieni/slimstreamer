@@ -12,6 +12,7 @@
 
 #include "slim/proto/StreamingSessionTest.hpp"
 
+unsigned int StreamingSessionFixture::invocationsCounter{0};
 
 TEST(StreamingSessionTest, consumeChunk1)
 {
@@ -128,6 +129,11 @@ TEST_F(StreamingSessionFixture, stop1)
 
     auto status = f.wait_for(std::chrono::milliseconds(10));
     EXPECT_EQ(std::future_status::ready, status);
+    if (status == std::future_status::ready)
+    {
+        EXPECT_EQ(0, encoderPtr->stopCalledTimes);
+        EXPECT_EQ(0, connection.stopCalledTimes);
+    }
 }
 
 TEST_F(StreamingSessionFixture, stop2)
@@ -150,6 +156,7 @@ TEST_F(StreamingSessionFixture, stop2)
     {
         EXPECT_EQ(1, encoderPtr->stopCalledTimes);
         EXPECT_EQ(1, connection.stopCalledTimes);
+        EXPECT_TRUE(encoderPtr->stopCalledSequence < connection.stopCalledSequence);
 
         // TODO: work in progress
         // validate buffer was flushed

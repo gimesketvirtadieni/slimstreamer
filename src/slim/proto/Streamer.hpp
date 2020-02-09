@@ -458,7 +458,8 @@ namespace slim
 						LOG(ERROR) << LABELS{"proto"} << "Invalid Streamer state while processing Stop event";
 					});
 
-					// stopping streamer creates numerous handlers submitted for processing; this was callback will be the last one
+					// numerous handlers are submitted while stopping streamer
+					// submitting callback here will make sure it is executed the last one
 					getProcessorProxy().process([callback = std::move(callback)]
 					{
 						callback();

@@ -18,11 +18,11 @@
 #include <cstring>  // std::memcpy
 #include <queue>
 #include <memory>
+#include <ofats/invocable.h>
 #include <scope_guard.hpp>
 #include <sstream>  // std::stringstream
 #include <string>
 #include <type_safe/optional.hpp>
-#include <type_safe/optional_ref.hpp>
 
 #include "slim/Chunk.hpp"
 #include "slim/ContainerBase.hpp"
@@ -51,46 +51,18 @@ namespace slim
 
 					eb.setEncodedCallback([&](const auto* encodedData, auto encodedDataSize)
 					{
-						for (std::size_t offset = 0, chunkSize; offset < encodedDataSize; offset += chunkSize)
-						{
-							auto pooledBuffer = bufferPool.allocate();
-							if (!pooledBuffer.getData())
-							{
-								LOG(WARNING) << LABELS{"proto"} << "Transfer buffer is full - skipping encoded chunk";
-								return;
-							}
-
-							// copying encoded PCM content to the allocated buffer and submitting for transfer to a client
-							chunkSize = std::min(pooledBuffer.getSize(), encodedDataSize - offset);
-							std::memcpy(pooledBuffer.getData(), encodedData + offset, chunkSize);
-							auto transferDataChunk = TransferDataChunk{std::move(pooledBuffer), chunkSize, 0};
-
-							// submitting a chunk to be transferred to a client
-							transferBufferQueue.push(std::move(transferDataChunk));
-							processorProxy.process([&]
-							{
-								transferTask();
-							});
-						}
+						submitData(encodedData, encodedDataSize);
 					});
 					encoderPtr = std::move(eb.build());
 				}
 
 				~StreamingSession()
 				{
-					// canceling deferred operation
-					ts::with(timer, [&](auto& timer)
-					{
-						timer.cancel();
-					});
-
 					LOG(DEBUG) << LABELS{"proto"} << "HTTP session object was deleted (id=" << this << ")";
 				}
 
 				StreamingSession(const StreamingSession&) = delete;             // non-copyable
 				StreamingSession& operator=(const StreamingSession&) = delete;  // non-assignable
-				StreamingSession(StreamingSession&& rhs) = delete;              // non-movable
-				StreamingSession& operator=(StreamingSession&& rhs) = delete;   // non-movable-assignable
 
 				inline bool consumeChunk(const Chunk& chunk)
 				{
@@ -208,6 +180,10 @@ namespace slim
 						return;
 					}
 
+					// changing state to 'not running' early enough, so that no more PCM data is accepted
+					running = false;
+
+					// once encoder is stopped, flushing transfer buffer
 					encoderPtr->stop([&, callback = std::move(callback)]() mutable
 					{
 						flush([&, callback = std::move(callback)]() mutable
@@ -218,41 +194,64 @@ namespace slim
 							// submiting a new handler is required to run a callback after onClose handler is processed
 							processorProxy.process([&, callback = std::move(callback)]() mutable
 							{
-								running = false;
 								callback();
 							});
 						});
 					});
 				}
 
+				inline void submitData(const unsigned char* data, const std::size_t& size)
+				{
+					for (std::size_t offset = 0, chunkSize; offset < size; offset += chunkSize)
+					{
+						auto pooledBuffer = bufferPool.allocate();
+						if (!pooledBuffer.getData())
+						{
+							LOG(WARNING) << LABELS{"proto"} << "Transfer buffer is full - skipping encoded chunk";
+							return;
+						}
+
+						// copying encoded PCM content to the allocated buffer and submitting for transfer to a client
+						chunkSize = std::min(pooledBuffer.getSize(), size - offset);
+						std::memcpy(pooledBuffer.getData(), data + offset, chunkSize);
+						auto transferDataChunk = TransferDataChunk{std::move(pooledBuffer), chunkSize, 0, std::move([] {})};
+
+						// submitting a chunk to be transferred to a client
+						transferBufferQueue.push(std::move(transferDataChunk));
+						processorProxy.process([&]
+						{
+							transferTask();
+						});
+					}
+				}
+
 			protected:
 				using PooledBufferType = util::buffer::BufferPool<std::uint8_t>::PooledBufferType;
+
 				struct TransferDataChunk
 				{
-					PooledBufferType           buffer;
-					PooledBufferType::SizeType size;
-					PooledBufferType::SizeType offset;
+					PooledBufferType             buffer;
+					PooledBufferType::SizeType   size;
+					PooledBufferType::SizeType   offset;
+					ofats::any_invocable<void()> callback;
 				};
 
 				template <typename CallbackType>
 				void flush(CallbackType callback)
 				{
-					if (!transferring)
+					// submitting an 'empty' chunk to be transferred to a client
+					auto transferDataChunk = TransferDataChunk
 					{
-						while (!transferBufferQueue.empty())
+						PooledBufferType{0, 0}, 0, 0, std::move([callback = std::move(callback)]() mutable
 						{
-							transferBufferQueue.pop();
-						}
-						callback();
-					}
-					else
+							callback();
+						})
+					};
+					transferBufferQueue.push(std::move(transferDataChunk));
+					processorProxy.process([&]
 					{
-						// waiting until data is transferred
-						timer = ts::ref(processorProxy.processWithDelay([&, callback = std::move(callback)]() mutable
-						{
-							flush(std::move(callback));
-						}, std::chrono::milliseconds{1}));
-					}
+						transferTask();
+					});
 				}
 
 				inline void transferTask()
@@ -269,7 +268,7 @@ namespace slim
 						return;
 					}
 
-					// it will disabling submiting write async requests from any other task until this write succeeds
+					// it will disable submiting new requests to writeAsync(...) until the current write succeeds
 					transferring = true;
 
 					auto& transferDataChunk = transferBufferQueue.front();
@@ -281,10 +280,11 @@ namespace slim
 						{
 							if (releaseBuffer && transferBufferQueue.size())
 							{
+								transferBufferQueue.front().callback();
 								transferBufferQueue.pop();
 							}
 
-							// reseting transferring flag and submitting a new transfer task so it can write async
+							// reseting transferring flag and submitting a new transfer task
 							transferring = false;
 							processorProxy.process([&]
 							{
@@ -292,14 +292,14 @@ namespace slim
 							});
 						};
 
-						// if case of transfer error just log the error; chunk will be removed from the queue by the RAII guard
+						// in case of transfer error just log the error, chunk will be removed from the queue by the RAII guard
 						if (error)
 						{
 							LOG(ERROR) << LABELS{"proto"} << "Error while transferring data chunk: " << error.message();
 							return;
 						}
 
-						// guarding against cases when queue has been flushed
+						// guarding against cases when there is no to transfer
 						if (!transferBufferQueue.size())
 						{
 							return;
@@ -308,7 +308,7 @@ namespace slim
 						auto& transferDataChunk = transferBufferQueue.front();
 						if (sizeTransferred < transferDataChunk.size - transferDataChunk.offset)
 						{
-							LOG(INFO) << LABELS{"proto"} << "Incomplete buffer content was sent, transmitting reminder: chunk size=" << transferDataChunk.size << ", transferred=" << sizeTransferred;
+							LOG(INFO) << LABELS{"proto"} << "Incomplete buffer content was sent, transmitting remainder: chunk size=" << transferDataChunk.size << ", transferred=" << sizeTransferred;
 
 							// setting up transfer chunk data to transfer only the reminder
 							transferDataChunk.offset += sizeTransferred;
@@ -330,7 +330,6 @@ namespace slim
 				util::buffer::BufferPool<std::uint8_t>                   bufferPool{64, 4096};
 				std::queue<TransferDataChunk>                            transferBufferQueue;
 				util::BigInteger                                         framesProvided{0};
-				ts::optional_ref<conwrap2::Timer>                        timer{ts::nullopt};
 		};
 	}
 }
