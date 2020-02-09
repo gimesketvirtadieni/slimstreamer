@@ -13,6 +13,7 @@
 #pragma once
 
 #include <cstddef>   // std::size_t
+#include <ofats/invocable.h>
 #include <string>
 
 #include "slim/EncoderBase.hpp"
@@ -52,7 +53,7 @@ namespace slim
 					running = true;
 				}
 
-				virtual void stop(std::function<void()> callback) override
+				virtual void stop(ofats::any_invocable<void()> callback) override
 				{
 					running = false;
 

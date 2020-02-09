@@ -137,6 +137,7 @@ target_link_libraries(
     conwrap2
     networking
     scope_guard
+    any_invocable
 )
 
 target_link_libraries(

@@ -14,6 +14,7 @@
 
 #include <cstddef>   // std::size_t
 #include <functional>
+#include <ofats/invocable.h>
 #include <memory>
 #include <string>
 
@@ -22,10 +23,9 @@ namespace slim
 {
 	class EncoderBase
 	{
-		protected:
+		public:
 			using EncodedCallbackType = std::function<void(unsigned char*, std::size_t)>;
 
-		public:
 			EncoderBase(unsigned int ch, unsigned int bs, unsigned int bv, unsigned int sr, std::string ex, std::string mm, EncodedCallbackType ec)
 			: channels{ch}
 			, bitsPerSample{bs}
@@ -33,7 +33,7 @@ namespace slim
 			, samplingRate{sr}
 			, extention{ex}
 			, mime{mm}
-			, encodedCallback{ec}{}
+			, encodedCallback{std::move(ec)}{}
 
 			virtual ~EncoderBase() = default;
 			EncoderBase(const EncoderBase&) = delete;             // non-copyable
@@ -80,7 +80,7 @@ namespace slim
 
 			virtual bool isRunning() = 0;
 			virtual void start() = 0;
-			virtual void stop(std::function<void()> callback) = 0;
+			virtual void stop(ofats::any_invocable<void()> callback) = 0;
 
 		private:
 			unsigned int        channels;

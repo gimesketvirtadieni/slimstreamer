@@ -14,6 +14,7 @@
 
 #include <cstddef>   // std::size_t
 #include <FLAC++/encoder.h>
+#include <ofats/invocable.h>
 #include <string>
 
 #include "slim/EncoderBase.hpp"
@@ -152,7 +153,7 @@ namespace slim
 					}
 				}
 
-				virtual void stop(std::function<void()> callback) override
+				virtual void stop(ofats::any_invocable<void()> callback) override
 				{
 					if (running)
 					{

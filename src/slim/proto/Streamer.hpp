@@ -51,7 +51,7 @@ namespace slim
 		class Streamer : public Consumer
 		{
 			using CommandSessionType   = CommandSession<ConnectionType, Streamer>;
-			using StreamingSessionType = StreamingSession<ConnectionType, Streamer>;
+			using StreamingSessionType = StreamingSession<ConnectionType>;
 			using CommandSessions      = std::vector<std::unique_ptr<CommandSessionType>>;
 			using StreamingSessions    = std::vector<std::unique_ptr<StreamingSessionType>>;
 
@@ -358,7 +358,8 @@ namespace slim
 						encoderBuilder.setSamplingRate(samplingRate);
 
 						// creating streaming session object
-						auto streamingSessionPtr{std::make_unique<StreamingSessionType>(getProcessorProxy(), std::ref(connection), std::ref(*this), clientID.value(), encoderBuilder)};
+						auto streamingSessionPtr{std::make_unique<StreamingSessionType>(getProcessorProxy(), std::ref(connection), encoderBuilder)};
+						streamingSessionPtr->setClientID(clientID.value());
 						streamingSessionPtr->start();
 
 						// saving HTTP session reference in the relevant SlimProto session

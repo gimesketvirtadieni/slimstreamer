@@ -364,7 +364,7 @@ namespace slim
 					}
 				}
 
-				inline void setStreamingSession(ts::optional_ref<StreamingSession<ConnectionType, StreamerType>> s)
+				inline void setStreamingSession(ts::optional_ref<StreamingSession<ConnectionType>> s)
 				{
 					streamingSession = s;
 				}
@@ -773,31 +773,31 @@ namespace slim
 				}
 
 			private:
-				conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>>         processorProxy;
-				std::reference_wrapper<ConnectionType>                           connection;
-				std::reference_wrapper<StreamerType>                             streamer;
-				std::string                                                      clientID;
-				unsigned int                                                     streamingPort;
-				FormatSelection                                                  formatSelection;
-				ts::optional<unsigned int>                                       gain;
-				CommandHandlersMap                                               commandHandlers;
-				EventHandlersMap                                                 eventHandlers;
-				util::StateMachine<Event, State>                                 stateMachine;
-				unsigned int                                                     samplingRate{0};
-				ts::optional_ref<StreamingSession<ConnectionType, StreamerType>> streamingSession{ts::nullopt};
+				conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>> processorProxy;
+				std::reference_wrapper<ConnectionType>                   connection;
+				std::reference_wrapper<StreamerType>                     streamer;
+				std::string                                              clientID;
+				unsigned int                                             streamingPort;
+				FormatSelection                                          formatSelection;
+				ts::optional<unsigned int>                               gain;
+				CommandHandlersMap                                       commandHandlers;
+				EventHandlersMap                                         eventHandlers;
+				util::StateMachine<Event, State>                         stateMachine;
+				unsigned int                                             samplingRate{0};
+				ts::optional_ref<StreamingSession<ConnectionType>>       streamingSession{ts::nullopt};
 				// TODO: parameterize
-				util::buffer::Ring<std::uint8_t>                                 commandRingBuffer{2048};
-				ts::optional<client::CommandHELO>                                commandHELO{ts::nullopt};
-				ts::optional_ref<conwrap2::Timer>                                pingTimer{ts::nullopt};
-				bool                                                             measuringLatency{false};
-				ts::optional<util::Duration>                                     latency;
-				ts::optional<util::Duration>                                     timeOffset;
+				util::buffer::Ring<std::uint8_t>                         commandRingBuffer{2048};
+				ts::optional<client::CommandHELO>                        commandHELO{ts::nullopt};
+				ts::optional_ref<conwrap2::Timer>                        pingTimer{ts::nullopt};
+				bool                                                     measuringLatency{false};
+				ts::optional<util::Duration>                             latency;
+				ts::optional<util::Duration>                             timeOffset;
 				// TODO: parameterize
-				std::vector<ProbeValues>                                         probes{13};
-				ts::optional<util::Duration>                                     playbackDriftBase{ts::nullopt};
-				bool                                                             clientBufferIsReady{false};
-				util::Timestamp                                                  lastChunkTimestamp;
-				util::BigInteger                                                 lastChunkCapturedFrames{0};
+				std::vector<ProbeValues>                                 probes{13};
+				ts::optional<util::Duration>                             playbackDriftBase{ts::nullopt};
+				bool                                                     clientBufferIsReady{false};
+				util::Timestamp                                          lastChunkTimestamp;
+				util::BigInteger                                         lastChunkCapturedFrames{0};
 		};
 	}
 }

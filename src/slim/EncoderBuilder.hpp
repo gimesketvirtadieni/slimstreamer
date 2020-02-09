@@ -13,8 +13,8 @@
 #pragma once
 
 #include <cstddef>   // std::size_t
-#include <functional>
 #include <memory>
+#include <ofats/invocable.h>
 #include <string>
 #include <type_safe/optional.hpp>
 
@@ -25,9 +25,11 @@
 
 namespace slim
 {
+	namespace ts = type_safe;
+
 	class EncoderBuilder
 	{
-		using BuilderType = std::function<std::unique_ptr<EncoderBase>(unsigned int, unsigned int, unsigned int, unsigned int, bool, std::string, std::string, std::function<void(unsigned char*, std::size_t)>)>;
+		using BuilderType = std::function<std::unique_ptr<EncoderBase>(unsigned int, unsigned int, unsigned int, unsigned int, bool, std::string, std::string, EncoderBase::EncodedCallbackType)>;
 
 		public:
 			auto getBitsPerSample()
@@ -140,7 +142,7 @@ namespace slim
 				channels = c;
 			}
 
-			void setEncodedCallback(std::function<void(unsigned char*, std::size_t)> ec)
+			void setEncodedCallback(EncoderBase::EncodedCallbackType ec)
 			{
 				encodedCallback = ec;
 			}
@@ -171,15 +173,15 @@ namespace slim
 			}
 
 		private:
-			BuilderType                                                    builder{0};
-			ts::optional<unsigned int>                                     channels{ts::nullopt};
-			ts::optional<unsigned int>                                     samplingRate{ts::nullopt};
-			ts::optional<unsigned int>                                     bitsPerSample{ts::nullopt};
-			ts::optional<unsigned int>                                     bitsPerValue{ts::nullopt};
-			ts::optional<std::string>                                      extention{ts::nullopt};
-			ts::optional<slim::proto::FormatSelection>                     format{ts::nullopt};
-			ts::optional<bool>                                             header{ts::nullopt};
-			ts::optional<std::string>                                      mime{ts::nullopt};
-			ts::optional<std::function<void(unsigned char*, std::size_t)>> encodedCallback{ts::nullopt};
+			BuilderType                                    builder{0};
+			ts::optional<unsigned int>                     channels{ts::nullopt};
+			ts::optional<unsigned int>                     samplingRate{ts::nullopt};
+			ts::optional<unsigned int>                     bitsPerSample{ts::nullopt};
+			ts::optional<unsigned int>                     bitsPerValue{ts::nullopt};
+			ts::optional<std::string>                      extention{ts::nullopt};
+			ts::optional<slim::proto::FormatSelection>     format{ts::nullopt};
+			ts::optional<bool>                             header{ts::nullopt};
+			ts::optional<std::string>                      mime{ts::nullopt};
+			ts::optional<EncoderBase::EncodedCallbackType> encodedCallback{ts::nullopt};
 	};
 }

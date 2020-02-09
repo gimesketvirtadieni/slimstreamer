@@ -14,16 +14,18 @@
 
 #include <algorithm>  // std::min
 #include <conwrap2/ProcessorProxy.hpp>
+#include <conwrap2/Timer.hpp>
 #include <cstring>  // std::memcpy
-#include <functional>
 #include <queue>
 #include <memory>
 #include <scope_guard.hpp>
 #include <sstream>  // std::stringstream
 #include <string>
 #include <type_safe/optional.hpp>
+#include <type_safe/optional_ref.hpp>
 
 #include "slim/Chunk.hpp"
+#include "slim/ContainerBase.hpp"
 #include "slim/EncoderBase.hpp"
 #include "slim/EncoderBuilder.hpp"
 #include "slim/log/log.hpp"
@@ -37,15 +39,13 @@ namespace slim
 	{
 		namespace ts = type_safe;
 
-		template<typename ConnectionType, typename StreamerType>
+		template<typename ConnectionType>
 		class StreamingSession
 		{
 			public:
-				StreamingSession(conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>> pp, std::reference_wrapper<ConnectionType> co, std::reference_wrapper<StreamerType> st, std::string id, EncoderBuilder eb)
+				StreamingSession(conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>> pp, std::reference_wrapper<ConnectionType> co, EncoderBuilder eb)
 				: processorProxy{pp}
 				, connection{co}
-				, streamer{st}
-				, clientID{id}
 				{
 					LOG(DEBUG) << LABELS{"proto"} << "HTTP session object was created (id=" << this << ")";
 
@@ -175,6 +175,11 @@ namespace slim
 					return result;
 				}
 
+				inline void setClientID(ts::optional<std::string> c)
+				{
+					clientID = c;
+				}
+
 				inline void start()
 				{
 					encoderPtr->start();
@@ -183,10 +188,8 @@ namespace slim
 					// creating response string
 					std::stringstream ss;
 					ss << "HTTP/1.1 200 OK\r\n"
-					   << "Server: SlimStreamer ("
 					   // TODO: provide version to the constructor
-					   << VERSION
-					   << ")\r\n"
+					   << "Server: SlimStreamer (" << VERSION << ")\r\n"
 					   << "Connection: close\r\n"
 					   << "Content-Type: " << encoderPtr->getMIME() << "\r\n"
 					   << "\r\n";
@@ -205,18 +208,17 @@ namespace slim
 						return;
 					}
 
-					encoderPtr->stop([&, callback = std::move(callback)]
+					encoderPtr->stop([&, callback = std::move(callback)]() mutable
 					{
-						flush([&, callback = std::move(callback)]
+						flush([&, callback = std::move(callback)]() mutable
 						{
-							running = false;
-
 							// stopping connection will submit a onClose handler
 							connection.get().stop();
 
 							// submiting a new handler is required to run a callback after onClose handler is processed
-							processorProxy.process([callback = std::move(callback)]
+							processorProxy.process([&, callback = std::move(callback)]() mutable
 							{
+								running = false;
 								callback();
 							});
 						});
@@ -246,7 +248,7 @@ namespace slim
 					else
 					{
 						// waiting until data is transferred
-						timer = ts::ref(processorProxy.processWithDelay([&, callback = std::move(callback)]
+						timer = ts::ref(processorProxy.processWithDelay([&, callback = std::move(callback)]() mutable
 						{
 							flush(std::move(callback));
 						}, std::chrono::milliseconds{1}));
@@ -320,9 +322,8 @@ namespace slim
 			private:
 				conwrap2::ProcessorProxy<std::unique_ptr<ContainerBase>> processorProxy;
 				std::reference_wrapper<ConnectionType>                   connection;
-				std::reference_wrapper<StreamerType>                     streamer;
-				std::string                                              clientID;
 				std::unique_ptr<EncoderBase>                             encoderPtr;
+				ts::optional<std::string>                                clientID;
 				bool                                                     running{false};
 				bool                                                     transferring{false};
 				// TODO: parameterize

@@ -31,6 +31,7 @@ namespace slim
 
 				virtual void rewind(const std::streampos pos) = 0;
 
+				// TODO: get rid of
 				virtual void write(std::string str)
 				{
 					write(str.c_str(), str.length());
