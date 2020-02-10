@@ -138,27 +138,48 @@ TEST_F(StreamingSessionFixture, stop1)
 
 TEST_F(StreamingSessionFixture, stop2)
 {
-    auto p = std::promise<bool>{};
-    auto f = p.get_future();
+    unsigned char data[] = {'1', '2', '3'};
 
-    processor.process([&, p = std::move(p)]() mutable
+    auto p1 = std::promise<bool>{};
+    auto f1 = p1.get_future();
+    auto p2 = std::promise<bool>{};
+    auto f2 = p2.get_future();
+    processor.process([&, p1 = std::move(p1)]() mutable
     {
         session.start();
-        session.stop([p = std::move(p)]() mutable
+        connection.writtenData.str("");
+        connection.writtenData.clear();
+        session.submitData(data, sizeof(data));
+        session.stop([p2 = std::move(p2)]() mutable
         {
-            p.set_value(true);
+            p2.set_value(true);
         });
     });
 
-    auto status = f.wait_for(std::chrono::milliseconds(10));
-    EXPECT_EQ(std::future_status::ready, status);
-    if (status == std::future_status::ready)
+    // submitting promise completion handler separately to make sure none on the handlers blocks
+    processor.process([&, p1 = std::move(p1)]() mutable
     {
-        EXPECT_EQ(1, encoderPtr->stopCalledTimes);
-        EXPECT_EQ(1, connection.stopCalledTimes);
-        EXPECT_TRUE(encoderPtr->stopCalledSequence < connection.stopCalledSequence);
+        p1.set_value(true);
+    });
 
-        // TODO: work in progress
-        // validate buffer was flushed
+    auto status = f1.wait_for(std::chrono::milliseconds(10));
+    EXPECT_EQ(std::future_status::ready, status);
+    if (status != std::future_status::ready)
+    {
+        return;
     }
+
+    status = f2.wait_for(std::chrono::milliseconds(10));
+    EXPECT_EQ(std::future_status::ready, status);
+    if (status != std::future_status::ready)
+    {
+        return;
+    }
+
+    EXPECT_EQ(1, encoderPtr->stopCalledTimes);
+    EXPECT_EQ(1, connection.stopCalledTimes);
+    EXPECT_TRUE(encoderPtr->stopCalledSequence < connection.stopCalledSequence);
+
+    // TODO: work in progress
+    // validate buffer was flushed
 }

@@ -36,6 +36,7 @@ struct StreamingSessionFixture : public ::testing::TestWithParam<std::size_t>
         template<class CallbackType>
         void writeAsync(const void* data, const std::size_t size, CallbackType callback = [](auto, auto) {})
         {
+            writtenData << std::string{(const char*) data, size};
             callback(std::error_code{}, size);
         }
 
@@ -46,6 +47,7 @@ struct StreamingSessionFixture : public ::testing::TestWithParam<std::size_t>
 
         std::size_t write(const void* data, const std::size_t size)
         {
+            writtenData << std::string{(const char*) data, size};
             return size;
         }
 

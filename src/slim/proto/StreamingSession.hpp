@@ -214,14 +214,9 @@ namespace slim
 						// copying encoded PCM content to the allocated buffer and submitting for transfer to a client
 						chunkSize = std::min(pooledBuffer.getSize(), size - offset);
 						std::memcpy(pooledBuffer.getData(), data + offset, chunkSize);
-						auto transferDataChunk = TransferDataChunk{std::move(pooledBuffer), chunkSize, 0, std::move([] {})};
 
 						// submitting a chunk to be transferred to a client
-						transferBufferQueue.push(std::move(transferDataChunk));
-						processorProxy.process([&]
-						{
-							transferTask();
-						});
+						submitData(TransferDataChunk{std::move(pooledBuffer), chunkSize, 0, std::move([] {})});
 					}
 				}
 
@@ -240,13 +235,17 @@ namespace slim
 				void flush(CallbackType callback)
 				{
 					// submitting an 'empty' chunk to be transferred to a client
-					auto transferDataChunk = TransferDataChunk
+					submitData(TransferDataChunk
 					{
 						PooledBufferType{0, 0}, 0, 0, std::move([callback = std::move(callback)]() mutable
 						{
 							callback();
 						})
-					};
+					});
+				}
+
+				inline void submitData(TransferDataChunk&& transferDataChunk)
+				{
 					transferBufferQueue.push(std::move(transferDataChunk));
 					processorProxy.process([&]
 					{
@@ -286,10 +285,10 @@ namespace slim
 
 							// reseting transferring flag and submitting a new transfer task
 							transferring = false;
-							processorProxy.process([&]
+							if (!transferBufferQueue.size())
 							{
 								transferTask();
-							});
+							}
 						};
 
 						// in case of transfer error just log the error, chunk will be removed from the queue by the RAII guard
