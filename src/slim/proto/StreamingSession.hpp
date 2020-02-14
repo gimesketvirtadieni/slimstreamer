@@ -61,8 +61,11 @@ namespace slim
 					LOG(DEBUG) << LABELS{"proto"} << "HTTP session object was deleted (id=" << this << ")";
 				}
 
-				StreamingSession(const StreamingSession&) = delete;             // non-copyable
-				StreamingSession& operator=(const StreamingSession&) = delete;  // non-assignable
+				// StreamingSession may not be moveable as it submits handlers to the processor that capture 'this'
+				StreamingSession(const StreamingSession&) = delete;              // non-copyable
+				StreamingSession& operator=(const StreamingSession&) = delete;   // non-assignable
+				StreamingSession(const StreamingSession&&) = delete;             // non-movable
+				StreamingSession& operator=(const StreamingSession&&) = delete;  // non-move-assignable
 
 				inline bool consumeChunk(const Chunk& chunk)
 				{
@@ -234,26 +237,20 @@ namespace slim
 				template <typename CallbackType>
 				void flush(CallbackType callback)
 				{
-					// submitting an 'empty' chunk to be transferred to a client
-					submitData(TransferDataChunk
+					// submitting an 'empty' chunk with provided callback which will be notified when transfer queue is empty
+					submitData(TransferDataChunk{PooledBufferType{0, 0}, 0, 0, std::move([&, callback = std::move(callback)]() mutable
 					{
-						PooledBufferType{0, 0}, 0, 0, std::move([callback = std::move(callback)]() mutable
-						{
-							callback();
-						})
-					});
+						callback();
+					})});
 				}
 
 				inline void submitData(TransferDataChunk&& transferDataChunk)
 				{
 					transferBufferQueue.push(std::move(transferDataChunk));
-					processorProxy.process([&]
-					{
-						transferTask();
-					});
+					transferData();
 				}
 
-				inline void transferTask()
+				inline void transferData()
 				{
 					// there is nothing to transfer
 					if (!transferBufferQueue.size())
@@ -277,17 +274,19 @@ namespace slim
 						auto releaseBuffer = true;
 						::util::scope_guard onExit = [&]
 						{
+							transferring = false;
+
+							// releasing buffer unless guard was 'disarmed'
 							if (releaseBuffer && transferBufferQueue.size())
 							{
 								transferBufferQueue.front().callback();
 								transferBufferQueue.pop();
 							}
 
-							// reseting transferring flag and submitting a new transfer task
-							transferring = false;
-							if (!transferBufferQueue.size())
+							// if there is more data to be transferred then call transfer task
+							if (transferBufferQueue.size())
 							{
-								transferTask();
+								transferData();
 							}
 						};
 
@@ -295,12 +294,6 @@ namespace slim
 						if (error)
 						{
 							LOG(ERROR) << LABELS{"proto"} << "Error while transferring data chunk: " << error.message();
-							return;
-						}
-
-						// guarding against cases when there is no to transfer
-						if (!transferBufferQueue.size())
-						{
 							return;
 						}
 

@@ -10,10 +10,13 @@
  * Author: gimesketvirtadieni at gmail dot com (Andrej Kislovskij)
  */
 
+#include <atomic>
 #include <conwrap2/Processor.hpp>
 #include <conwrap2/ProcessorProxy.hpp>
+#include <future>
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
+#include <queue>
 #include <memory>
 #include <ofats/invocable.h>
 
@@ -27,6 +30,22 @@ struct StreamingSessionFixture : public ::testing::TestWithParam<std::size_t>
 {
     struct ConnectionMock
     {
+        struct WriteAsyncRequest
+        {
+            std::string                  data;
+            ofats::any_invocable<void()> callback;
+        };
+
+        void flush()
+        {
+            while (!requests.empty())
+            {
+                writtenData << requests.front().data;
+                requests.front().callback();
+                requests.pop();
+            }
+        }
+
         void stop()
         {
             stopCalledTimes++;
@@ -36,8 +55,10 @@ struct StreamingSessionFixture : public ::testing::TestWithParam<std::size_t>
         template<class CallbackType>
         void writeAsync(const void* data, const std::size_t size, CallbackType callback = [](auto, auto) {})
         {
-            writtenData << std::string{(const char*) data, size};
-            callback(std::error_code{}, size);
+            requests.push(WriteAsyncRequest{"", [=, callback = std::move(callback)]
+            {
+                callback(std::error_code{}, size);
+            }});
         }
 
         void write(std::string str)
@@ -51,9 +72,10 @@ struct StreamingSessionFixture : public ::testing::TestWithParam<std::size_t>
             return size;
         }
 
-        unsigned int      stopCalledTimes{0};
-        unsigned int      stopCalledSequence{0};
-        std::stringstream writtenData;
+        std::atomic<unsigned int>     stopCalledTimes{0};
+        std::atomic<unsigned int>     stopCalledSequence;
+        std::queue<WriteAsyncRequest> requests;
+        std::stringstream             writtenData;
     };
 
     struct ContainerMock : public slim::ContainerBase
@@ -92,10 +114,10 @@ struct StreamingSessionFixture : public ::testing::TestWithParam<std::size_t>
             callback();
         }
 
-        unsigned int startCalledTimes{0};
-        unsigned int startCalledSequence{0};
-        unsigned int stopCalledTimes{0};
-        unsigned int stopCalledSequence{0};
+        std::atomic<unsigned int> startCalledTimes{0};
+        std::atomic<unsigned int> startCalledSequence;
+        std::atomic<unsigned int> stopCalledTimes{0};
+        std::atomic<unsigned int> stopCalledSequence;
     };
 
     using Processor            = conwrap2::Processor<std::unique_ptr<slim::ContainerBase>>;
@@ -151,6 +173,19 @@ struct StreamingSessionFixture : public ::testing::TestWithParam<std::size_t>
         };
     }
 
+    auto processAndWait(ofats::any_invocable<void()>&& handler)
+    {
+        auto p = std::promise<bool>{};
+        auto f = p.get_future();
+        processor.process([handler = std::move(handler), p = std::move(p)]() mutable
+        {
+            handler();
+            p.set_value(true);
+        });
+
+        return f.wait_for(std::chrono::milliseconds(10));
+    }
+
     std::unique_ptr<Processor> processorPtr{std::make_unique<Processor>([&](auto processorProxy)
     {
         return std::unique_ptr<slim::ContainerBase>
@@ -170,5 +205,5 @@ struct StreamingSessionFixture : public ::testing::TestWithParam<std::size_t>
     };
 
     // this counter is used to track invocation sequence
-    static unsigned int invocationsCounter;
+    static std::atomic<unsigned int> invocationsCounter;
 };
