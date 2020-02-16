@@ -20,6 +20,7 @@
 #include <memory>
 #include <ofats/invocable.h>
 
+#include "slim/Chunk.hpp"
 #include "slim/ContainerBase.hpp"
 #include "slim/EncoderBase.hpp"
 #include "slim/EncoderBuilder.hpp"
@@ -99,8 +100,17 @@ struct StreamingSessionFixture : public ::testing::TestWithParam<std::size_t>
         EncoderMock(unsigned int ch, unsigned int bs, unsigned int bv, unsigned int sr, std::string ex, std::string mm, EncodedCallbackType ec)
         : EncoderBase{ch, bs, bv, sr, ex, mm, ec} {}
 
-        virtual void encode(unsigned char* data, const std::size_t size) override {}
-        virtual bool isRunning() {return true;}
+        virtual void encode(unsigned char* data, const std::size_t size) override
+        {
+            encodeCalledTimes++;
+            encodeCalledSequence = ++invocationsCounter;
+        }
+
+        virtual bool isRunning()
+        {
+            return true;
+        }
+
         virtual void start()
         {
             startCalledTimes++;
@@ -114,12 +124,15 @@ struct StreamingSessionFixture : public ::testing::TestWithParam<std::size_t>
             callback();
         }
 
+        std::atomic<unsigned int> encodeCalledTimes{0};
+        std::atomic<unsigned int> encodeCalledSequence;
         std::atomic<unsigned int> startCalledTimes{0};
         std::atomic<unsigned int> startCalledSequence;
         std::atomic<unsigned int> stopCalledTimes{0};
         std::atomic<unsigned int> stopCalledSequence;
     };
 
+    using Chunk                = slim::Chunk;
     using Processor            = conwrap2::Processor<std::unique_ptr<slim::ContainerBase>>;
     using Connection           = ConnectionMock;
     using EncoderBuilder       = slim::EncoderBuilder;

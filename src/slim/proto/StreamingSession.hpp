@@ -58,6 +58,10 @@ namespace slim
 
 				~StreamingSession()
 				{
+					if (running)
+					{
+						LOG(ERROR) << LABELS{"proto"} << "HTTP session object is deleted while being in RUNNING state (id=" << this << ")";
+					}
 					LOG(DEBUG) << LABELS{"proto"} << "HTTP session object was deleted (id=" << this << ")";
 				}
 

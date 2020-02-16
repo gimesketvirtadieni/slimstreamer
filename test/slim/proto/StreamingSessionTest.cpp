@@ -14,19 +14,36 @@
 
 std::atomic<unsigned int> StreamingSessionFixture::invocationsCounter{0};
 
-TEST(StreamingSessionTest, consumeChunk1)
+TEST_F(StreamingSessionFixture, consumeChunk1)
 {
-    // TODO: work in progress
+    processor.process([&]
+    {
+        session.consumeChunk(Chunk{});
+
+        ASSERT_EQ(0, encoderPtr->encodeCalledTimes);
+        ASSERT_EQ(0, session.getFramesProvided());
+    });
+}
+
+TEST_F(StreamingSessionFixture, consumeChunk2)
+{
+    processor.process([&]
+    {
+        session.start();
+
+        auto chunk = Chunk{};
+
+        // TODO: work in progress
+        session.consumeChunk(chunk);
+
+        ASSERT_EQ(0, encoderPtr->encodeCalledTimes);
+        ASSERT_EQ(0, session.getFramesProvided());
+    });
 }
 
 TEST_F(StreamingSessionFixture, getConnection1)
 {
     ASSERT_EQ(&connection, &session.getConnection().get());
-}
-
-TEST(StreamingSessionTest, getFramesProvided1)
-{
-    // TODO: work in progress
 }
 
 TEST_F(StreamingSessionFixture, isRunning1)
@@ -110,6 +127,9 @@ TEST_F(StreamingSessionFixture, start1)
            << "Content-Type: audio/x-wave\r\n"
            << "\r\n";
         ASSERT_EQ(ss.str(), connection.writtenData.str());
+
+        // clean up
+        session.stop([] {});
     });
 }
 
