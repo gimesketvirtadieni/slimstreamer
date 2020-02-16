@@ -334,60 +334,49 @@ namespace slim
 
 				void onHTTPData(ConnectionType& connection, unsigned char* buffer, std::size_t receivedSize)
 				{
-					auto found = std::find_if(streamingSessions.begin(), streamingSessions.end(), [&](const auto& sessionPtr)
+					// fetching streaming session by connection
+					auto found = std::find_if(streamingSessions.begin(), streamingSessions.end(), [&](const auto& streamingSessionPtr)
 					{
-						return &sessionPtr->getConnection().get() == &connection;
+						return &streamingSessionPtr->getConnection().get() == &connection;
 					});
-					if (found != streamingSessions.end())
+					if (found == streamingSessions.end())
 					{
-						// processing request by a proper Streaming session mapped to this connection
-						(*found)->onRequest(buffer, receivedSize);
+						LOG(ERROR) << LABELS{"proto"} << "Could not find streaming session, closing connection";
+						connection.stop();
+						return;
 					}
-					else
+					auto* streamingSessionPtr = (*found).get();
+
+					// processing request by a proper Streaming session mapped to this connection
+					streamingSessionPtr->onRequest(buffer, receivedSize);
+
+					// saving streaming session reference in the relevant command session
+					ts::with(streamingSessionPtr->getClientID(), [&](const auto& clientID)
 					{
-						// this is the first request from a new session
-						auto clientID = StreamingSessionType::parseClientID(std::string{(char*)buffer, receivedSize});
-						if (!clientID.has_value())
+						LOG(INFO) << LABELS{"proto"} << "Client ID was parsed (ID=" << clientID << ")";
+
+						auto found = std::find_if(commandSessions.begin(), commandSessions.end(), [&](const auto& commandSessionPtr)
 						{
-							throw slim::Exception("Missing client ID in streaming session request");
-						}
-
-						LOG(INFO) << LABELS{"proto"} << "Client ID was parsed (clientID=" << clientID.value() << ")";
-
-						// setting encoder sampling rate
-						encoderBuilder.setSamplingRate(samplingRate);
-
-						// creating streaming session object
-						auto streamingSessionPtr{std::make_unique<StreamingSessionType>(getProcessorProxy(), std::ref(connection), encoderBuilder)};
-						streamingSessionPtr->setClientID(clientID.value());
-						streamingSessionPtr->start();
-
-						// saving HTTP session reference in the relevant SlimProto session
-						auto found = std::find_if(commandSessions.begin(), commandSessions.end(), [&](const auto& sessionPtr)
-						{
-							return sessionPtr->getClientID() == clientID.value();
+							return commandSessionPtr->getClientID() == clientID;
 						});
 						if (found != commandSessions.end())
 						{
 							(*found)->setStreamingSession(ts::optional_ref<StreamingSessionType>{*streamingSessionPtr});
-
-							// processing request by a proper Streaming session mapped to this connection
-							streamingSessionPtr->onRequest(buffer, receivedSize);
-
-							// saving streaming session
-							streamingSessions.push_back(std::move(streamingSessionPtr));
 						}
-						else
-						{
-							LOG(ERROR) << LABELS{"proto"} << "Could not correlate provided client ID with a valid SlimProto session";
-							connection.stop();
-						}
-					}
+					});
 				}
 
 				void onHTTPOpen(ConnectionType& connection)
 				{
 					LOG(DEBUG) << LABELS{"proto"} << "HTTP session open callback (connection=" << &connection << ")";
+
+					// preparing encoder builder
+					encoderBuilder.setSamplingRate(samplingRate);
+
+					// creating streaming session object and saving as a part of the streamer's state
+					auto streamingSessionPtr = std::make_unique<StreamingSessionType>(getProcessorProxy(), std::ref(connection), encoderBuilder);
+					streamingSessionPtr->start();
+					streamingSessions.push_back(std::move(streamingSessionPtr));
 				}
 
 				void onSlimProtoClose(ConnectionType& connection)

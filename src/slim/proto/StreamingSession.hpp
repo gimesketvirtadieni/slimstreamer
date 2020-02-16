@@ -120,39 +120,12 @@ namespace slim
 					return running;
 				}
 
-				inline void onRequest(unsigned char* data, std::size_t size)
+				inline void onRequest(const unsigned char* data, const std::size_t size)
 				{
-					if (running)
-					{
-						// TODO: make more strick validation
-						std::string get{"GET"};
-						std::string s{(char*)data, get.size()};
-						if (get.compare(s))
-						{
-							// stopping this session due an error
-							LOG(WARNING) << LABELS{"proto"} << "Wrong HTTP method provided";
-							stop([] {});
-						}
-					}
-				}
+					LOG(INFO) << LABELS{"proto"} << "Got HTTP request from client: " << std::string{(const char*)data, size};
 
-				static auto parseClientID(std::string header)
-				{
-					auto result{ts::optional<std::string>{ts::nullopt}};
-					auto separator{std::string{"="}};
-					auto index{header.find(separator)};
-
-					if (index != std::string::npos)
-					{
-						result = std::string{header.c_str() + index + separator.length(), header.length() - index - separator.length()};
-					}
-
-					return result;
-				}
-
-				inline void setClientID(ts::optional<std::string> c)
-				{
-					clientID = c;
+					// TODO: consider case when request is sent in several chunks
+					clientID = parseClientID(std::string{(char*)data, size});
 				}
 
 				inline void start()
@@ -238,10 +211,24 @@ namespace slim
 				void flush(CallbackType callback)
 				{
 					// submitting an 'empty' chunk with provided callback which will be notified when transfer queue is empty
-					submitData(TransferDataChunk{PooledBufferType{0, 0}, 0, 0, std::move([&, callback = std::move(callback)]() mutable
+					submitData(TransferDataChunk{PooledBufferType{0, 0}, 0, 0, std::move([callback = std::move(callback)]() mutable
 					{
 						callback();
 					})});
+				}
+
+				inline auto parseClientID(std::string header)
+				{
+					auto result{ts::optional<std::string>{ts::nullopt}};
+					auto separator{std::string{"="}};
+					auto index{header.find(separator)};
+
+					if (index != std::string::npos)
+					{
+						result = std::string{header.c_str() + index + separator.length(), header.length() - index - separator.length()};
+					}
+
+					return result;
 				}
 
 				inline void submitData(TransferDataChunk&& transferDataChunk)

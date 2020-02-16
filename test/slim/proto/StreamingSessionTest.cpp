@@ -19,16 +19,6 @@ TEST(StreamingSessionTest, consumeChunk1)
     // TODO: work in progress
 }
 
-TEST_F(StreamingSessionFixture, getClientID1)
-{
-    ASSERT_EQ(type_safe::optional<std::string>{}, session.getClientID());
-
-    auto id = std::string{"123"};
-    session.setClientID(id);
-
-    ASSERT_EQ(id, session.getClientID());
-}
-
 TEST_F(StreamingSessionFixture, getConnection1)
 {
     ASSERT_EQ(&connection, &session.getConnection().get());
@@ -55,41 +45,54 @@ TEST_F(StreamingSessionFixture, isRunning1)
     });
 }
 
-TEST(StreamingSessionTest, onRequest1)
+TEST_F(StreamingSessionFixture, onRequest1)
 {
-    // TODO: work in progress
+    processor.process([&]
+    {
+        auto str = std::string{""};
+        session.onRequest((const unsigned char*)str.c_str(), str.length());
+
+        ASSERT_FALSE(session.getClientID().has_value());
+    });
 }
 
-TEST_F(StreamingSessionFixture, parseClientID1)
+TEST_F(StreamingSessionFixture, onRequest2)
 {
-    auto str = "";
-    auto clientID = StreamingSessionFixture::StreamingSessionTest::parseClientID(str);
+    processor.process([&]
+    {
+        auto str = std::string{"123"};
+        session.onRequest((const unsigned char*)str.c_str(), str.length());
 
-    ASSERT_FALSE(clientID.has_value());
+        ASSERT_FALSE(session.getClientID().has_value());
+    });
 }
 
-TEST_F(StreamingSessionFixture, parseClientID2)
+TEST_F(StreamingSessionFixture, onRequest3)
 {
-    auto str = "123";
-    auto clientID = StreamingSessionFixture::StreamingSessionTest::parseClientID(str);
+    processor.process([&]
+    {
+        auto id  = std::string{"123"};
+        auto str = std::string{"aaa="} + id;
 
-    ASSERT_FALSE(clientID.has_value());
+        session.onRequest((const unsigned char*)str.c_str(), str.length());
+
+        ASSERT_TRUE(session.getClientID().has_value());
+        ASSERT_EQ(id, session.getClientID().value());
+    });
 }
 
-TEST_F(StreamingSessionFixture, parseClientID3)
+TEST_F(StreamingSessionFixture, onRequest4)
 {
-    auto str = "123";
-    auto clientID = StreamingSessionFixture::StreamingSessionTest::parseClientID(std::string{"123="} + str);
+    processor.process([&]
+    {
+        auto id  = std::string{"123=123"};
+        auto str = std::string{"aaa="} + id;
 
-    ASSERT_EQ(str, clientID.value_or("456"));
-}
+        session.onRequest((const unsigned char*)str.c_str(), str.length());
 
-TEST_F(StreamingSessionFixture, parseClientID4)
-{
-    auto str = "123=123";
-    auto clientID = StreamingSessionFixture::StreamingSessionTest::parseClientID(std::string{"123="} + str);
-
-    ASSERT_EQ(str, clientID.value_or("456"));
+        ASSERT_TRUE(session.getClientID().has_value());
+        ASSERT_EQ(id, session.getClientID().value());
+    });
 }
 
 TEST_F(StreamingSessionFixture, start1)
